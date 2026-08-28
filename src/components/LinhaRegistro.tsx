@@ -1,28 +1,20 @@
-import type { RegistroSped } from "@/types/sped";
+import type { RegraAgrupada } from "@/lib/agrupar";
 import { BotaoCopiar } from "./BotaoCopiar";
+import { SelosNcm } from "./SelosNcm";
 import { Vigencia } from "./Vigencia";
 
 interface LinhaRegistroProps {
-  registro: RegistroSped;
+  regra: RegraAgrupada;
 }
 
-/** Uma regra tributária na tabela de resultados. */
-export function LinhaRegistro({ registro }: LinhaRegistroProps) {
-  const { ncm, descricao, cst, aliquota, natureza_receita, data_inicio, data_fim } = registro;
+/** Uma regra tributária na tabela de resultados, com todos os seus NCMs. */
+export function LinhaRegistro({ regra }: LinhaRegistroProps) {
+  const { ncms, descricao, cst, aliquota, natureza_receita, data_inicio, data_fim } = regra;
 
   return (
-    <tr className="group/linha hover:bg-surface-hover transition-colors">
-      <td className="px-4 py-2.5 whitespace-nowrap">
-        {ncm ? (
-          <div className="flex items-center gap-1">
-            <span className="font-mono text-sm rounded bg-badge-ncm-bg px-1.5 py-0.5 text-badge-ncm-text">
-              {ncm}
-            </span>
-            <BotaoCopiar valor={ncm} rotulo={`Copiar NCM ${ncm}`} />
-          </div>
-        ) : (
-          <span className="text-text-tertiary">—</span>
-        )}
+    <tr className="group/linha hover:bg-surface-hover transition-colors align-top">
+      <td className="px-4 py-2.5 max-w-xs">
+        <SelosNcm ncms={ncms} />
       </td>
 
       <td className="px-4 py-2.5">

@@ -1,9 +1,9 @@
 import { SearchX } from "lucide-react";
-import type { RegistroSped } from "@/types/sped";
+import type { RegraAgrupada } from "@/lib/agrupar";
 import { LinhaRegistro } from "./LinhaRegistro";
 
 interface TabelaRegistrosProps {
-  registros: RegistroSped[];
+  regras: RegraAgrupada[];
   consulta: string;
 }
 
@@ -17,9 +17,9 @@ const COLUNAS = [
 ];
 
 /** Grade de resultados. Recebe apenas a fatia que deve ser exibida. */
-export function TabelaRegistros({ registros, consulta }: TabelaRegistrosProps) {
+export function TabelaRegistros({ regras, consulta }: TabelaRegistrosProps) {
   return (
-    <div className="bg-surface-card rounded-xl border border-border-subtle shadow-[var(--shadow-card)] overflow-hidden">
+    <div className="bg-surface-card rounded-xl border border-border-subtle shadow-(--shadow-card) overflow-hidden">
       <div className="overflow-x-auto">
         <table className="min-w-full text-left">
           <thead className="bg-surface-head">
@@ -36,15 +36,8 @@ export function TabelaRegistros({ registros, consulta }: TabelaRegistrosProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-border-subtle">
-            {registros.length > 0 ? (
-              registros.map((registro, indice) => (
-                <LinhaRegistro
-                  // NCM + CST + natureza + vigência identificam a regra; o índice
-                  // desempata registros que compartilham todos esses campos.
-                  key={`${registro.ncm}-${registro.cst}-${registro.natureza_receita ?? ""}-${registro.data_inicio ?? ""}-${indice}`}
-                  registro={registro}
-                />
-              ))
+            {regras.length > 0 ? (
+              regras.map((regra) => <LinhaRegistro key={regra.chave} regra={regra} />)
             ) : (
               <tr>
                 <td colSpan={COLUNAS.length} className="px-6 py-16 text-center">

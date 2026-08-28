@@ -72,6 +72,8 @@ interface RegistroSped {
 
 Quando uma célula do documento cita vários NCMs ("0713.33.19, 0713.33.29 e 1106.20"), cada um vira um registro próprio, para que a busca por qualquer deles encontre a regra.
 
+Na tela esses registros voltam a aparecer como **uma linha só**, com os NCMs lado a lado — o agrupamento acontece depois da busca, então o índice continua enxergando cada NCM separadamente e nenhuma consulta deixa de encontrar o que encontrava. Regras que abrangem muitos NCMs mostram os seis primeiros e um "+N" que expande. Clicar num NCM copia aquele código.
+
 ## A consulta
 
 A tela abre no **CST 06** (alíquota zero), que é o que a equipe usa no dia a dia; um seletor troca para qualquer outro CST publicado, ou para todos.
@@ -127,7 +129,8 @@ src/types/sped.ts                 interface RegistroSped
 src/app/page.tsx                  tela principal
 src/hooks/useRegistrosSped.ts     carrega e valida o JSON
 src/hooks/useBuscaSped.ts         índice Fuse.js e consulta
-src/components/                   busca, seletor de CST, tema, tabela, linha, copiar, vigência
+src/components/                   busca, seletor de CST, tema, tabela, linha, selos de NCM, vigência
+src/lib/agrupar.ts                junta numa linha os registros que são a mesma regra
 src/hooks/useTema.ts              preferência de tema (claro/escuro/sistema)
 src/hooks/useSincronizacao.ts     lê e formata o carimbo de atualização
 public/data/sync-meta.json        quando os dados mudaram pela última vez (gerado)

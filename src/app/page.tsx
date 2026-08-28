@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { FileSpreadsheet, RefreshCw } from "lucide-react";
+
+import { agruparRegras } from "@/lib/agrupar";
 
 import { useRegistrosSped } from "@/hooks/useRegistrosSped";
 import { useFiltroCst, CST_PADRAO, TODOS_CST } from "@/hooks/useFiltroCst";
@@ -27,9 +29,12 @@ export default function Home() {
   const [consulta, setConsulta] = useState("");
   const [visiveis, setVisiveis] = useState(PAGINA);
 
-  // Ordem do funil: CST + vigência mais recente → busca por NCM/descrição → página.
+  // Ordem do funil: CST + vigência mais recente → busca por NCM/descrição →
+  // agrupamento → página. O agrupamento vem DEPOIS da busca de propósito: o
+  // índice do Fuse continua indexando cada NCM separadamente.
   const { opcoes, regras } = useFiltroCst(registros, cst);
-  const resultados = useBuscaSped(regras, consulta);
+  const encontrados = useBuscaSped(regras, consulta);
+  const resultados = useMemo(() => agruparRegras(encontrados), [encontrados]);
 
   // Trocar o CST ou a busca recomeça a paginação do topo. Fazer isso nos
   // handlers, e não num efeito, evita o render em cascata (a lista chegaria a
@@ -49,7 +54,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-surface-page text-text-primary font-sans">
-      <header className="bg-surface-card border-b border-border-subtle sticky top-0 z-10 shadow-[var(--shadow-header)]">
+      <header className="bg-surface-card border-b border-border-subtle sticky top-0 z-10 shadow-(--shadow-header)">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between gap-4 py-4">
             <div className="flex items-center gap-3 min-w-0">
@@ -97,14 +102,14 @@ export default function Home() {
               )}
             </div>
 
-            <TabelaRegistros registros={exibidos} consulta={consulta} />
+            <TabelaRegistros regras={exibidos} consulta={consulta} />
 
             {restantes > 0 && (
               <div className="flex justify-center mt-6">
                 <button
                   type="button"
                   onClick={() => setVisiveis((atual) => atual + PAGINA)}
-                  className="px-5 py-2.5 text-sm font-medium text-accent bg-surface-card border border-border-subtle rounded-xl shadow-[var(--shadow-card)] hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-colors"
+                  className="px-5 py-2.5 text-sm font-medium text-accent bg-surface-card border border-border-subtle rounded-xl shadow-(--shadow-card) hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-colors"
                 >
                   Mostrar mais {Math.min(PAGINA, restantes)} de {restantes.toLocaleString("pt-BR")}
                 </button>
