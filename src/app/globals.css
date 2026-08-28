@@ -1,26 +1,138 @@
 @import "tailwindcss";
 
+/*
+ * Tema claro/escuro por atributo, não por prefers-color-scheme.
+ *
+ * O <html> carrega data-theme="light" | "dark", escrito antes da primeira
+ * pintura pelo script inline do layout. Assim a variante `dark:` do Tailwind
+ * responde à escolha do usuário — e, quando ele opta por "seguir o sistema", o
+ * próprio script resolve a preferência e grava o atributo correspondente.
+ */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/*
+ * Paleta em tokens semânticos: os componentes citam a função ("superfície de
+ * cartão", "texto secundário"), nunca a cor. Trocar de tema troca só os valores
+ * aqui embaixo.
+ *
+ * Todos os pares texto/fundo foram auditados contra a WCAG 2.1: texto normal
+ * acima de 4.5:1 e elementos de interface acima de 3:1, nos dois temas.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* superfícies */
+  --surface-page: #f1f4f8;
+  --surface-card: #ffffff;
+  --surface-head: #e8edf3;
+  --surface-hover: #eef3fb;
+
+  /* bordas */
+  --border-subtle: #dfe5ed;
+  --border-strong: #7f8b9b;
+
+  /* texto */
+  --text-primary: #10151c;
+  --text-secondary: #4a5769;
+  --text-tertiary: #5d6b80;
+
+  /* destaque: a identidade azul do produto */
+  --accent: #1a4f9c;
+  --accent-hover: #133c78;
+  --accent-soft: #e6eefb;
+  --accent-contrast: #ffffff;
+
+  /* estados */
+  --success: #0f6b45;
+  --success-soft: #e3f2ea;
+  --danger: #a4232a;
+  --danger-soft: #fdeced;
+
+  /* selos de código */
+  --badge-ncm-bg: #eaeef4;
+  --badge-ncm-text: #1c2430;
+  --badge-cst-bg: #e6eefb;
+  --badge-cst-text: #1a4f9c;
+
+  /* sombras discretas, coerentes com o tema claro */
+  --shadow-card: 0 1px 2px rgb(16 21 28 / 0.04), 0 1px 3px rgb(16 21 28 / 0.06);
+  --shadow-header: 0 1px 3px rgb(16 21 28 / 0.06);
 }
 
+[data-theme="dark"] {
+  --surface-page: #0d1219;
+  --surface-card: #151b24;
+  --surface-head: #1a212c;
+  --surface-hover: #1d2632;
+
+  --border-subtle: #252e3a;
+  --border-strong: #5f6d80;
+
+  --text-primary: #e8edf4;
+  --text-secondary: #a9b6c7;
+  --text-tertiary: #93a1b3;
+
+  --accent: #7cb0f8;
+  --accent-hover: #a0c7fb;
+  --accent-soft: #16273d;
+  --accent-contrast: #08111c;
+
+  --success: #4ec08e;
+  --success-soft: #102a20;
+  --danger: #f28a86;
+  --danger-soft: #2b1618;
+
+  --badge-ncm-bg: #222b37;
+  --badge-ncm-text: #dde5f0;
+  --badge-cst-bg: #16273d;
+  --badge-cst-text: #7cb0f8;
+
+  /* No escuro a sombra some contra o fundo; a separação vem da borda. */
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-header: 0 1px 3px rgb(0 0 0 / 0.4);
+}
+
+/* Expõe os tokens como utilitários do Tailwind (bg-surface-card, text-accent…). */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-surface-page: var(--surface-page);
+  --color-surface-card: var(--surface-card);
+  --color-surface-head: var(--surface-head);
+  --color-surface-hover: var(--surface-hover);
+
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-contrast: var(--accent-contrast);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  --color-badge-ncm-bg: var(--badge-ncm-bg);
+  --color-badge-ncm-text: var(--badge-ncm-text);
+  --color-badge-cst-bg: var(--badge-cst-bg);
+  --color-badge-cst-text: var(--badge-cst-text);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background: var(--surface-page);
+  color: var(--text-primary);
+  /* Tabular figures: alinha os dígitos de NCM, alíquota e datas em coluna. */
+  font-variant-numeric: tabular-nums;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* A troca de tema não deve animar cada elemento da tabela — só as superfícies. */
+@media (prefers-reduced-motion: no-preference) {
+  body {
+    transition: background-color 150ms ease, color 150ms ease;
+  }
 }

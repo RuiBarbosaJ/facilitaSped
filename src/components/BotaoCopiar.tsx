@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Copy, CheckCircle2 } from "lucide-react";
+import { Copy, Check } from "lucide-react";
 
 interface BotaoCopiarProps {
   valor: string;
@@ -38,12 +38,12 @@ export function BotaoCopiar({ valor, rotulo }: BotaoCopiarProps) {
       onClick={copiar}
       title={rotulo}
       aria-label={rotulo}
-      className="text-gray-400 hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded transition-colors"
+      className="p-1 rounded text-text-tertiary opacity-0 group-hover/linha:opacity-100 focus:opacity-100 hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-all"
     >
       {copiado ? (
-        <CheckCircle2 size={16} className="text-green-500" aria-hidden />
+        <Check size={14} className="text-success" aria-hidden />
       ) : (
-        <Copy size={16} aria-hidden />
+        <Copy size={14} aria-hidden />
       )}
     </button>
   );

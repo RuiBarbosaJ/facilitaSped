@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Search } from "lucide-react";
+import { FileSpreadsheet, RefreshCw } from "lucide-react";
 
 import { useRegistrosSped } from "@/hooks/useRegistrosSped";
 import { useFiltroCst, CST_PADRAO, TODOS_CST } from "@/hooks/useFiltroCst";
 import { useBuscaSped } from "@/hooks/useBuscaSped";
+import { useSincronizacao } from "@/hooks/useSincronizacao";
 import { CampoBusca } from "@/components/CampoBusca";
 import { SeletorCst } from "@/components/SeletorCst";
+import { BotaoTema } from "@/components/BotaoTema";
 import { TabelaRegistros } from "@/components/TabelaRegistros";
 import { Carregando, MensagemErro } from "@/components/EstadoConsulta";
 
@@ -20,6 +22,7 @@ const PAGINA = 50;
 
 export default function Home() {
   const { registros, carregando, erro } = useRegistrosSped();
+  const atualizadoEm = useSincronizacao();
   const [cst, setCst] = useState(CST_PADRAO);
   const [consulta, setConsulta] = useState("");
   const [visiveis, setVisiveis] = useState(PAGINA);
@@ -45,43 +48,54 @@ export default function Home() {
   const rotuloCst = cst === TODOS_CST ? "todos os CSTs" : `CST ${cst}`;
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 font-sans selection:bg-blue-100 selection:text-blue-900">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col lg:flex-row justify-between items-center gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                <span className="text-blue-600 bg-blue-50 p-2 rounded-lg">
-                  <Search size={24} aria-hidden />
-                </span>
-                Facilita Sped
-              </h1>
-              <p className="text-sm text-gray-500 mt-1">
-                Consulta rápida de NCMs, CST, alíquotas e vigência para o SPED EFD-Contribuições
-              </p>
+    <div className="min-h-screen bg-surface-page text-text-primary font-sans">
+      <header className="bg-surface-card border-b border-border-subtle sticky top-0 z-10 shadow-[var(--shadow-header)]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between gap-4 py-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="shrink-0 grid place-items-center size-10 rounded-xl bg-accent text-accent-contrast">
+                <FileSpreadsheet size={20} aria-hidden />
+              </span>
+              <div className="min-w-0">
+                <h1 className="text-lg font-semibold tracking-tight truncate">Facilita Sped</h1>
+                <p className="text-xs text-text-tertiary truncate">
+                  Tabelas do EFD-Contribuições · NCM, CST, alíquotas e vigência
+                </p>
+              </div>
             </div>
-            <div className="flex flex-col md:flex-row items-center gap-3 w-full lg:w-auto">
-              <SeletorCst valor={cst} opcoes={opcoes} onChange={aoTrocarCst} />
-              <CampoBusca valor={consulta} onChange={aoBuscar} />
-            </div>
+            <BotaoTema />
+          </div>
+
+          <div className="flex flex-col md:flex-row md:items-center gap-3 pb-4">
+            <SeletorCst valor={cst} opcoes={opcoes} onChange={aoTrocarCst} />
+            <CampoBusca valor={consulta} onChange={aoBuscar} />
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {carregando ? (
           <Carregando />
         ) : erro ? (
           <MensagemErro mensagem={erro} />
         ) : (
           <>
-            <p className="text-sm text-gray-500 mb-4" aria-live="polite">
-              {resultados.length.toLocaleString("pt-BR")}{" "}
-              {resultados.length === 1 ? "regra" : "regras"} — {rotuloCst} · vigência mais
-              recente
-              {consulta ? ` · busca por “${consulta}”` : ""}
-              {restantes > 0 ? ` — exibindo as primeiras ${exibidos.length}` : ""}
-            </p>
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-3">
+              <p className="text-sm text-text-secondary" aria-live="polite">
+                <strong className="font-semibold text-text-primary">
+                  {resultados.length.toLocaleString("pt-BR")}
+                </strong>{" "}
+                {resultados.length === 1 ? "regra" : "regras"} · {rotuloCst} · vigência mais recente
+                {consulta ? ` · busca por “${consulta}”` : ""}
+                {restantes > 0 ? ` — exibindo as primeiras ${exibidos.length}` : ""}
+              </p>
+              {atualizadoEm && (
+                <p className="text-xs text-text-tertiary flex items-center gap-1.5">
+                  <RefreshCw size={12} aria-hidden />
+                  Dados da Receita Federal atualizados em {atualizadoEm}
+                </p>
+              )}
+            </div>
 
             <TabelaRegistros registros={exibidos} consulta={consulta} />
 
@@ -90,7 +104,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => setVisiveis((atual) => atual + PAGINA)}
-                  className="px-5 py-2.5 text-sm font-medium text-blue-700 bg-white border border-blue-200 rounded-xl shadow-sm hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition-colors"
+                  className="px-5 py-2.5 text-sm font-medium text-accent bg-surface-card border border-border-subtle rounded-xl shadow-[var(--shadow-card)] hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-colors"
                 >
                   Mostrar mais {Math.min(PAGINA, restantes)} de {restantes.toLocaleString("pt-BR")}
                 </button>
@@ -100,11 +114,14 @@ export default function Home() {
         )}
       </main>
 
-      <footer className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-xs text-gray-400 flex flex-col sm:flex-row justify-between gap-1">
+      <footer className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 mt-2 border-t border-border-subtle text-xs text-text-tertiary flex flex-col sm:flex-row justify-between gap-1">
         <span>Fonte: Receita Federal — tabelas do SPED EFD-Contribuições, sincronizadas diariamente.</span>
         <span>
           Desenvolvido por Rui Barbosa ·{" "}
-          <a href="https://wa.me/5599991722391" className="hover:text-blue-600 transition-colors">
+          <a
+            href="https://wa.me/5599991722391"
+            className="hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded transition-colors"
+          >
             (99) 99172-2391
           </a>
         </span>

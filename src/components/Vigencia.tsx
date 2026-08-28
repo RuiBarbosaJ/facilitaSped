@@ -12,17 +12,19 @@ interface VigenciaProps {
  */
 export function Vigencia({ inicio, fim }: VigenciaProps) {
   if (!inicio && !fim) {
-    return <span className="text-gray-400">—</span>;
+    return <span className="text-text-tertiary">—</span>;
   }
 
   return (
-    <span className="whitespace-nowrap text-sm">
-      <span className="text-gray-700">{inicio || "—"}</span>
-      <span className="text-gray-400"> a </span>
+    <span className="whitespace-nowrap text-sm text-text-secondary">
+      {inicio || "—"}
+      <span className="text-text-tertiary"> a </span>
       {fim ? (
-        <span className="text-gray-700">{fim}</span>
+        fim
       ) : (
-        <span className="text-green-700 font-medium">vigente</span>
+        <span className="inline-flex items-center rounded-full bg-success-soft px-2 py-0.5 text-xs font-medium text-success">
+          vigente
+        </span>
       )}
     </span>
   );

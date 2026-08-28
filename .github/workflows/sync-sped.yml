@@ -55,7 +55,7 @@ jobs:
         run: |
           # --porcelain cobre tanto arquivo modificado quanto arquivo novo
           # (git diff --exit-code sozinho ignora arquivos ainda não rastreados).
-          if [ -z "$(git status --porcelain public/data/tabelas-sped.json)" ]; then
+          if [ -z "$(git status --porcelain public/data)" ]; then
             echo "has_changes=false" >> $GITHUB_OUTPUT
           else
             echo "has_changes=true" >> $GITHUB_OUTPUT
@@ -66,6 +66,6 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add public/data/tabelas-sped.json
+          git add public/data
           git commit -m "chore(data): atualiza tabelas SPED"
           git push

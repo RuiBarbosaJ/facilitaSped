@@ -80,6 +80,10 @@ Para cada código de natureza da receita, só a **vigência mais recente** é ex
 
 A busca filtra por **NCM ou descrição**; CST e natureza da receita aparecem na tabela, mas não são pesquisáveis.
 
+A tela mostra **quando os dados foram atualizados pela última vez**, no horário de Brasília. O carimbo vive em `public/data/sync-meta.json` e só é reescrito quando a Receita de fato publica algo novo — se ficasse dentro do arquivo de dados, o robô geraria um commit e um deploy por dia mesmo sem nenhuma mudança.
+
+A interface tem tema **claro, escuro ou "seguir o sistema"**. A escolha fica no navegador e é aplicada por um script inline antes da primeira pintura, então não há piscada de tema errado ao carregar. Todas as combinações de cor foram auditadas contra a WCAG 2.1 (texto acima de 4.5:1, elementos de interface acima de 3:1) nos dois temas.
+
 ## Stack
 
 - **Frontend:** Next.js 16 (App Router), React 19, Tailwind CSS 4, TypeScript estrito
@@ -123,7 +127,10 @@ src/types/sped.ts                 interface RegistroSped
 src/app/page.tsx                  tela principal
 src/hooks/useRegistrosSped.ts     carrega e valida o JSON
 src/hooks/useBuscaSped.ts         índice Fuse.js e consulta
-src/components/                   busca, tabela, linha, copiar, vigência, estados
+src/components/                   busca, seletor de CST, tema, tabela, linha, copiar, vigência
+src/hooks/useTema.ts              preferência de tema (claro/escuro/sistema)
+src/hooks/useSincronizacao.ts     lê e formata o carimbo de atualização
+public/data/sync-meta.json        quando os dados mudaram pela última vez (gerado)
 ```
 
 ## A automação em detalhe
@@ -133,7 +140,7 @@ O workflow [`sync-sped.yml`](.github/workflows/sync-sped.yml):
 1. Faz checkout e instala as dependências com Node 22.
 2. Restaura o Chrome do Puppeteer do cache do Actions (evita baixar ~170 MB a cada run).
 3. Executa `scripts/sync-tabelas.ts`.
-4. Se `public/data/tabelas-sped.json` mudou, faz commit como `github-actions[bot]` e push na `main`. Sem mudança, não há commit.
+4. Se algo em `public/data/` mudou, faz commit como `github-actions[bot]` e push na `main`. Sem mudança, não há commit — e o carimbo de atualização só é reescrito quando os dados mudam, então não há commit diário.
 
 Salvaguardas do robô:
 

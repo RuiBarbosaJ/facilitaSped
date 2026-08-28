@@ -10,9 +10,9 @@ interface CampoBuscaProps {
 /** Campo de busca do cabeçalho, filtrando por NCM ou descrição. */
 export function CampoBusca({ valor, onChange }: CampoBuscaProps) {
   return (
-    <div className="w-full md:w-96 relative group">
-      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 group-focus-within:text-blue-500 transition-colors">
-        <Search size={18} aria-hidden />
+    <div className="relative group flex-1">
+      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-text-tertiary group-focus-within:text-accent transition-colors">
+        <Search size={16} aria-hidden />
       </div>
       <input
         type="search"
@@ -20,7 +20,7 @@ export function CampoBusca({ valor, onChange }: CampoBuscaProps) {
         onChange={(evento) => onChange(evento.target.value)}
         placeholder="Busque por NCM ou descrição..."
         aria-label="Buscar por NCM ou descrição nas tabelas do SPED"
-        className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-all shadow-sm"
+        className="block w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-border-strong bg-surface-card text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
       />
     </div>
   );

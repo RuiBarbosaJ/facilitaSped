@@ -18,7 +18,7 @@ import puppeteer, { type Browser, type Page } from 'puppeteer';
 import AdmZip from 'adm-zip';
 import WordExtractor from 'word-extractor';
 
-import type { RegistroSped } from '../src/types/sped';
+import type { RegistroSped, SincronizacaoMeta } from '../src/types/sped';
 
 const PAGE_URL =
   'https://www.gov.br/sped/pt-br/assuntos/escrituracoes-digitais/efd-contribuicoes/tabelas-de-codigos/';
@@ -35,6 +35,7 @@ const SECOES_FALLBACK = [
 
 const OUTPUT_DIR = path.join(process.cwd(), 'public', 'data');
 const OUTPUT_FILE = path.join(OUTPUT_DIR, 'tabelas-sped.json');
+const META_FILE = path.join(OUTPUT_DIR, 'sync-meta.json');
 
 const NAV_TIMEOUT = 60_000;
 /** Recarregamentos de uma seção antes de recorrer à REST API. */
@@ -630,10 +631,19 @@ function ordenarRegistros(a: RegistroSped, b: RegistroSped): number {
 /** Fração da base anterior abaixo da qual a nova saída é considerada parcial. */
 const LIMITE_ENCOLHIMENTO = 0.8;
 
+/** Conteúdo de um arquivo, ou undefined se ele ainda não existe. */
+function lerArquivo(caminho: string): string | undefined {
+  try {
+    return fs.readFileSync(caminho, 'utf8');
+  } catch {
+    return undefined;
+  }
+}
+
 /** Quantos registros o JSON publicado hoje tem (0 se ainda não existe ou está corrompido). */
 function contarRegistrosAtuais(): number {
   try {
-    const atual: unknown = JSON.parse(fs.readFileSync(OUTPUT_FILE, 'utf8'));
+    const atual: unknown = JSON.parse(lerArquivo(OUTPUT_FILE) ?? '');
     return Array.isArray(atual) ? atual.length : 0;
   } catch {
     return 0;
@@ -736,8 +746,31 @@ async function syncTabelas(): Promise<void> {
       );
     }
 
-    fs.writeFileSync(OUTPUT_FILE, JSON.stringify(dados));
-    console.log(`\n${dados.length} registros únicos salvos em ${OUTPUT_FILE}`);
+    // O carimbo de tempo mora num arquivo à parte e só é reescrito quando os
+    // dados de fato mudam. Se ele fosse gravado a cada execução, o
+    // `git status` do workflow acusaria mudança todo dia e geraria um commit
+    // (e um deploy) diário sem nenhuma alteração real da Receita.
+    const conteudo = JSON.stringify(dados);
+    const semMudanca = conteudo === lerArquivo(OUTPUT_FILE);
+    // O carimbo também é criado quando ainda não existe: sem isso, uma base que
+    // ficasse meses sem alteração nunca ganharia data para mostrar na tela.
+    if (semMudanca && lerArquivo(META_FILE) !== undefined) {
+      console.log(`\nNenhuma mudança: as ${dados.length} regras seguem iguais às publicadas.`);
+      return;
+    }
+
+    if (!semMudanca) fs.writeFileSync(OUTPUT_FILE, conteudo);
+    const meta: SincronizacaoMeta = {
+      atualizado_em: new Date().toISOString(),
+      registros: dados.length,
+    };
+    fs.writeFileSync(META_FILE, `${JSON.stringify(meta, null, 2)}\n`);
+    if (semMudanca) {
+      console.log(`\nRegras inalteradas (${dados.length}); carimbo de atualização criado.`);
+    } else {
+      console.log(`\n${dados.length} registros únicos salvos em ${OUTPUT_FILE}`);
+    }
+    console.log(`Carimbo gravado em ${META_FILE}`);
   } catch (erro) {
     console.error('Erro durante a sincronização:', erro);
     process.exitCode = 1;

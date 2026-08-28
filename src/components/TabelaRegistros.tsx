@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { SearchX } from "lucide-react";
 import type { RegistroSped } from "@/types/sped";
 import { LinhaRegistro } from "./LinhaRegistro";
 
@@ -7,28 +7,35 @@ interface TabelaRegistrosProps {
   consulta: string;
 }
 
-const COLUNAS = ["NCM", "Descrição", "CST", "Alíquota", "Nat. Receita", "Vigência"];
+const COLUNAS = [
+  { rotulo: "NCM", alinhamento: "text-left" },
+  { rotulo: "Descrição", alinhamento: "text-left" },
+  { rotulo: "CST", alinhamento: "text-left" },
+  { rotulo: "Alíquota", alinhamento: "text-right" },
+  { rotulo: "Nat. receita", alinhamento: "text-left" },
+  { rotulo: "Vigência", alinhamento: "text-left" },
+];
 
 /** Grade de resultados. Recebe apenas a fatia que deve ser exibida. */
 export function TabelaRegistros({ registros, consulta }: TabelaRegistrosProps) {
   return (
-    <div className="bg-white shadow-sm rounded-xl border border-gray-200 overflow-hidden">
+    <div className="bg-surface-card rounded-xl border border-border-subtle shadow-[var(--shadow-card)] overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 text-left">
-          <thead className="bg-gray-50">
+        <table className="min-w-full text-left">
+          <thead className="bg-surface-head">
             <tr>
-              {COLUNAS.map((coluna) => (
+              {COLUNAS.map(({ rotulo, alinhamento }) => (
                 <th
-                  key={coluna}
+                  key={rotulo}
                   scope="col"
-                  className="px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap"
+                  className={`px-4 py-2.5 text-xs font-semibold text-text-tertiary uppercase tracking-wider whitespace-nowrap ${alinhamento}`}
                 >
-                  {coluna}
+                  {rotulo}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-100">
+          <tbody className="divide-y divide-border-subtle">
             {registros.length > 0 ? (
               registros.map((registro, indice) => (
                 <LinhaRegistro
@@ -40,13 +47,15 @@ export function TabelaRegistros({ registros, consulta }: TabelaRegistrosProps) {
               ))
             ) : (
               <tr>
-                <td colSpan={COLUNAS.length} className="px-6 py-12 text-center text-gray-500">
-                  <Search className="mx-auto h-8 w-8 text-gray-300 mb-3" aria-hidden />
-                  <p className="text-lg">
-                    Nenhum resultado encontrado
-                    {consulta ? ` para “${consulta}”` : ""}
+                <td colSpan={COLUNAS.length} className="px-6 py-16 text-center">
+                  <SearchX className="mx-auto h-8 w-8 text-text-tertiary mb-3" aria-hidden />
+                  <p className="text-text-secondary">
+                    Nenhum resultado
+                    {consulta ? ` para “${consulta}”` : " para este filtro"}
                   </p>
-                  <p className="text-sm mt-1">Tente buscar por outro termo.</p>
+                  <p className="text-sm text-text-tertiary mt-1">
+                    Tente outro termo ou troque o CST.
+                  </p>
                 </td>
               </tr>
             )}
