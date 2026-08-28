@@ -17,3 +17,21 @@ export interface SincronizacaoMeta {
   /** Quantas regras o arquivo tinha nessa sincronização. */
   registros: number;
 }
+
+/** Um código da Nomenclatura Comum do Mercosul, como publicado pelo Siscomex. */
+export interface NcmOficial {
+  /** 8 dígitos, sem pontos. */
+  ncm: string;
+  descricao: string;
+  /** Início de vigência, em ISO (AAAA-MM-DD). */
+  inicio: string;
+  /** Fim de vigência em ISO; ausente quando o código segue vigente. */
+  fim?: string;
+}
+
+/** Tabela NCM completa, usada para saber se um código existe ou foi revogado. */
+export interface TabelaNcm {
+  /** Ato normativo que publicou esta versão da nomenclatura. */
+  fonte: string;
+  codigos: NcmOficial[];
+}

@@ -53,6 +53,8 @@ O portal publica as tabelas como documentos do Word (`.doc`/`.docx`) e algumas p
 | 5.1.2 | Códigos de detalhamento da CPRB | ❌ só código + descrição |
 | CFOP, Dacon, 5.1.1 | Planilhas `.xls` | ❌ sem colunas de NCM/CST |
 
+Quando a coluna NCM da tabela está vazia, o robô lê os códigos citados na própria descrição da regra ("classificados na posição 38.08", "Capítulo 31, exceto…"), considerando só o trecho antes de "exceto". Capítulos viram códigos de 2 dígitos.
+
 O script lista, a cada execução, cada arquivo que ficou de fora e o motivo.
 
 Cada registro segue a interface [`RegistroSped`](src/types/sped.ts):
@@ -86,10 +88,27 @@ A tela mostra **quando os dados foram atualizados pela última vez**, no horári
 
 A interface tem tema **claro, escuro ou "seguir o sistema"**. A escolha fica no navegador e é aplicada por um script inline antes da primeira pintura, então não há piscada de tema errado ao carregar. Todas as combinações de cor foram auditadas contra a WCAG 2.1 (texto acima de 4.5:1, elementos de interface acima de 3:1) nos dois temas.
 
+## Auditoria de planilhas (Alterdata)
+
+A página `/auditoria` recebe, por arrastar e soltar, o relatório padrão de NCM exportado do Alterdata (`.xls` ou `.xlsx`, colunas `Nome Produto`, `Classificação`, `Natureza da Receita de PIS`, `CST PIS` e `CST COFINS`) e cruza cada linha com duas bases, inteiramente no navegador:
+
+- a **nomenclatura NCM completa** do Portal Único Siscomex (`public/data/ncm.json`, ~10,5 mil códigos de 8 dígitos com vigência), para dizer se o código existe ou foi revogado;
+- as **tabelas 4.3.x do SPED**, para dizer se o NCM tem benefício (alíquota zero, monofásico, substituição tributária, isenção, sem incidência, suspensão) e qual CST e natureza da receita a regra indica.
+
+Cada linha sai como **Alíquota zero / monofásico** (com a sugestão do SPED), **Tributado** (NCM válido sem benefício vigente — inclusive quando o benefício já encerrou, com a data) ou **NCM inválido**. Linhas vermelhas são NCMs inválidos; amarelas, divergências entre o que está preenchido e o que o SPED indica (CST fora do esperado, natureza diferente, ou CST de benefício num NCM sem benefício). O resultado exporta para `.xlsx` com todas as colunas originais mais a auditoria, e há um modelo em branco para download.
+
+Detalhes que fazem diferença na prática:
+
+- A coluna `Classificação` aceita `0709.60.00`, `07096000` ou o número `7096000` (o Excel derruba o zero à esquerda; ele é recomposto).
+- O cabeçalho pode estar em qualquer uma das primeiras 40 linhas — relatórios de ERP trazem título e período antes dele. Linhas vazias e de totais são ignoradas.
+- As regras do SPED citam posições de 4 a 8 dígitos e capítulos inteiros ("Capítulo 31"); um NCM casa com a regra mais específica cujo código seja prefixo dele. Regras com "exceto" na descrição geram um aviso para conferência manual — as exceções não são interpretadas automaticamente.
+- O `xlsx` (SheetJS) é carregado sob demanda, só nessa página, a partir do tarball oficial `cdn.sheetjs.com` — a versão do npm está parada em 0.18.5 com vulnerabilidades conhecidas.
+
 ## Stack
 
 - **Frontend:** Next.js 16 (App Router), React 19, Tailwind CSS 4, TypeScript estrito
 - **Busca:** Fuse.js no cliente
+- **Planilhas:** SheetJS (`xlsx` 0.20, tarball oficial), lido e escrito no navegador
 - **Robô de coleta:** Node.js, Puppeteer, word-extractor, adm-zip, `fs`/`readline`
 - **Automação:** GitHub Actions (cron diário)
 - **Hospedagem:** Vercel
@@ -131,6 +150,11 @@ src/hooks/useRegistrosSped.ts     carrega e valida o JSON
 src/hooks/useBuscaSped.ts         índice Fuse.js e consulta
 src/components/                   busca, seletor de CST, tema, tabela, linha, selos de NCM, vigência
 src/lib/agrupar.ts                junta numa linha os registros que são a mesma regra
+src/app/auditoria/page.tsx        auditoria de planilhas do Alterdata
+src/lib/auditoria.ts              leitura do leiaute, normalização e cruzamento com o SPED
+src/lib/planilha.ts               SheetJS sob demanda: ler .xls/.xlsx, gerar .xlsx
+src/components/auditoria/         instruções, zona de upload, resumo, tabela auditada
+public/data/ncm.json              nomenclatura NCM do Siscomex (gerado)
 src/hooks/useTema.ts              preferência de tema (claro/escuro/sistema)
 src/hooks/useSincronizacao.ts     lê e formata o carimbo de atualização
 public/data/sync-meta.json        quando os dados mudaram pela última vez (gerado)
@@ -142,7 +166,7 @@ O workflow [`sync-sped.yml`](.github/workflows/sync-sped.yml):
 
 1. Faz checkout e instala as dependências com Node 22.
 2. Restaura o Chrome do Puppeteer do cache do Actions (evita baixar ~170 MB a cada run).
-3. Executa `scripts/sync-tabelas.ts`.
+3. Executa `scripts/sync-tabelas.ts`, que também baixa a nomenclatura NCM do Siscomex (falha ali não derruba o run: a versão anterior fica).
 4. Se algo em `public/data/` mudou, faz commit como `github-actions[bot]` e push na `main`. Sem mudança, não há commit — e o carimbo de atualização só é reescrito quando os dados mudam, então não há commit diário.
 
 Salvaguardas do robô:

@@ -52,7 +52,7 @@ export function SelosNcm({ ncms }: SelosNcmProps) {
           aria-label={`Copiar NCM ${ncm}`}
           className="inline-flex items-center gap-1 font-mono text-sm rounded bg-badge-ncm-bg px-1.5 py-0.5 text-badge-ncm-text hover:bg-accent-soft hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-colors"
         >
-          {ncm}
+          {ncm.length === 2 ? `Cap. ${ncm}` : ncm}
           {copiado === ncm && <Check size={12} className="text-success" aria-hidden />}
         </button>
       ))}

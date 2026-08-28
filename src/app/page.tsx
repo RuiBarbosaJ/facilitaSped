@@ -1,19 +1,19 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FileSpreadsheet, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 import { agruparRegras } from "@/lib/agrupar";
-
 import { useRegistrosSped } from "@/hooks/useRegistrosSped";
 import { useFiltroCst, CST_PADRAO, TODOS_CST } from "@/hooks/useFiltroCst";
 import { useBuscaSped } from "@/hooks/useBuscaSped";
 import { useSincronizacao } from "@/hooks/useSincronizacao";
+import { Cabecalho } from "@/components/Cabecalho";
 import { CampoBusca } from "@/components/CampoBusca";
 import { SeletorCst } from "@/components/SeletorCst";
-import { BotaoTema } from "@/components/BotaoTema";
 import { TabelaRegistros } from "@/components/TabelaRegistros";
 import { Carregando, MensagemErro } from "@/components/EstadoConsulta";
+import { Rodape } from "@/components/Rodape";
 
 /**
  * Quantos registros entram na tela por vez. As tabelas do SPED passam de mil
@@ -54,29 +54,12 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-surface-page text-text-primary font-sans">
-      <header className="bg-surface-card border-b border-border-subtle sticky top-0 z-10 shadow-(--shadow-header)">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between gap-4 py-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <span className="shrink-0 grid place-items-center size-10 rounded-xl bg-accent text-accent-contrast">
-                <FileSpreadsheet size={20} aria-hidden />
-              </span>
-              <div className="min-w-0">
-                <h1 className="text-lg font-semibold tracking-tight truncate">Facilita Sped</h1>
-                <p className="text-xs text-text-tertiary truncate">
-                  Tabelas do EFD-Contribuições · NCM, CST, alíquotas e vigência
-                </p>
-              </div>
-            </div>
-            <BotaoTema />
-          </div>
-
-          <div className="flex flex-col md:flex-row md:items-center gap-3 pb-4">
-            <SeletorCst valor={cst} opcoes={opcoes} onChange={aoTrocarCst} />
-            <CampoBusca valor={consulta} onChange={aoBuscar} />
-          </div>
+      <Cabecalho>
+        <div className="flex flex-col md:flex-row md:items-center gap-3">
+          <SeletorCst valor={cst} opcoes={opcoes} onChange={aoTrocarCst} />
+          <CampoBusca valor={consulta} onChange={aoBuscar} />
         </div>
-      </header>
+      </Cabecalho>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {carregando ? (
@@ -119,18 +102,7 @@ export default function Home() {
         )}
       </main>
 
-      <footer className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 mt-2 border-t border-border-subtle text-xs text-text-tertiary flex flex-col sm:flex-row justify-between gap-1">
-        <span>Fonte: Receita Federal — tabelas do SPED EFD-Contribuições, sincronizadas diariamente.</span>
-        <span>
-          Desenvolvido por Rui Barbosa ·{" "}
-          <a
-            href="https://wa.me/5599991722391"
-            className="hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded transition-colors"
-          >
-            (99) 99172-2391
-          </a>
-        </span>
-      </footer>
+      <Rodape />
     </div>
   );
 }

@@ -18,7 +18,7 @@ import puppeteer, { type Browser, type Page } from 'puppeteer';
 import AdmZip from 'adm-zip';
 import WordExtractor from 'word-extractor';
 
-import type { RegistroSped, SincronizacaoMeta } from '../src/types/sped';
+import type { NcmOficial, RegistroSped, SincronizacaoMeta, TabelaNcm } from '../src/types/sped';
 
 const PAGE_URL =
   'https://www.gov.br/sped/pt-br/assuntos/escrituracoes-digitais/efd-contribuicoes/tabelas-de-codigos/';
@@ -36,6 +36,14 @@ const SECOES_FALLBACK = [
 const OUTPUT_DIR = path.join(process.cwd(), 'public', 'data');
 const OUTPUT_FILE = path.join(OUTPUT_DIR, 'tabelas-sped.json');
 const META_FILE = path.join(OUTPUT_DIR, 'sync-meta.json');
+const NCM_FILE = path.join(OUTPUT_DIR, 'ncm.json');
+
+/**
+ * Nomenclatura Comum do Mercosul completa, publicada pelo Portal Único Siscomex.
+ * As tabelas do SPED só listam NCMs beneficiados; para dizer se um código existe
+ * ou foi revogado a auditoria de planilhas precisa da nomenclatura inteira.
+ */
+const NCM_URL = 'https://portalunico.siscomex.gov.br/classif/api/publico/nomenclatura/download/json';
 
 const NAV_TIMEOUT = 60_000;
 /** Recarregamentos de uma seção antes de recorrer à REST API. */
@@ -455,7 +463,39 @@ function extrairNcms(celula: string): string[] {
       /\b(?:\d{2}\.\d{2}(?:\.\d{2}){0,2}|\d{4}\.\d{1,2}(?:\.\d{2})?|\d{6}|\d{8})\b/g
     ) || [];
   const normalizados = achados.map((n) => n.replace(/\./g, '')).filter((n) => n.length >= 4);
-  return Array.from(new Set(normalizados));
+  return Array.from(new Set([...extrairCapitulos(celula), ...normalizados]));
+}
+
+/**
+ * "Capítulo 31", "Capítulos 39, 40, 63 e 94", "capítulos 8 a 12" → códigos de
+ * 2 dígitos ("31", "08"..."12"). Um capítulo é o prefixo de todos os NCMs dele.
+ */
+function extrairCapitulos(texto: string): string[] {
+  const capitulos = new Set<string>();
+  for (const trecho of texto.matchAll(/cap[íi]tulos?\s+((?:\d{1,2}(?:\s*(?:,|e|a|ou)\s*)?)+)/gi)) {
+    const partes = trecho[1].match(/\d{1,2}|\ba\b/g) ?? [];
+    for (let i = 0; i < partes.length; i++) {
+      const anterior = partes[i - 1];
+      const proximo = partes[i + 1];
+      if (partes[i] === 'a' && anterior && proximo && anterior !== 'a' && proximo !== 'a') {
+        for (let n = Number(anterior) + 1; n < Number(proximo); n++) capitulos.add(String(n).padStart(2, '0'));
+      } else if (partes[i] !== 'a') {
+        capitulos.add(partes[i].padStart(2, '0'));
+      }
+    }
+  }
+  return Array.from(capitulos);
+}
+
+/**
+ * Quando a coluna NCM está vazia, a regra costuma citar os códigos na própria
+ * descrição ("Defensivos agropecuários classificados na posição 38.08",
+ * "Adubos ... classificados no Capítulo 31, exceto ..."). Só o trecho antes
+ * de "exceto"/"excluídos" conta: o que vem depois é exclusão, não inclusão.
+ */
+function extrairNcmsDaDescricao(descricao: string): string[] {
+  const inclusoes = descricao.split(/\bexceto\b|\bexclu[ií]d[ao]s?\b/i)[0] ?? '';
+  return extrairNcms(inclusoes);
 }
 
 /** Normaliza alíquotas do padrão brasileiro ("9,25") para o formato do JSON ("9.25"). */
@@ -590,13 +630,15 @@ function mapearRegistros(tabela: TabelaBruta): RegistroSped[] {
       tabela: numero,
     };
 
+    // Coluna NCM primeiro; se vazia, os códigos citados na descrição.
     const ncms = extrairNcms(campos.ncm);
-    if (ncms.length === 0) {
+    const ncmsFinais = ncms.length > 0 ? ncms : extrairNcmsDaDescricao(descricao);
+    if (ncmsFinais.length === 0) {
       // Sem NCM explícito o registro continua útil: é pesquisável por descrição.
       registros.push({ ncm: '', ...base });
     } else {
       // Uma célula pode listar vários NCMs; cada um vira um registro pesquisável.
-      for (const ncm of ncms) registros.push({ ncm, ...base });
+      for (const ncm of ncmsFinais) registros.push({ ncm, ...base });
     }
   }
 
@@ -647,6 +689,110 @@ function contarRegistrosAtuais(): number {
     return Array.isArray(atual) ? atual.length : 0;
   } catch {
     return 0;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* 4b. Tabela NCM oficial (Siscomex)                                          */
+/* -------------------------------------------------------------------------- */
+
+/** Forma de um item do JSON do Siscomex — só os campos que usamos. */
+interface ItemSiscomex {
+  Codigo: string;
+  Descricao: string;
+  Data_Inicio: string;
+  Data_Fim: string;
+}
+
+function ehItemSiscomex(valor: unknown): valor is ItemSiscomex {
+  if (typeof valor !== 'object' || valor === null) return false;
+  const item = valor as Record<string, unknown>;
+  return (
+    typeof item.Codigo === 'string' &&
+    typeof item.Descricao === 'string' &&
+    typeof item.Data_Inicio === 'string' &&
+    typeof item.Data_Fim === 'string'
+  );
+}
+
+/** "01/04/2022" → "2022-04-01". O Siscomex usa "31/12/9999" para "sem fim". */
+function isoDeDataBr(valor: string): string | undefined {
+  const partes = valor.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!partes) return undefined;
+  const [, dia, mes, ano] = partes;
+  if (ano === '9999') return undefined;
+  return `${ano}-${mes}-${dia}`;
+}
+
+/** As descrições vêm com tags e entidades HTML ("&lt;i&gt;", "&amp;"). */
+function limparHtml(texto: string): string {
+  return texto
+    .replace(/<[^>]+>/g, '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Baixa a nomenclatura completa e guarda só os códigos de 8 dígitos (o nível
+ * que aparece nas notas fiscais), ordenados, sem o carimbo de data que o
+ * Siscomex muda a cada download — assim o arquivo só muda quando a NCM muda.
+ *
+ * Nunca derruba a sincronização: se o portal falhar, a versão anterior fica.
+ */
+async function sincronizarNcm(): Promise<void> {
+  console.log('\nSincronizando a tabela NCM (Siscomex)...');
+  try {
+    const resposta = await fetch(NCM_URL, {
+      headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
+      redirect: 'follow',
+    });
+    if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
+
+    const corpo: unknown = await resposta.json();
+    const raiz = typeof corpo === 'object' && corpo !== null ? (corpo as Record<string, unknown>) : {};
+    const itens = Array.isArray(raiz.Nomenclaturas) ? raiz.Nomenclaturas : [];
+
+    const codigos: NcmOficial[] = itens
+      .filter(ehItemSiscomex)
+      .map((item) => ({
+        ncm: item.Codigo.replace(/\D/g, ''),
+        descricao: limparHtml(item.Descricao),
+        inicio: isoDeDataBr(item.Data_Inicio) ?? '1900-01-01',
+        fim: isoDeDataBr(item.Data_Fim),
+      }))
+      .filter((c) => c.ncm.length === 8)
+      .map((c) => (c.fim === undefined ? { ncm: c.ncm, descricao: c.descricao, inicio: c.inicio } : c))
+      .sort((a, b) => a.ncm.localeCompare(b.ncm) || a.inicio.localeCompare(b.inicio));
+
+    // A NCM tem cerca de dez mil códigos de 8 dígitos; bem menos que isso é
+    // resposta truncada ou página de erro, não uma nomenclatura nova.
+    if (codigos.length < 5000) {
+      throw new Error(`apenas ${codigos.length} códigos de 8 dígitos na resposta — descartada`);
+    }
+
+    const tabela: TabelaNcm = {
+      fonte: typeof raiz.Ato === 'string' ? raiz.Ato : 'Siscomex',
+      codigos,
+    };
+    const conteudo = JSON.stringify(tabela);
+    if (conteudo === lerArquivo(NCM_FILE)) {
+      console.log(`  Tabela NCM inalterada (${codigos.length} códigos, ${tabela.fonte}).`);
+      return;
+    }
+    fs.writeFileSync(NCM_FILE, conteudo);
+    console.log(`  ${codigos.length} códigos NCM salvos em ${NCM_FILE} (${tabela.fonte}).`);
+  } catch (erro) {
+    const existe = lerArquivo(NCM_FILE) !== undefined;
+    console.warn(
+      `  ! Tabela NCM não atualizada: ${(erro as Error).message}. ` +
+        (existe ? 'Mantida a versão anterior.' : 'Nenhuma versão anterior — a auditoria ficará sem checagem de NCM.')
+    );
   }
 }
 
@@ -756,21 +902,24 @@ async function syncTabelas(): Promise<void> {
     // ficasse meses sem alteração nunca ganharia data para mostrar na tela.
     if (semMudanca && lerArquivo(META_FILE) !== undefined) {
       console.log(`\nNenhuma mudança: as ${dados.length} regras seguem iguais às publicadas.`);
-      return;
+    } else {
+      if (!semMudanca) fs.writeFileSync(OUTPUT_FILE, conteudo);
+      const meta: SincronizacaoMeta = {
+        atualizado_em: new Date().toISOString(),
+        registros: dados.length,
+      };
+      fs.writeFileSync(META_FILE, `${JSON.stringify(meta, null, 2)}\n`);
+      if (semMudanca) {
+        console.log(`\nRegras inalteradas (${dados.length}); carimbo de atualização criado.`);
+      } else {
+        console.log(`\n${dados.length} registros únicos salvos em ${OUTPUT_FILE}`);
+      }
+      console.log(`Carimbo gravado em ${META_FILE}`);
     }
 
-    if (!semMudanca) fs.writeFileSync(OUTPUT_FILE, conteudo);
-    const meta: SincronizacaoMeta = {
-      atualizado_em: new Date().toISOString(),
-      registros: dados.length,
-    };
-    fs.writeFileSync(META_FILE, `${JSON.stringify(meta, null, 2)}\n`);
-    if (semMudanca) {
-      console.log(`\nRegras inalteradas (${dados.length}); carimbo de atualização criado.`);
-    } else {
-      console.log(`\n${dados.length} registros únicos salvos em ${OUTPUT_FILE}`);
-    }
-    console.log(`Carimbo gravado em ${META_FILE}`);
+    // A tabela NCM é independente das tabelas do SPED: falhar aqui não pode
+    // desfazer o trabalho acima, por isso ela trata os próprios erros.
+    await sincronizarNcm();
   } catch (erro) {
     console.error('Erro durante a sincronização:', erro);
     process.exitCode = 1;

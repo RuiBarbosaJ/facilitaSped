@@ -71,3 +71,15 @@ Tarefa 3: A Interface e Busca (Frontend Next.js)
     Previna erros comuns, como lidar com arquivos JSON grandes no Next.js (use chamadas assíncronas no componente cliente se necessário).
 
     Garanta tipagem rigorosa para evitar any ou unknown no TypeScript.
+
+Tarefa 4: Módulo de Auditoria de Planilhas (NCM Alterdata) — src/app/auditoria/page.tsx
+
+    Área de arrastar e soltar para auditar arquivos .xls/.xlsx exportados do Alterdata, cruzando-os com tabelas-sped.json e com a nomenclatura NCM do Siscomex (public/data/ncm.json, baixada pelo mesmo robô).
+
+    Card de instruções com as colunas obrigatórias (Nome Produto, Classificação, Natureza da Receita de PIS, CST PIS, CST COFINS) e botão "Baixar Modelo Padrão (.xlsx)" gerado com a biblioteca xlsx.
+
+    Validação: a primeira aba precisa ter as colunas Classificação e Nome Produto (o cabeçalho pode vir depois de linhas de título); caso contrário, banner "Layout não reconhecido. Certifique-se de exportar a planilha padrão com a coluna 'Classificação' e 'Nome Produto'."
+
+    Cruzamento: a Classificação é limpa (pontos removidos, zero à esquerda recomposto) e comparada por prefixo com as regras do SPED. Status: "Alíquota Zero / Monofásico" (sugere CST e natureza da receita), "Tributado" (NCM válido sem benefício vigente) ou "NCM Inválido" (revogado ou inexistente na NCM).
+
+    Resultados numa tabela responsiva: vermelho para NCM inválido, amarelo para divergência entre o CST/natureza preenchidos e o sugerido; botão "Exportar Planilha Auditada" (.xlsx).

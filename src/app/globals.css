@@ -50,6 +50,8 @@
   /* estados */
   --success: #0f6b45;
   --success-soft: #e3f2ea;
+  --warning: #7a4a00;
+  --warning-soft: #fdf3d7;
   --danger: #a4232a;
   --danger-soft: #fdeced;
 
@@ -86,6 +88,8 @@
 
   --success: #4ec08e;
   --success-soft: #102a20;
+  --warning: #f2c46b;
+  --warning-soft: #33260a;
   --danger: #f28a86;
   --danger-soft: #2b1618;
 
@@ -120,6 +124,8 @@
 
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
 
