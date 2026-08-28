@@ -7,7 +7,7 @@ interface CampoBuscaProps {
   onChange: (valor: string) => void;
 }
 
-/** Campo de busca do cabeçalho, filtrando por NCM, CST, descrição ou natureza. */
+/** Campo de busca do cabeçalho, filtrando por NCM ou descrição. */
 export function CampoBusca({ valor, onChange }: CampoBuscaProps) {
   return (
     <div className="w-full md:w-96 relative group">
@@ -18,8 +18,8 @@ export function CampoBusca({ valor, onChange }: CampoBuscaProps) {
         type="search"
         value={valor}
         onChange={(evento) => onChange(evento.target.value)}
-        placeholder="Busque por NCM, CST, descrição..."
-        aria-label="Buscar nas tabelas do SPED"
+        placeholder="Busque por NCM ou descrição..."
+        aria-label="Buscar por NCM ou descrição nas tabelas do SPED"
         className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-all shadow-sm"
       />
     </div>

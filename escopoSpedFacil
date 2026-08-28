@@ -1,6 +1,6 @@
 
 1. CONTEXTO E OBJETIVO
-Atue como um Engenheiro de Software Sênior especializado em TypeScript e Arquitetura Serverless. Seu objetivo é desenvolver o MVP de uma plataforma web interna para a equipe fiscal e contábil da Francal Distribuidora.
+Atue como um Engenheiro de Software Sênior especializado em TypeScript e Arquitetura Serverless. Seu objetivo é desenvolver o MVP de uma plataforma web interna para a equipe fiscal e contábil da Escal Contabilidade.
 O sistema substituirá planilhas pesadas do Excel (como as tabelas 4.3.3, 4.3.4 e 4.3.13 do SPED EFD-Contribuições). A aplicação deve automatizar a busca de NCMs, Códigos CST (PIS/COFINS), Alíquotas e Natureza da Receita, oferecendo filtros em tempo real e indicando a vigência das regras tributárias.
 A arquitetura tem custo zero, utilizando Static Data Fetching para evitar uso de banco de dados pago.
 
@@ -58,7 +58,7 @@ Tarefa 3: A Interface e Busca (Frontend Next.js)
 
     Crie a tela principal (src/app/page.tsx) com uma interface limpa, corporativa e responsiva (Tailwind).
 
-    Implemente um componente de busca inteligente usando Fuse.js que filtre pelo ncm, descricao, cst ou natureza_receita.
+    Implemente um componente de busca inteligente usando Fuse.js que filtre apenas pelo ncm e pela descricao (cst e natureza_receita são exibidos, mas não pesquisáveis).
 
     Os resultados devem ser renderizados em Cards ou em uma Table otimizada, exibindo um botão de "Copiar NCM" ou "Copiar CST" com feedback visual ao usuário.
 

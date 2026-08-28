@@ -5,18 +5,17 @@ import Fuse from "fuse.js";
 import type { RegistroSped } from "@/types/sped";
 
 /**
- * Pesos maiores nos códigos: quem digita "2710" quer o NCM, não uma descrição
- * que por acaso cite esse número.
+ * A busca cobre só NCM e descrição — CST e natureza da receita são exibidos,
+ * mas não pesquisáveis. Peso maior no NCM: quem digita "2710" quer o código,
+ * não uma descrição que por acaso cite esse número.
  */
 const OPCOES: import("fuse.js").IFuseOptions<RegistroSped> = {
   keys: [
     { name: "ncm", weight: 3 },
-    { name: "cst", weight: 2 },
-    { name: "natureza_receita", weight: 2 },
     { name: "descricao", weight: 1 },
   ],
   // 0.2 medido contra os dados reais: buscar "2710" devolve 47 resultados em vez
-  // dos 405 de um threshold 0.3, sem perder nenhuma busca por texto
+  // dos 401 de um threshold 0.3, sem perder nenhuma busca por texto
   // ("cerveja", "gasolina" e "farinha de trigo" retornam o mesmo conjunto).
   threshold: 0.2,
   // Sem isso o Fuse só pontua bem o que aparece no início do texto — ruim para

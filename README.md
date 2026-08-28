@@ -138,3 +138,9 @@ Salvaguardas do robô:
 - **Alíquota é só a de PIS.** As tabelas 4.3.10 e 4.3.17 trazem PIS e COFINS separados; a interface guarda um campo.
 - **Vigência sem normalização.** As datas são exibidas como publicadas (`01/2011`, `08/03/2013`), porque reescrevê-las arriscaria trocar dia e mês.
 - **Deploy automático na Vercel.** Em contas Hobby, a Vercel só dispara deploy para commits do dono da conta. Se o commit do `github-actions[bot]` não gerar deploy, a alternativa é acionar um [Deploy Hook](https://vercel.com/docs/deploy-hooks) da Vercel ao final do workflow.
+
+## Desenvolvedor
+
+**Rui Barbosa** — [(99) 99172-2391](https://wa.me/5599991722391)
+
+Projeto criado para a equipe fiscal e contábil da Escal Contabilidade.

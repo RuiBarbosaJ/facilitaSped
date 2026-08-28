@@ -85,6 +85,16 @@ export default function Home() {
           </>
         )}
       </main>
+
+      <footer className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-xs text-gray-400 flex flex-col sm:flex-row justify-between gap-1">
+        <span>Fonte: Receita Federal — tabelas do SPED EFD-Contribuições, sincronizadas diariamente.</span>
+        <span>
+          Desenvolvido por Rui Barbosa ·{" "}
+          <a href="https://wa.me/5599991722391" className="hover:text-blue-600 transition-colors">
+            (99) 99172-2391
+          </a>
+        </span>
+      </footer>
     </div>
   );
 }
