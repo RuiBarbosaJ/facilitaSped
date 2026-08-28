@@ -1,0 +1,71 @@
+name: Sync Sped Data
+
+on:
+  schedule:
+    # Diariamente às 06:00 UTC, antes do expediente comercial no Brasil.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+# Necessário para que o GITHUB_TOKEN possa fazer push do JSON atualizado.
+permissions:
+  contents: write
+
+# Evita que duas sincronizações concorram pelo mesmo branch.
+concurrency:
+  group: sync-sped
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          # O Puppeteer 25 exige Node >= 22.12.0.
+          node-version: '22'
+          cache: 'npm'
+
+      # O Chrome do Puppeteer tem ~170 MB; cacheá-lo evita rebaixar a cada run.
+      - name: Cache do navegador do Puppeteer
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/puppeteer
+          key: puppeteer-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      # O postinstall do Puppeteer já baixa o Chrome, mas quando o cache é
+      # restaurado o postinstall não roda. Este passo é idempotente e garante
+      # que o binário exista nos dois casos.
+      - name: Garantir o Chrome do Puppeteer
+        run: npx puppeteer browsers install chrome
+
+      - name: Run sync script
+        run: npx tsx scripts/sync-tabelas.ts
+
+      - name: Check for changes
+        id: git-diff
+        run: |
+          # --porcelain cobre tanto arquivo modificado quanto arquivo novo
+          # (git diff --exit-code sozinho ignora arquivos ainda não rastreados).
+          if [ -z "$(git status --porcelain public/data/tabelas-sped.json)" ]; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and push if changed
+        if: steps.git-diff.outputs.has_changes == 'true'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/data/tabelas-sped.json
+          git commit -m "chore(data): atualiza tabelas SPED"
+          git push

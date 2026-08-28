@@ -1,0 +1,71 @@
+
+1. CONTEXTO E OBJETIVO
+Atue como um Engenheiro de Software Sênior especializado em TypeScript e Arquitetura Serverless. Seu objetivo é desenvolver o MVP de uma plataforma web interna para a equipe fiscal e contábil da Francal Distribuidora.
+O sistema substituirá planilhas pesadas do Excel (como as tabelas 4.3.3, 4.3.4 e 4.3.13 do SPED EFD-Contribuições). A aplicação deve automatizar a busca de NCMs, Códigos CST (PIS/COFINS), Alíquotas e Natureza da Receita, oferecendo filtros em tempo real e indicando a vigência das regras tributárias.
+A arquitetura tem custo zero, utilizando Static Data Fetching para evitar uso de banco de dados pago.
+
+2. STACK TECNOLÓGICO
+
+    Frontend: Next.js (App Router), React, Tailwind CSS.
+
+    Linguagem (End-to-end): TypeScript estrito.
+
+    Busca no Cliente: Fuse.js (para pesquisa ultra-rápida no navegador).
+
+    Backend/Scripting: Node.js com Puppeteer (navegador headless, para descobrir as URLs no portal), fetch nativo (para download), word-extractor e adm-zip (para ler os arquivos publicados) e módulo nativo fs / readline (para streams).
+
+    CI/CD e Automação: GitHub Actions.
+
+    Hospedagem: Vercel (deploy automático a cada commit).
+
+3. ARQUITETURA DE DADOS E AUTOMAÇÃO (O ROBÔ)
+Não haverá banco de dados relacional. Os dados devem vir de um arquivo JSON estático que será atualizado de forma automatizada:
+
+    O Gatilho: Um cron job no GitHub Actions configurado para rodar diariamente às 06:00 UTC (0 6 * * *), garantindo que os dados estejam atualizados antes do expediente comercial.
+
+    A Coleta (Scraping/Download): Um script Node/TypeScript (scripts/sync-tabelas.ts) usará Puppeteer para abrir o portal do Governo (SpedTabelas / Receita Federal) e localizar os arquivos das tabelas (PIS/COFINS).
+
+    Por que Puppeteer e não axios: o portal gov.br é uma SPA (Plone 6 / Volto). O HTML entregue pelo servidor tem menos de 800 caracteres de texto e os links dos arquivos só existem depois que o JavaScript renderiza a página — axios + cheerio enxergavam apenas o esqueleto e não encontravam nenhum link.
+
+    O Parseamento: O portal não publica mais um pacote .txt/.zip — hoje cada tabela (4.3.3 a 4.3.18) é um arquivo .doc/.docx do Word, e algumas são planilhas .xls. O script converte cada documento em linhas e colunas com o word-extractor e estrutura o arquivo public/data/tabelas-sped.json limpo e minificado.
+
+    O caminho .zip/.txt (adm-zip + readline + delimitação por barras verticais |) segue implementado e tem prioridade na busca: se a Receita voltar a publicar o pacote consolidado, o robô passa a usá-lo automaticamente, sem alteração de código.
+
+    O Commit: O GitHub Actions fará um git diff. Se o arquivo JSON gerado for diferente do atual, fará o commit e enviará para a main, disparando o build na Vercel.
+
+4. ESCOPO DE ENTREGÁVEIS (ARQUIVOS SOLICITADOS)
+Gere o código completo, estruturado e com comentários explicativos para os seguintes arquivos:
+
+Tarefa 1: O Script de Extração (Node.js)
+
+    Crie o arquivo scripts/sync-tabelas.ts.
+
+    Use Puppeteer para descobrir as URLs e o fetch nativo para baixar os arquivos de forma robusta.
+
+    Trate o arquivo de texto, ignorando linhas mal formatadas ou separadores quebrados, e salve no formato JSON estipulado na interface RegistroSped.
+
+Tarefa 2: A Pipeline de CI/CD (GitHub Actions)
+
+    Crie o arquivo .github/workflows/sync-sped.yml.
+
+    Configure o cron para 0 6 * * *.
+
+    Inclua as etapas de checkout do código, instalação de dependências, execução do sync-tabelas.ts e configuração do git commit/push condicional.
+
+Tarefa 3: A Interface e Busca (Frontend Next.js)
+
+    Crie os tipos em src/types/sped.ts.
+
+    Crie a tela principal (src/app/page.tsx) com uma interface limpa, corporativa e responsiva (Tailwind).
+
+    Implemente um componente de busca inteligente usando Fuse.js que filtre pelo ncm, descricao, cst ou natureza_receita.
+
+    Os resultados devem ser renderizados em Cards ou em uma Table otimizada, exibindo um botão de "Copiar NCM" ou "Copiar CST" com feedback visual ao usuário.
+
+5. DIRETRIZES DE CÓDIGO
+
+    Escreva código limpo, componentizado e pronto para produção.
+
+    Previna erros comuns, como lidar com arquivos JSON grandes no Next.js (use chamadas assíncronas no componente cliente se necessário).
+
+    Garanta tipagem rigorosa para evitar any ou unknown no TypeScript.
