@@ -1,5 +1,4 @@
 import type { NcmOficial, RegistroSped } from "@/types/sped";
-import { apenasVigenciaMaisRecente } from "@/hooks/useFiltroCst";
 import { ordinalData } from "@/lib/datas";
 
 /* -------------------------------------------------------------------------- */
@@ -37,31 +36,35 @@ export function normalizarTexto(valor: unknown): string {
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .replace(/\s+/g, " ")
+    .replace(/:$/, "")
     .trim();
 }
 
 /** Nomes que cada coluna pode ter, já normalizados. O primeiro é o oficial. */
 const APELIDOS: Record<keyof MapaColunas, string[]> = {
-  nome: ["nome produto", "nome do produto", "produto", "descricao do produto", "descricao"],
-  classificacao: ["classificacao", "classificacao fiscal", "ncm", "codigo ncm"],
-  natureza: ["natureza da receita de pis", "natureza da receita", "natureza receita pis", "nat. receita", "nat receita"],
-  cstPis: ["cst pis", "cst pis/pasep", "cst do pis"],
-  cstCofins: ["cst cofins", "cst da cofins"],
+  nome: ["nome produto", "nome do produto", "produto", "descricao do produto", "descricao produto", "descricao"],
+  classificacao: ["classificacao", "classificacao fiscal", "ncm", "cod. ncm", "cod ncm", "codigo ncm", "ncm/sh"],
+  natureza: [
+    "natureza da receita de pis",
+    "natureza da receita",
+    "natureza receita pis",
+    "natureza receita",
+    "nat. receita",
+    "nat receita",
+  ],
+  cstPis: ["cst pis", "cst pis/pasep", "cst do pis", "cst pis saida"],
+  cstCofins: ["cst cofins", "cst da cofins", "cst cofins saida"],
 };
 
 /**
  * Acha a linha de cabeçalho. Relatórios de ERP costumam trazer título, nome da
- * empresa e período nas primeiras linhas, então a busca varre as primeiras
- * `limite` linhas em vez de assumir a primeira.
+ * empresa e período nas primeiras linhas, então a busca varre a planilha
+ * inteira em vez de assumir a primeira — o custo é desprezível.
  */
-export function localizarCabecalho(
-  linhas: unknown[][],
-  limite = 40
-): { indice: number; colunas: MapaColunas } | null {
-  for (let i = 0; i < Math.min(linhas.length, limite); i++) {
+export function localizarCabecalho(linhas: unknown[][]): { indice: number; colunas: MapaColunas } | null {
+  for (let i = 0; i < linhas.length; i++) {
     const celulas = (linhas[i] ?? []).map(normalizarTexto);
-    const achar = (chave: keyof MapaColunas) =>
-      celulas.findIndex((c) => APELIDOS[chave].includes(c));
+    const achar = (chave: keyof MapaColunas) => celulas.findIndex((c) => APELIDOS[chave].includes(c));
 
     const nome = achar("nome");
     const classificacao = achar("classificacao");
@@ -90,24 +93,47 @@ export function localizarCabecalho(
 /* -------------------------------------------------------------------------- */
 
 /**
- * "0709.60.00" → "07096000". Também recupera o zero à esquerda que o Excel
- * derruba quando a célula é numérica: 7096000 → "07096000". Devolve só os
- * dígitos; quem chama decide se o tamanho serve.
+ * Texto que é um número com fração ou notação científica ("1006302.1",
+ * "1.1E+07") — coisa que o Excel produz ao formatar células numéricas. Devolve
+ * o inteiro truncado, ou null quando o texto não é isso (um NCM pontuado como
+ * "0709.60.00" tem dois pontos e não entra aqui).
  */
-export function normalizarNcm(valor: unknown): string {
-  if (valor === null || valor === undefined) return "";
-  const digitos = String(typeof valor === "number" ? Math.trunc(valor) : valor).replace(/\D/g, "");
-  if (digitos.length === 7 || digitos.length === 6 && typeof valor === "number") {
-    return digitos.padStart(8, "0");
+function inteiroDeTextoNumerico(texto: string): number | null {
+  const t = texto.trim();
+  if (/^-?\d+[.,]\d+$/.test(t) && t.replace(/[.,]\d+$/, "").replace("-", "").length >= 5) {
+    return Math.trunc(Number(t.replace(",", ".")));
   }
-  return digitos;
+  if (/^-?\d+(?:[.,]\d+)?[eE][+-]?\d+$/.test(t)) {
+    return Math.trunc(Number(t.replace(",", ".")));
+  }
+  return null;
 }
 
-/** CST "6" → "06"; natureza 101 → "101". Vazio continua vazio. */
+function apenasDigitos(valor: unknown): string {
+  if (valor === null || valor === undefined || typeof valor === "boolean") return "";
+  if (typeof valor === "number") return Number.isFinite(valor) ? String(Math.abs(Math.trunc(valor))) : "";
+  const texto = String(valor);
+  const inteiro = inteiroDeTextoNumerico(texto);
+  if (inteiro !== null) return String(Math.abs(inteiro));
+  return texto.replace(/\D/g, "");
+}
+
+/**
+ * "0709.60.00" → "07096000". Também recupera o zero à esquerda que o Excel
+ * derruba quando a célula é numérica: 7096000 → "07096000". Devolve só os
+ * dígitos; quem chama decide se o tamanho serve. Só zeros conta como vazio.
+ */
+export function normalizarNcm(valor: unknown): string {
+  const digitos = apenasDigitos(valor);
+  if (!digitos || /^0+$/.test(digitos)) return "";
+  return digitos.length === 7 ? digitos.padStart(8, "0") : digitos;
+}
+
+/** CST "6" → "06"; natureza 101 → "101". Vazio ou só zeros continua vazio. */
 export function normalizarCodigo(valor: unknown, tamanho: number): string {
-  if (valor === null || valor === undefined) return "";
-  const digitos = String(typeof valor === "number" ? Math.trunc(valor) : valor).replace(/\D/g, "");
-  return digitos ? digitos.padStart(tamanho, "0") : "";
+  const digitos = apenasDigitos(valor);
+  if (!digitos || /^0+$/.test(digitos)) return "";
+  return digitos.padStart(tamanho, "0");
 }
 
 /* -------------------------------------------------------------------------- */
@@ -128,14 +154,15 @@ const BENEFICIOS: Record<string, { rotulo: string; csts: string[] }> = {
 /** CSTs que só fazem sentido para NCM listado numa tabela de benefício. */
 const CSTS_DE_BENEFICIO = new Set(["04", "05", "06", "07", "08", "09"]);
 
-export type Situacao = "beneficio" | "tributado" | "invalido";
+export type Situacao = "beneficio" | "possivel" | "tributado" | "invalido";
 export type Destaque = "nenhum" | "amarelo" | "vermelho";
 
 export interface RegraSugerida {
   tabela: string;
   rotulo: string;
   descricao: string;
-  natureza: string;
+  /** Todas as naturezas de receita vigentes que o SPED admite para este NCM. */
+  naturezas: string[];
   cstsAceitos: string[];
   ncmRegra: string;
   inicio?: string;
@@ -163,15 +190,15 @@ export interface LinhaAuditada {
 }
 
 /**
- * Índice de regras de benefício por prefixo de NCM. As tabelas do SPED citam
- * posições de 4, 5, 6 ou 8 dígitos; um NCM de 8 dígitos casa com qualquer regra
- * cujo código seja prefixo dele, e a mais específica vence.
+ * Índice de regras de benefício por NCM. As tabelas do SPED citam posições de
+ * 2 a 8 dígitos; um NCM de 8 dígitos casa com qualquer regra cujo código seja
+ * prefixo dele, e a mais específica vence. Todas as versões entram — quem
+ * decide o que vale hoje é a vigência, na hora do cruzamento.
  */
 export function indexarBase(base: RegistroSped[]): Map<string, RegistroSped[]> {
-  const vigentes = apenasVigenciaMaisRecente(base);
   const indice = new Map<string, RegistroSped[]>();
-  for (const r of vigentes) {
-    if (!r.ncm || !r.tabela || !(r.tabela in BENEFICIOS)) continue;
+  for (const r of base) {
+    if (!r.ncm || !r.natureza_receita || !r.tabela || !(r.tabela in BENEFICIOS)) continue;
     const lista = indice.get(r.ncm) ?? [];
     lista.push(r);
     indice.set(r.ncm, lista);
@@ -204,19 +231,56 @@ function hojeOrdinal(hoje: Date): number {
   return hoje.getFullYear() * 10000 + (hoje.getMonth() + 1) * 100 + hoje.getDate();
 }
 
-function melhorRegra(ncm: string, indice: Map<string, RegistroSped[]>): RegistroSped | undefined {
-  // Do código completo até o capítulo (2 dígitos): "Capítulo 31" cobre 31xxxxxx.
+const REGEX_EX_TARIFARIO = /\bEx\.?\s*\d{2}\b/i;
+
+/**
+ * Uma regra é "fraca" quando o código que a trouxe não define o produto: um
+ * capítulo inteiro citado na descrição ("classificadas nos Capítulos 39, 40,
+ * 63 e 94") ou uma regra restrita a um Ex tarifário. Ela sinaliza um possível
+ * benefício, mas não autoriza a auditoria a cobrar CST e natureza.
+ */
+function regraFraca(r: RegistroSped): boolean {
+  return (r.origem === "descricao" && r.ncm.length === 2) || REGEX_EX_TARIFARIO.test(r.descricao);
+}
+
+function situacaoDaRegra(r: RegistroSped, hoje: number): "vigente" | "encerrada" | "futura" {
+  if (r.data_inicio && ordinalData(r.data_inicio) > hoje) return "futura";
+  if (r.data_fim && fimDeVigenciaOrdinal(r.data_fim) < hoje) return "encerrada";
+  return "vigente";
+}
+
+/** Regra forte antes de fraca; alíquota zero antes das demais; depois a mais recente. */
+function ordenarRegras(a: RegistroSped, b: RegistroSped): number {
+  const fracaA = regraFraca(a);
+  const fracaB = regraFraca(b);
+  if (fracaA !== fracaB) return fracaA ? 1 : -1;
+  if ((a.tabela === "4.3.13") !== (b.tabela === "4.3.13")) return a.tabela === "4.3.13" ? -1 : 1;
+  return ordinalData(b.data_inicio) - ordinalData(a.data_inicio);
+}
+
+interface RegrasEncontradas {
+  /** Regras vigentes hoje no nível mais específico que tem alguma. */
+  vigentes: RegistroSped[];
+  /** A regra mais específica que já valeu ou ainda vai valer, quando nenhuma vale hoje. */
+  foraDeVigencia?: RegistroSped;
+}
+
+/**
+ * Do código completo até o capítulo (2 dígitos), pára no primeiro nível que
+ * tenha regra vigente. Uma regra encerrada mais específica não pode esconder
+ * uma vigente mais genérica: medicamentos (3004.90.99) tiveram alíquota zero
+ * até 2020, mas a regra monofásica da posição 3004 continua valendo.
+ */
+function encontrarRegras(ncm: string, indice: Map<string, RegistroSped[]>, hoje: number): RegrasEncontradas {
+  let foraDeVigencia: RegistroSped | undefined;
   for (let tamanho = 8; tamanho >= 2; tamanho--) {
     const candidatos = indice.get(ncm.slice(0, tamanho));
     if (!candidatos?.length) continue;
-    // Entre regras igualmente específicas, a de alíquota zero é a que a equipe
-    // mais usa; depois, a de vigência mais recente.
-    return [...candidatos].sort((a, b) => {
-      if ((a.tabela === "4.3.13") !== (b.tabela === "4.3.13")) return a.tabela === "4.3.13" ? -1 : 1;
-      return ordinalData(b.data_inicio) - ordinalData(a.data_inicio);
-    })[0];
+    const vigentes = candidatos.filter((c) => situacaoDaRegra(c, hoje) === "vigente").sort(ordenarRegras);
+    if (vigentes.length > 0) return { vigentes, foraDeVigencia };
+    foraDeVigencia ??= [...candidatos].sort(ordenarRegras)[0];
   }
-  return undefined;
+  return { vigentes: [], foraDeVigencia };
 }
 
 export interface LinhaPlanilha {
@@ -228,6 +292,8 @@ export interface LinhaPlanilha {
   cstCofins?: unknown;
 }
 
+const REGEX_RODAPE = /^(sub-?)?tota(l|is)\b|^grupo\b|^quantidade\b|^resumo\b|^qtde?\b/;
+
 /** Recorta as linhas de dados a partir do cabeçalho, ignorando vazias e totais. */
 export function extrairLinhas(
   linhas: unknown[][],
@@ -237,22 +303,22 @@ export function extrairLinhas(
   const saida: LinhaPlanilha[] = [];
   for (let i = indice + 1; i < linhas.length; i++) {
     const l = linhas[i] ?? [];
+    const pegar = (idx: number | undefined) => (idx === undefined ? undefined : l[idx]);
     const classificacao = l[colunas.classificacao];
     const nome = l[colunas.nome];
-    // Sem classificação, uma linha só é produto se tiver nome — e "Total" não
-    // é nome de produto, é o rodapé do relatório.
-    const nomeNormalizado = normalizarTexto(nome);
-    if (normalizarTexto(classificacao) === "" && (nomeNormalizado === "" || /^tota(l|is)\b/.test(nomeNormalizado))) {
-      continue;
+    const natureza = pegar(colunas.natureza);
+    const cstPis = pegar(colunas.cstPis);
+    const cstCofins = pegar(colunas.cstCofins);
+
+    if (normalizarTexto(classificacao) === "") {
+      // Sem classificação, uma linha só é produto se tiver nome e algum outro
+      // dado — "Total", "Subtotal", "Grupo: Bebidas" são rodapés do relatório.
+      const nomeNormalizado = normalizarTexto(nome);
+      const restoVazio = [natureza, cstPis, cstCofins].every((v) => normalizarTexto(v) === "");
+      if (nomeNormalizado === "" || REGEX_RODAPE.test(nomeNormalizado) || restoVazio) continue;
     }
-    saida.push({
-      linha: i + 1,
-      nome,
-      classificacao,
-      natureza: colunas.natureza !== undefined ? l[colunas.natureza] : undefined,
-      cstPis: colunas.cstPis !== undefined ? l[colunas.cstPis] : undefined,
-      cstCofins: colunas.cstCofins !== undefined ? l[colunas.cstCofins] : undefined,
-    });
+
+    saida.push({ linha: i + 1, nome, classificacao, natureza, cstPis, cstCofins });
   }
   return saida;
 }
@@ -262,6 +328,15 @@ export interface ContextoAuditoria {
   /** null quando a tabela oficial não pôde ser carregada. */
   ncm: Map<string, NcmOficial[]> | null;
   hoje: Date;
+}
+
+function formatarIso(iso: string): string {
+  const [ano, mes, dia] = iso.split("-");
+  return `${dia}/${mes}/${ano}`;
+}
+
+function listar(valores: string[]): string {
+  return valores.length <= 1 ? valores.join("") : `${valores.slice(0, -1).join(", ")} ou ${valores[valores.length - 1]}`;
 }
 
 /** Cruza uma linha da planilha com o SPED e a NCM oficial. */
@@ -286,9 +361,7 @@ export function auditarLinha(l: LinhaPlanilha, ctx: ContextoAuditoria): LinhaAud
 
   // 1. O código existe?
   if (ncm.length !== 8) {
-    observacoes.push(
-      ncm ? `NCM com ${ncm.length} dígitos; o código precisa ter 8.` : "Classificação em branco."
-    );
+    observacoes.push(ncm ? `NCM com ${ncm.length} dígitos; o código precisa ter 8.` : "Classificação em branco.");
     return { ...comum, situacao: "invalido", rotulo: "NCM inválido", destaque: "vermelho" };
   }
 
@@ -301,9 +374,7 @@ export function auditarLinha(l: LinhaPlanilha, ctx: ContextoAuditoria): LinhaAud
     if (!vigente) {
       const ultima = versoes[versoes.length - 1];
       observacoes.push(
-        ultima?.fim
-          ? `NCM revogado em ${formatarIso(ultima.fim)}.`
-          : "NCM não consta na nomenclatura vigente (Siscomex)."
+        ultima?.fim ? `NCM revogado em ${formatarIso(ultima.fim)}.` : "NCM não consta na nomenclatura vigente (Siscomex)."
       );
       return {
         ...comum,
@@ -316,39 +387,65 @@ export function auditarLinha(l: LinhaPlanilha, ctx: ContextoAuditoria): LinhaAud
     descricaoNcm = vigente.descricao;
   }
 
-  // 2. Tem benefício no SPED?
-  const regra = melhorRegra(ncm, ctx.base);
-  const beneficio = regra?.tabela ? BENEFICIOS[regra.tabela] : undefined;
-  const encerrada = regra?.data_fim ? fimDeVigenciaOrdinal(regra.data_fim) < hoje : false;
+  // 2. Tem benefício vigente no SPED?
+  const { vigentes, foraDeVigencia } = encontrarRegras(ncm, ctx.base, hoje);
+  const principal = vigentes[0];
+  const beneficio = principal?.tabela ? BENEFICIOS[principal.tabela] : undefined;
 
-  if (regra && beneficio && !encerrada) {
+  if (principal && beneficio) {
+    const irmas = vigentes.filter((r) => r.tabela === principal.tabela);
+    const naturezas = Array.from(new Set(irmas.map((r) => r.natureza_receita ?? "").filter(Boolean)));
     const sugerida: RegraSugerida = {
-      tabela: regra.tabela ?? "",
+      tabela: principal.tabela ?? "",
       rotulo: beneficio.rotulo,
-      descricao: regra.descricao,
-      natureza: regra.natureza_receita ?? "",
+      descricao: principal.descricao,
+      naturezas,
       cstsAceitos: beneficio.csts,
-      ncmRegra: regra.ncm,
-      inicio: regra.data_inicio,
-      fim: regra.data_fim,
+      ncmRegra: principal.ncm,
+      inicio: principal.data_inicio,
+      fim: principal.data_fim,
     };
-    const aceitos = beneficio.csts.join(" ou ");
+
+    if (principal.ncm.length === 2) {
+      observacoes.push(`A regra do SPED cita o capítulo ${principal.ncm} inteiro; confira se o produto é o descrito.`);
+    } else if (principal.ncm.length < 8) {
+      observacoes.push(`A regra do SPED cobre a posição ${principal.ncm}; confira a descrição.`);
+    }
+    if (principal.origem === "descricao" && principal.ncm.length > 2) {
+      observacoes.push("O NCM foi identificado pelos códigos citados no texto da regra — confira a descrição.");
+    }
+    if (REGEX_EX_TARIFARIO.test(principal.descricao)) {
+      observacoes.push("A regra vale só para o Ex tarifário citado — confira se o produto é esse.");
+    }
+    if (/\bexceto\b|\bexclu[ií]d|\bexcetuad|com exce[çc][ãa]o|\bsalvo\b/i.test(principal.descricao)) {
+      observacoes.push("A regra tem exceções na descrição — confira se o produto não está entre elas.");
+    }
+
+    // Regra fraca: aponta o benefício possível, mas não cobra CST nem natureza.
+    if (regraFraca(principal)) {
+      return {
+        ...comum,
+        situacao: "possivel",
+        rotulo: `Possível ${beneficio.rotulo.toLowerCase()}`,
+        regra: sugerida,
+        descricaoNcm,
+        destaque: "nenhum",
+      };
+    }
+
+    const aceitos = listar(beneficio.csts);
     if (!cstPis) observacoes.push(`CST PIS não informado; o SPED indica ${aceitos}.`);
-    else if (!beneficio.csts.includes(cstPis))
-      observacoes.push(`CST PIS ${cstPis} informado; o SPED indica ${aceitos}.`);
+    else if (!beneficio.csts.includes(cstPis)) observacoes.push(`CST PIS ${cstPis} informado; o SPED indica ${aceitos}.`);
     if (!cstCofins) observacoes.push(`CST COFINS não informado; o SPED indica ${aceitos}.`);
     else if (!beneficio.csts.includes(cstCofins))
       observacoes.push(`CST COFINS ${cstCofins} informado; o SPED indica ${aceitos}.`);
-    if (sugerida.natureza && natureza && natureza !== sugerida.natureza)
-      observacoes.push(`Natureza da receita ${natureza} informada; o SPED indica ${sugerida.natureza}.`);
-    else if (sugerida.natureza && !natureza)
-      observacoes.push(`Natureza da receita não informada; o SPED indica ${sugerida.natureza}.`);
-    if (regra.ncm.length === 2)
-      observacoes.push(`Regra do SPED cobre todo o capítulo ${regra.ncm}; confira a descrição.`);
-    else if (regra.ncm.length < 8)
-      observacoes.push(`Regra do SPED cobre a posição ${regra.ncm}; confira a descrição.`);
-    if (/\bexceto\b|\bexclu[ií]d/i.test(regra.descricao))
-      observacoes.push("A regra tem exceções na descrição — confira se o produto não está entre elas.");
+
+    if (naturezas.length > 0) {
+      const esperadas = listar(naturezas);
+      if (!natureza) observacoes.push(`Natureza da receita não informada; o SPED indica ${esperadas}.`);
+      else if (!naturezas.includes(natureza))
+        observacoes.push(`Natureza da receita ${natureza} informada; o SPED indica ${esperadas}.`);
+    }
 
     return {
       ...comum,
@@ -360,18 +457,24 @@ export function auditarLinha(l: LinhaPlanilha, ctx: ContextoAuditoria): LinhaAud
     };
   }
 
-  // 3. Tributado — com ou sem um benefício já encerrado.
-  if (regra && beneficio && encerrada) {
-    observacoes.push(
-      `${beneficio.rotulo} (tabela ${regra.tabela}) encerrado em ${regra.data_fim}; hoje o NCM é tributado.`
-    );
+  // 3. Tributado — talvez com um benefício que já acabou ou ainda não começou.
+  if (foraDeVigencia?.tabela && BENEFICIOS[foraDeVigencia.tabela]) {
+    const rotulo = BENEFICIOS[foraDeVigencia.tabela].rotulo;
+    if (situacaoDaRegra(foraDeVigencia, hoje) === "futura") {
+      observacoes.push(
+        `${rotulo} (tabela ${foraDeVigencia.tabela}) passa a valer em ${foraDeVigencia.data_inicio}; hoje o NCM é tributado.`
+      );
+    } else {
+      observacoes.push(
+        `${rotulo} (tabela ${foraDeVigencia.tabela}) encerrado em ${foraDeVigencia.data_fim}; hoje o NCM é tributado.`
+      );
+    }
   }
   if (cstPis && CSTS_DE_BENEFICIO.has(cstPis))
     observacoes.push(`CST PIS ${cstPis} informado, mas o NCM não consta nas tabelas de benefício do SPED.`);
   if (cstCofins && CSTS_DE_BENEFICIO.has(cstCofins))
     observacoes.push(`CST COFINS ${cstCofins} informado, mas o NCM não consta nas tabelas de benefício do SPED.`);
-  if (natureza)
-    observacoes.push(`Natureza da receita ${natureza} informada para NCM sem benefício no SPED.`);
+  if (natureza) observacoes.push(`Natureza da receita ${natureza} informada para NCM sem benefício no SPED.`);
 
   return {
     ...comum,
@@ -382,25 +485,23 @@ export function auditarLinha(l: LinhaPlanilha, ctx: ContextoAuditoria): LinhaAud
   };
 }
 
-function formatarIso(iso: string): string {
-  const [ano, mes, dia] = iso.split("-");
-  return `${dia}/${mes}/${ano}`;
-}
-
 export interface ResumoAuditoria {
   total: number;
   beneficio: number;
+  possivel: number;
   tributado: number;
   invalido: number;
   divergencias: number;
 }
 
 export function resumir(linhas: LinhaAuditada[]): ResumoAuditoria {
+  const contar = (s: Situacao) => linhas.filter((l) => l.situacao === s).length;
   return {
     total: linhas.length,
-    beneficio: linhas.filter((l) => l.situacao === "beneficio").length,
-    tributado: linhas.filter((l) => l.situacao === "tributado").length,
-    invalido: linhas.filter((l) => l.situacao === "invalido").length,
+    beneficio: contar("beneficio"),
+    possivel: contar("possivel"),
+    tributado: contar("tributado"),
+    invalido: contar("invalido"),
     divergencias: linhas.filter((l) => l.destaque === "amarelo").length,
   };
 }

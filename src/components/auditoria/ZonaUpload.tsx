@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState, type DragEvent, type ChangeEvent } from "react";
+import { useId, useRef, useState, type DragEvent, type ChangeEvent, type Ref } from "react";
 import { FileUp, Loader2, UploadCloud } from "lucide-react";
 
 interface ZonaUploadProps {
@@ -8,6 +8,8 @@ interface ZonaUploadProps {
   processando: boolean;
   desabilitada?: boolean;
   mensagemDesabilitada?: string;
+  /** Para devolver o foco à zona depois de "Nova auditoria". */
+  ref?: Ref<HTMLDivElement>;
 }
 
 const EXTENSOES = [".xls", ".xlsx"];
@@ -18,7 +20,7 @@ function ehPlanilha(arquivo: File): boolean {
 }
 
 /** Área de arrastar e soltar, que também funciona por clique e por teclado. */
-export function ZonaUpload({ onArquivo, processando, desabilitada, mensagemDesabilitada }: ZonaUploadProps) {
+export function ZonaUpload({ onArquivo, processando, desabilitada, mensagemDesabilitada, ref }: ZonaUploadProps) {
   const [arrastando, setArrastando] = useState(false);
   const [rejeitado, setRejeitado] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -44,6 +46,13 @@ export function ZonaUpload({ onArquivo, processando, desabilitada, mensagemDesab
     receber(evento.dataTransfer.files);
   }
 
+  function aoSairArrastando(evento: DragEvent<HTMLDivElement>) {
+    // Passar por cima do ícone ou do texto dispara dragleave no contêiner; só
+    // desliga o destaque quando o cursor sai da zona de verdade.
+    if (evento.currentTarget.contains(evento.relatedTarget as Node | null)) return;
+    setArrastando(false);
+  }
+
   function aoEscolher(evento: ChangeEvent<HTMLInputElement>) {
     receber(evento.target.files);
     // Permite reenviar o mesmo arquivo depois de uma nova auditoria.
@@ -53,6 +62,7 @@ export function ZonaUpload({ onArquivo, processando, desabilitada, mensagemDesab
   return (
     <div className="flex flex-col gap-3">
       <div
+        ref={ref}
         role="button"
         tabIndex={bloqueada ? -1 : 0}
         aria-disabled={bloqueada}
@@ -69,7 +79,7 @@ export function ZonaUpload({ onArquivo, processando, desabilitada, mensagemDesab
           e.preventDefault();
           if (!bloqueada) setArrastando(true);
         }}
-        onDragLeave={() => setArrastando(false)}
+        onDragLeave={aoSairArrastando}
         onDrop={aoSoltar}
         className={`group relative flex min-h-72 flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed p-8 text-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ${
           arrastando
@@ -102,9 +112,11 @@ export function ZonaUpload({ onArquivo, processando, desabilitada, mensagemDesab
           </p>
         </div>
 
+        {/* A zona (role=button) é o único ponto de tabulação; o input só recebe o clique programático. */}
         <input
           ref={inputRef}
           type="file"
+          tabIndex={-1}
           accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           className="sr-only"
           onChange={aoEscolher}

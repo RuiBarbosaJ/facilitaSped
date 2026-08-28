@@ -53,7 +53,7 @@ O portal publica as tabelas como documentos do Word (`.doc`/`.docx`) e algumas p
 | 5.1.2 | Códigos de detalhamento da CPRB | ❌ só código + descrição |
 | CFOP, Dacon, 5.1.1 | Planilhas `.xls` | ❌ sem colunas de NCM/CST |
 
-Quando a coluna NCM da tabela está vazia, o robô lê os códigos citados na própria descrição da regra ("classificados na posição 38.08", "Capítulo 31, exceto…"), considerando só o trecho antes de "exceto". Capítulos viram códigos de 2 dígitos.
+Quando a coluna NCM da tabela está vazia, o robô lê os códigos citados na própria descrição da regra ("classificados na posição 38.08", "Capítulo 31, exceto…") e marca esses registros com `origem: "descricao"`. O texto é cortado antes das exceções e antes de virar descrição de quem compra ou do que o produto vira depois — "Venda de máquinas da posição 84.39, utilizadas na fabricação de papéis destinados à impressão de jornais" é regra da **máquina**, não do papel. Faixas ("10.01 a 10.08") são expandidas e capítulos viram códigos de 2 dígitos.
 
 O script lista, a cada execução, cada arquivo que ficou de fora e o motivo.
 
@@ -95,12 +95,24 @@ A página `/auditoria` recebe, por arrastar e soltar, o relatório padrão de NC
 - a **nomenclatura NCM completa** do Portal Único Siscomex (`public/data/ncm.json`, ~10,5 mil códigos de 8 dígitos com vigência), para dizer se o código existe ou foi revogado;
 - as **tabelas 4.3.x do SPED**, para dizer se o NCM tem benefício (alíquota zero, monofásico, substituição tributária, isenção, sem incidência, suspensão) e qual CST e natureza da receita a regra indica.
 
-Cada linha sai como **Alíquota zero / monofásico** (com a sugestão do SPED), **Tributado** (NCM válido sem benefício vigente — inclusive quando o benefício já encerrou, com a data) ou **NCM inválido**. Linhas vermelhas são NCMs inválidos; amarelas, divergências entre o que está preenchido e o que o SPED indica (CST fora do esperado, natureza diferente, ou CST de benefício num NCM sem benefício). O resultado exporta para `.xlsx` com todas as colunas originais mais a auditoria, e há um modelo em branco para download.
+Cada linha sai como:
+
+| Situação | Quando | Cobra CST/natureza? |
+| --- | --- | --- |
+| **Alíquota zero / monofásico / …** | o NCM está numa tabela de benefício com regra vigente | sim — divergência vira linha amarela |
+| **Possível benefício — conferir** | a regra só cita o capítulo inteiro no texto, ou vale para um Ex tarifário | não; pede conferência manual |
+| **Tributado** | NCM válido sem benefício vigente (se o benefício acabou, a data aparece) | CST de benefício indevido vira amarelo |
+| **NCM inválido** | código inexistente, revogado ou fora do formato de 8 dígitos | linha vermelha |
+
+O resultado exporta para `.xlsx` com todas as colunas originais mais a auditoria, e há um modelo em branco para download.
+
+A busca da regra vai do código completo até o capítulo e **pára no primeiro nível que tenha regra vigente hoje** — uma regra específica já encerrada não pode esconder uma genérica em vigor. É o que faz medicamentos (`3004.90.99`) e óleo diesel (`2710.19.21`) aparecerem como monofásicos, e não como tributados: a alíquota zero deles acabou, mas a regra monofásica da posição continua valendo. Quando a mesma regra admite mais de uma natureza da receita, qualquer uma delas é aceita.
 
 Detalhes que fazem diferença na prática:
 
 - A coluna `Classificação` aceita `0709.60.00`, `07096000` ou o número `7096000` (o Excel derruba o zero à esquerda; ele é recomposto).
-- O cabeçalho pode estar em qualquer uma das primeiras 40 linhas — relatórios de ERP trazem título e período antes dele. Linhas vazias e de totais são ignoradas.
+- O cabeçalho é procurado na planilha inteira — relatórios de ERP trazem título e período antes dele. Linhas vazias, "Total", "Subtotal", "Grupo:" e "Quantidade" são ignoradas. Se a primeira aba não tiver o cabeçalho, as demais são tentadas.
+- CST e natureza preenchidos com `0` contam como não informados; um `.xls` que não seja mesmo Excel (CSV renomeado) é recusado com mensagem própria, assim como arquivo vazio ou protegido por senha.
 - As regras do SPED citam posições de 4 a 8 dígitos e capítulos inteiros ("Capítulo 31"); um NCM casa com a regra mais específica cujo código seja prefixo dele. Regras com "exceto" na descrição geram um aviso para conferência manual — as exceções não são interpretadas automaticamente.
 - O `xlsx` (SheetJS) é carregado sob demanda, só nessa página, a partir do tarball oficial `cdn.sheetjs.com` — a versão do npm está parada em 0.18.5 com vulnerabilidades conhecidas.
 

@@ -8,6 +8,12 @@ export interface RegistroSped {
   data_fim?: string;
   /** Tabela de origem no portal do SPED, ex.: "4.3.13". */
   tabela?: string;
+  /**
+   * "descricao" quando o NCM não veio da coluna própria, mas dos códigos citados
+   * no texto da regra. Um capítulo inteiro citado ali ("Almofadas antiescaras
+   * classificadas nos Capítulos 39, 40...") localiza o produto; não o define.
+   */
+  origem?: "descricao";
 }
 
 /** Carimbo da última sincronização bem-sucedida que trouxe dados novos. */

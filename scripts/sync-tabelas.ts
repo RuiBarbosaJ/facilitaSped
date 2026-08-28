@@ -451,19 +451,41 @@ function normalizarData(valor: string | undefined): string | undefined {
 /**
  * Extrai os NCMs de uma célula. O portal mistura formatos numa coluna só:
  * "1006.20", "02.01", "3002.30", "0713.33.19, 0713.33.29 e 1106.20",
- * "Capítulos 7 e 8" ou simplesmente "-".
+ * "90.21.3", "10.01 a 10.08", "Capítulos 7 e 8" ou simplesmente "-".
  */
 function extrairNcms(celula: string): string[] {
   if (!celula || celula === '-') return [];
+  // Datas ("01.05.2015", "a partir de 01042026") também são dígitos com pontos;
+  // saem antes para não virarem posições da TIPI.
+  const semDatas = celula
+    .replace(/\b\d{1,2}[./]\d{2}[./]\d{4}\b/g, ' ')
+    .replace(/\b(?:em|de|até|desde|a partir de)\s+\d{8}\b/gi, ' ');
+
   // Formatos aceitos: "02.01", "0206.2", "0206.10", "0206.10.00", "05.11.10.00",
-  // "1006.20", "27101259". Posições de 4 dígitos só contam com o ponto: um
-  // "2012" solto é quase sempre um ano, não a posição 20.12 da TIPI.
+  // "90.21.3", "1006.20", "27101259". Posições de 4 dígitos só contam com o
+  // ponto: um "2012" solto é quase sempre um ano, não a posição 20.12 da TIPI.
   const achados =
-    celula.match(
-      /\b(?:\d{2}\.\d{2}(?:\.\d{2}){0,2}|\d{4}\.\d{1,2}(?:\.\d{2})?|\d{6}|\d{8})\b/g
+    semDatas.match(
+      /\b(?:\d{2}\.\d{2}(?:\.\d{2}){0,2}(?:\.\d(?!\d))?|\d{4}\.\d{1,2}(?:\.\d{2})?|\d{6}|\d{8})\b/g
     ) || [];
   const normalizados = achados.map((n) => n.replace(/\./g, '')).filter((n) => n.length >= 4);
-  return Array.from(new Set([...extrairCapitulos(celula), ...normalizados]));
+
+  return Array.from(new Set([...extrairCapitulos(semDatas), ...normalizados, ...expandirFaixas(semDatas)]));
+}
+
+/**
+ * "10.01 a 10.08" cita todas as posições entre as duas; o texto não lista cada
+ * uma, mas o benefício vale para elas ("milho 10.05" está dentro da faixa).
+ */
+function expandirFaixas(texto: string): string[] {
+  const posicoes: string[] = [];
+  for (const faixa of texto.matchAll(/\b(\d{2})\.(\d{2})\s+a\s+(\d{2})\.(\d{2})\b/g)) {
+    const inicio = Number(faixa[1] + faixa[2]);
+    const fim = Number(faixa[3] + faixa[4]);
+    if (fim <= inicio || fim - inicio > 99) continue;
+    for (let n = inicio + 1; n < fim; n++) posicoes.push(String(n).padStart(4, '0'));
+  }
+  return posicoes;
 }
 
 /**
@@ -472,7 +494,7 @@ function extrairNcms(celula: string): string[] {
  */
 function extrairCapitulos(texto: string): string[] {
   const capitulos = new Set<string>();
-  for (const trecho of texto.matchAll(/cap[íi]tulos?\s+((?:\d{1,2}(?:\s*(?:,|e|a|ou)\s*)?)+)/gi)) {
+  for (const trecho of texto.matchAll(/cap[íi]tulos?\s+((?:\d{1,2}(?![\d.])(?:\s*(?:,|e|a|ou)\s*)?)+)/gi)) {
     const partes = trecho[1].match(/\d{1,2}|\ba\b/g) ?? [];
     for (let i = 0; i < partes.length; i++) {
       const anterior = partes[i - 1];
@@ -488,14 +510,33 @@ function extrairCapitulos(texto: string): string[] {
 }
 
 /**
+ * Descrições que não descrevem um produto vendido — valores recebidos,
+ * receitas de intermediação — não geram NCM algum.
+ */
+const REGEX_DESCRICAO_SEM_PRODUTO = /^(valores? recebid|receitas? .{0,40}intermedia)/i;
+
+/**
+ * Onde a descrição deixa de falar do produto e passa a falar de quem compra ou
+ * do que ele vira depois ("vendas a fabricante de veículos (NCM 8710.00.00)",
+ * "destinados à industrialização de..."). Códigos citados dali em diante são de
+ * outro produto e não podem virar regra deste.
+ */
+const REGEX_JUSANTE =
+  /\bpessoas?\s+jur[íi]dicas?\s+(?:que|habilitad|produtor|sediad)|\bfabricantes?\s+de\b|\bdestinad[oa]s?\s+(?:à|a|ao|para)\s+(?:industrializa|elabora|produ|fabrica|uso)|\butilizad[oa]s?\s+(?:na|no|em)\s+(?:industrializa|elabora|fabrica)|\bquando\s+(?:adquirid|efetuad|utilizad)|\badquirid[oa]s?\s+(?:por|pel)|\bintermedia[çc][ãa]o\b|\bvendas?\s+(?:a|para)\s+(?:pessoa|empresa|fabricante|produtor)/i;
+
+/**
  * Quando a coluna NCM está vazia, a regra costuma citar os códigos na própria
  * descrição ("Defensivos agropecuários classificados na posição 38.08",
- * "Adubos ... classificados no Capítulo 31, exceto ..."). Só o trecho antes
- * de "exceto"/"excluídos" conta: o que vem depois é exclusão, não inclusão.
+ * "Adubos ... classificados no Capítulo 31, exceto ..."). Só o trecho que
+ * define o produto conta: parênteses de exceção somem, e o texto é cortado no
+ * primeiro "exceto" e no primeiro sinal de que passou a falar do comprador.
  */
 function extrairNcmsDaDescricao(descricao: string): string[] {
-  const inclusoes = descricao.split(/\bexceto\b|\bexclu[ií]d[ao]s?\b/i)[0] ?? '';
-  return extrairNcms(inclusoes);
+  if (REGEX_DESCRICAO_SEM_PRODUTO.test(descricao)) return [];
+  const semParentesesDeExcecao = descricao.replace(/\((?:exceto|exclu[ií]d[ao]s?|excetuad[ao]s?|salvo)[^()]*\)/gi, ' ');
+  const inclusoes = semParentesesDeExcecao.split(/\bexceto\b|\bexclu[ií]d[ao]s?\b|\bexcetuad[ao]s?\b|com exce[çc][ãa]o|\bsalvo\b/i)[0] ?? '';
+  const soProduto = inclusoes.split(REGEX_JUSANTE)[0] ?? '';
+  return extrairNcms(soProduto);
 }
 
 /** Normaliza alíquotas do padrão brasileiro ("9,25") para o formato do JSON ("9.25"). */
@@ -630,15 +671,19 @@ function mapearRegistros(tabela: TabelaBruta): RegistroSped[] {
       tabela: numero,
     };
 
-    // Coluna NCM primeiro; se vazia, os códigos citados na descrição.
+    // Coluna NCM primeiro; se vazia, os códigos citados na descrição — marcados
+    // como tal, porque um capítulo citado no texto localiza o produto sem defini-lo.
     const ncms = extrairNcms(campos.ncm);
-    const ncmsFinais = ncms.length > 0 ? ncms : extrairNcmsDaDescricao(descricao);
+    const daDescricao = ncms.length === 0 ? extrairNcmsDaDescricao(descricao) : [];
+    const ncmsFinais = ncms.length > 0 ? ncms : daDescricao;
     if (ncmsFinais.length === 0) {
       // Sem NCM explícito o registro continua útil: é pesquisável por descrição.
       registros.push({ ncm: '', ...base });
     } else {
       // Uma célula pode listar vários NCMs; cada um vira um registro pesquisável.
-      for (const ncm of ncmsFinais) registros.push({ ncm, ...base });
+      for (const ncm of ncmsFinais) {
+        registros.push(ncms.length > 0 ? { ncm, ...base } : { ncm, ...base, origem: 'descricao' });
+      }
     }
   }
 
@@ -672,6 +717,17 @@ function ordenarRegistros(a: RegistroSped, b: RegistroSped): number {
 
 /** Fração da base anterior abaixo da qual a nova saída é considerada parcial. */
 const LIMITE_ENCOLHIMENTO = 0.8;
+
+/** Quantos códigos o ncm.json publicado hoje tem (0 se ainda não existe). */
+function contarCodigosNcmAtuais(): number {
+  try {
+    const atual: unknown = JSON.parse(lerArquivo(NCM_FILE) ?? '');
+    const codigos = typeof atual === 'object' && atual !== null ? (atual as { codigos?: unknown }).codigos : undefined;
+    return Array.isArray(codigos) ? codigos.length : 0;
+  } catch {
+    return 0;
+  }
+}
 
 /** Conteúdo de um arquivo, ou undefined se ele ainda não existe. */
 function lerArquivo(caminho: string): string | undefined {
@@ -758,22 +814,48 @@ async function sincronizarNcm(): Promise<void> {
     const raiz = typeof corpo === 'object' && corpo !== null ? (corpo as Record<string, unknown>) : {};
     const itens = Array.isArray(raiz.Nomenclaturas) ? raiz.Nomenclaturas : [];
 
-    const codigos: NcmOficial[] = itens
-      .filter(ehItemSiscomex)
+    const validos = itens.filter(ehItemSiscomex);
+
+    // Um quarto das descrições de 8 dígitos é só "Outros"; o sentido está nos
+    // níveis acima ("Cavalos › Reprodutores de raça pura › Outros"). Guardamos a
+    // cadeia da posição (4 dígitos) até o código, sem repetições consecutivas.
+    const descricaoPorNivel = new Map<string, string>();
+    for (const item of validos) {
+      descricaoPorNivel.set(item.Codigo.replace(/\D/g, ''), limparHtml(item.Descricao).replace(/^-+\s*/, ''));
+    }
+    const descricaoCompleta = (ncm: string): string => {
+      const cadeia: string[] = [];
+      for (const tamanho of [4, 5, 6, 7, 8]) {
+        const texto = descricaoPorNivel.get(ncm.slice(0, tamanho));
+        if (texto && texto !== cadeia[cadeia.length - 1]) cadeia.push(texto);
+      }
+      return cadeia.join(' › ');
+    };
+
+    const codigos: NcmOficial[] = validos
       .map((item) => ({
         ncm: item.Codigo.replace(/\D/g, ''),
-        descricao: limparHtml(item.Descricao),
+        descricao: '',
         inicio: isoDeDataBr(item.Data_Inicio) ?? '1900-01-01',
         fim: isoDeDataBr(item.Data_Fim),
       }))
       .filter((c) => c.ncm.length === 8)
+      .map((c) => ({ ...c, descricao: descricaoCompleta(c.ncm) }))
       .map((c) => (c.fim === undefined ? { ncm: c.ncm, descricao: c.descricao, inicio: c.inicio } : c))
       .sort((a, b) => a.ncm.localeCompare(b.ncm) || a.inicio.localeCompare(b.inicio));
 
     // A NCM tem cerca de dez mil códigos de 8 dígitos; bem menos que isso é
-    // resposta truncada ou página de erro, não uma nomenclatura nova.
+    // resposta truncada ou página de erro, não uma nomenclatura nova. E, como
+    // nas tabelas do SPED, uma queda brusca frente à versão anterior é
+    // instabilidade do portal, não a Receita revogando milhares de códigos.
     if (codigos.length < 5000) {
       throw new Error(`apenas ${codigos.length} códigos de 8 dígitos na resposta — descartada`);
+    }
+    const anteriores = contarCodigosNcmAtuais();
+    if (anteriores > 0 && codigos.length < anteriores * LIMITE_ENCOLHIMENTO) {
+      throw new Error(
+        `a nomenclatura encolheu de ${anteriores} para ${codigos.length} códigos (abaixo de ${LIMITE_ENCOLHIMENTO * 100}%) — descartada`
+      );
     }
 
     const tabela: TabelaNcm = {

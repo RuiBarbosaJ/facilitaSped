@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Download, FileSpreadsheet, Loader2, RotateCcw, ShieldCheck } from "lucide-react";
 
 import { Cabecalho } from "@/components/Cabecalho";
@@ -21,13 +21,14 @@ import {
   resumir,
   type LinhaAuditada,
 } from "@/lib/auditoria";
-import { TAMANHO_MAXIMO, baixarArquivo, gerarXlsx, lerPrimeiraAba } from "@/lib/planilha";
+import { TAMANHO_MAXIMO, baixarArquivo, descreverErroDeLeitura, gerarXlsx, lerAbas, tipoDeArquivo } from "@/lib/planilha";
 
 /** Linhas por página na tabela de resultados. */
 const PAGINA = 100;
 
 interface Resultado {
   arquivo: string;
+  aba: string;
   linhas: LinhaAuditada[];
 }
 
@@ -42,14 +43,20 @@ export default function Auditoria() {
   const [visiveis, setVisiveis] = useState(PAGINA);
   const [exportando, setExportando] = useState(false);
 
+  const zonaRef = useRef<HTMLDivElement>(null);
+  const cartaoRef = useRef<HTMLDivElement>(null);
+
   // Os índices são caros de montar (10 mil NCMs) e não mudam entre arquivos.
   const indiceBase = useMemo(() => indexarBase(registros), [registros]);
-  const indiceNcm = useMemo(
-    () => (ncm.tabela ? indexarNcm(ncm.tabela.codigos) : null),
-    [ncm.tabela]
-  );
+  const indiceNcm = useMemo(() => (ncm.tabela ? indexarNcm(ncm.tabela.codigos) : null), [ncm.tabela]);
 
   const pronto = !carregandoSped && !erroSped && !ncm.carregando;
+
+  // Quem usa teclado ou leitor de tela precisa ser levado ao que mudou: o
+  // cartão de resultado ao terminar, a zona de upload ao recomeçar.
+  useEffect(() => {
+    if (resultado) cartaoRef.current?.focus();
+  }, [resultado]);
 
   const auditar = useCallback(
     async (arquivo: File) => {
@@ -58,6 +65,10 @@ export default function Auditoria() {
       setFiltro("todos");
       setVisiveis(PAGINA);
 
+      if (arquivo.size === 0) {
+        setErro("O arquivo está vazio (0 bytes).");
+        return;
+      }
       if (arquivo.size > TAMANHO_MAXIMO) {
         setErro(`O arquivo tem ${(arquivo.size / 1024 / 1024).toFixed(1)} MB; o limite é 25 MB.`);
         return;
@@ -65,26 +76,34 @@ export default function Auditoria() {
 
       setProcessando(true);
       try {
-        const matriz = await lerPrimeiraAba(await arquivo.arrayBuffer());
-        const cabecalho = localizarCabecalho(matriz);
-        if (!cabecalho) {
-          setErro(ERRO_LAYOUT);
+        const buffer = await arquivo.arrayBuffer();
+        if (tipoDeArquivo(buffer) === "desconhecido") {
+          setErro(
+            `"${arquivo.name}" não é uma planilha do Excel de verdade — parece texto ou CSV com a extensão trocada. Exporte novamente em .xls ou .xlsx.`
+          );
+          return;
+        }
+
+        const abas = await lerAbas(buffer);
+        // O relatório costuma estar na primeira aba, mas há exports com uma aba
+        // de capa vazia na frente: usamos a primeira aba que tenha o cabeçalho.
+        const encontrada = abas
+          .map((aba) => ({ aba, cabecalho: localizarCabecalho(aba.linhas) }))
+          .find((x) => x.cabecalho !== null);
+        if (!encontrada || !encontrada.cabecalho) {
+          setErro(abas.length > 1 ? `${ERRO_LAYOUT} (Nenhuma das ${abas.length} abas tem esse cabeçalho.)` : ERRO_LAYOUT);
           return;
         }
 
         const contexto = { base: indiceBase, ncm: indiceNcm, hoje: new Date() };
-        const linhas = extrairLinhas(matriz, cabecalho).map((l) => auditarLinha(l, contexto));
+        const linhas = extrairLinhas(encontrada.aba.linhas, encontrada.cabecalho).map((l) => auditarLinha(l, contexto));
         if (linhas.length === 0) {
           setErro("A planilha tem o cabeçalho certo, mas nenhuma linha de produto abaixo dele.");
           return;
         }
-        setResultado({ arquivo: arquivo.name, linhas });
+        setResultado({ arquivo: arquivo.name, aba: encontrada.aba.nome, linhas });
       } catch (excecao) {
-        setErro(
-          excecao instanceof Error
-            ? `Não foi possível ler a planilha: ${excecao.message}`
-            : "Não foi possível ler a planilha."
-        );
+        setErro(descreverErroDeLeitura(excecao));
       } finally {
         setProcessando(false);
       }
@@ -98,6 +117,7 @@ export default function Auditoria() {
     if (!resultado) return [];
     switch (filtro) {
       case "beneficio":
+      case "possivel":
       case "tributado":
       case "invalido":
         return resultado.linhas.filter((l) => l.situacao === filtro);
@@ -150,7 +170,7 @@ export default function Auditoria() {
         l.regra?.rotulo ?? "",
         l.regra?.tabela ?? "",
         l.regra?.cstsAceitos.join(" ou ") ?? "",
-        l.regra?.natureza ?? "",
+        l.regra?.naturezas.join(" ou ") ?? "",
         l.regra?.descricao ?? "",
         l.regra ? `${l.regra.inicio ?? ""}${l.regra.fim ? ` a ${l.regra.fim}` : l.regra.inicio ? " (vigente)" : ""}` : "",
         l.descricaoNcm ?? "",
@@ -159,7 +179,7 @@ export default function Auditoria() {
       const bytes = await gerarXlsx(
         [cabecalho, ...linhas],
         "Auditoria",
-        [7, 40, 14, 14, 8, 10, 12, 18, 22, 10, 12, 12, 60, 22, 40, 70]
+        [7, 40, 14, 14, 8, 10, 12, 22, 22, 10, 12, 14, 60, 22, 50, 70]
       );
       const base = resultado.arquivo.replace(/\.(xlsx?|csv)$/i, "");
       baixarArquivo(bytes, `auditoria-${base}.xlsx`);
@@ -173,6 +193,8 @@ export default function Auditoria() {
     setErro(null);
     setFiltro("todos");
     setVisiveis(PAGINA);
+    // A zona só volta ao DOM no próximo render.
+    requestAnimationFrame(() => zonaRef.current?.focus());
   }
 
   return (
@@ -216,6 +238,7 @@ export default function Auditoria() {
             </div>
             <div className="lg:col-span-3">
               <ZonaUpload
+                ref={zonaRef}
                 onArquivo={auditar}
                 processando={processando}
                 desabilitada={!pronto}
@@ -228,7 +251,11 @@ export default function Auditoria() {
         ) : (
           resumo && (
             <>
-              <div className="flex flex-col gap-3 rounded-2xl border border-border-subtle bg-surface-card p-4 shadow-(--shadow-card) sm:flex-row sm:items-center sm:justify-between">
+              <div
+                ref={cartaoRef}
+                tabIndex={-1}
+                className="flex flex-col gap-3 rounded-2xl border border-border-subtle bg-surface-card p-4 shadow-(--shadow-card) sm:flex-row sm:items-center sm:justify-between focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
                 <div className="flex min-w-0 items-center gap-3">
                   <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
                     <FileSpreadsheet size={20} aria-hidden />
@@ -239,6 +266,7 @@ export default function Auditoria() {
                     </p>
                     <p className="text-xs text-text-tertiary">
                       {resumo.total.toLocaleString("pt-BR")} {resumo.total === 1 ? "linha auditada" : "linhas auditadas"}
+                      {` · aba “${resultado.aba}”`}
                       {ncm.tabela ? ` · NCM conferido pela ${ncm.tabela.fonte}` : ""}
                     </p>
                   </div>
@@ -269,6 +297,7 @@ export default function Auditoria() {
               {resumo.divergencias === 0 && resumo.invalido === 0 && (
                 <Banner tom="ok" titulo="Nenhuma divergência encontrada.">
                   Todos os CSTs e naturezas de receita batem com o que o SPED indica para cada NCM.
+                  {resumo.possivel > 0 ? ` ${resumo.possivel} linha(s) com possível benefício pedem conferência manual.` : ""}
                 </Banner>
               )}
 
@@ -325,7 +354,7 @@ function Banner({ tom, titulo, children }: BannerProps) {
       <Icone size={18} className="mt-0.5 shrink-0" aria-hidden />
       <div>
         <p className="font-semibold">{titulo}</p>
-        <p className="mt-0.5 opacity-90">{children}</p>
+        <p className="mt-0.5">{children}</p>
       </div>
     </div>
   );

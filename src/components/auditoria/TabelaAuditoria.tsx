@@ -6,14 +6,19 @@ interface TabelaAuditoriaProps {
 
 const COLUNAS = ["Linha", "Produto", "Classificação", "Informado", "Situação", "Sugestão do SPED", "Observações"];
 
+/**
+ * Além do fundo, uma borda à esquerda: no tema escuro os tons suaves quase se
+ * confundem com a superfície, e a borda garante que a linha se destaque.
+ */
 const ESTILO_LINHA: Record<LinhaAuditada["destaque"], string> = {
-  nenhum: "",
-  amarelo: "bg-warning-soft",
-  vermelho: "bg-danger-soft",
+  nenhum: "border-l-4 border-l-transparent",
+  amarelo: "bg-warning-soft border-l-4 border-l-warning",
+  vermelho: "bg-danger-soft border-l-4 border-l-danger",
 };
 
 const ESTILO_SELO: Record<LinhaAuditada["situacao"], string> = {
   beneficio: "bg-success-soft text-success",
+  possivel: "bg-accent-soft text-accent",
   tributado: "bg-badge-ncm-bg text-badge-ncm-text",
   invalido: "bg-danger text-accent-contrast",
 };
@@ -26,15 +31,23 @@ function Codigo({ valor }: { valor: string }) {
 export function TabelaAuditoria({ linhas }: TabelaAuditoriaProps) {
   return (
     <div className="bg-surface-card rounded-xl border border-border-subtle shadow-(--shadow-card) overflow-hidden">
-      <div className="overflow-x-auto">
+      <div
+        className="overflow-x-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+        role="region"
+        aria-label="Resultado da auditoria"
+        tabIndex={0}
+      >
         <table className="min-w-full text-left text-sm">
+          <caption className="sr-only">
+            Auditoria linha a linha: linhas vermelhas têm NCM inválido; amarelas, divergência entre o informado e o SPED.
+          </caption>
           <thead className="bg-surface-head">
             <tr>
               {COLUNAS.map((coluna) => (
                 <th
                   key={coluna}
                   scope="col"
-                  className="px-3 py-2.5 text-xs font-semibold text-text-tertiary uppercase tracking-wider whitespace-nowrap"
+                  className="px-3 py-2.5 text-xs font-semibold text-text-tertiary uppercase tracking-wider whitespace-nowrap first:pl-4"
                 >
                   {coluna}
                 </th>
@@ -100,10 +113,10 @@ export function TabelaAuditoria({ linhas }: TabelaAuditoriaProps) {
                               {cst}
                             </span>
                           ))}
-                          {l.regra.natureza && (
+                          {l.regra.naturezas.length > 0 && (
                             <>
                               <span className="text-xs text-text-tertiary">· nat.</span>
-                              <span className="font-mono text-xs font-medium">{l.regra.natureza}</span>
+                              <span className="font-mono text-xs font-medium">{l.regra.naturezas.join(" / ")}</span>
                             </>
                           )}
                           <span className="text-xs text-text-tertiary">· tabela {l.regra.tabela}</span>
