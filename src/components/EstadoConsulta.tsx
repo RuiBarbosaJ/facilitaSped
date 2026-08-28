@@ -19,7 +19,7 @@ export function MensagemErro({ mensagem }: { mensagem: string }) {
     >
       <AlertCircle size={28} aria-hidden />
       <p className="font-medium">{mensagem}</p>
-      <p className="text-sm opacity-80">Verifique se o script de sincronização foi executado.</p>
+      <p className="text-sm">Verifique se o script de sincronização foi executado.</p>
     </div>
   );
 }

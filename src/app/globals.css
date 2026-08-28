@@ -19,6 +19,13 @@
  * acima de 4.5:1 e elementos de interface acima de 3:1, nos dois temas.
  */
 :root {
+  /*
+   * Avisa o navegador de qual tema estamos usando. Sem isto os controles
+   * nativos que o CSS não alcança — a lista suspensa do <select>, a barra de
+   * rolagem e o preenchimento automático — continuariam claros no tema escuro.
+   */
+  color-scheme: light;
+
   /* superfícies */
   --surface-page: #f1f4f8;
   --surface-card: #ffffff;
@@ -58,6 +65,8 @@
 }
 
 [data-theme="dark"] {
+  color-scheme: dark;
+
   --surface-page: #0d1219;
   --surface-card: #151b24;
   --surface-head: #1a212c;
