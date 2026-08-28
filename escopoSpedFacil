@@ -60,6 +60,8 @@ Tarefa 3: A Interface e Busca (Frontend Next.js)
 
     Implemente um componente de busca inteligente usando Fuse.js que filtre apenas pelo ncm e pela descricao (cst e natureza_receita são exibidos, mas não pesquisáveis).
 
+    A tela abre filtrada no CST 06 (alíquota zero), que é o CST usado pela equipe, com um seletor para escolher outro CST. Para o CST escolhido, cada código de natureza da receita aparece apenas na sua vigência mais recente (a última linha publicada para aquele código).
+
     Os resultados devem ser renderizados em Cards ou em uma Table otimizada, exibindo um botão de "Copiar NCM" ou "Copiar CST" com feedback visual ao usuário.
 
 5. DIRETRIZES DE CÓDIGO

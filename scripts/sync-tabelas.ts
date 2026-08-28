@@ -249,9 +249,11 @@ const ehCodigo = (celula: string): boolean => /^\d{2,4}$/.test(celula);
  * Converte o texto de um .doc/.docx em linhas de tabela.
  *
  * O word-extractor traduz o marcador 0x07 do Word (fim de célula e fim de linha)
- * em `\t`, mas não distingue os dois casos — células mescladas fazem linhas
- * vizinhas se fundirem. Por isso não usamos fatiamento fixo: a cada célula que é
- * um código puro começamos uma linha nova, o que ressincroniza a grade sozinho.
+ * em `\t`, sem distinguir os dois casos. Uma linha nova começa numa célula que é
+ * um código puro (2 a 4 dígitos) — mas só quando a célula anterior parece um fim
+ * de linha (vazia, "-" ou uma data de término). Sem essa condição, um NCM curto
+ * como "2203" ou um subitem "01" (tabela 4.3.11) abriria uma linha falsa e
+ * deslocaria todas as colunas seguintes.
  */
 function linhasDeDocumentoWord(texto: string): { cabecalho: string[]; linhas: string[][] } {
   const celulas = texto
@@ -264,40 +266,56 @@ function linhasDeDocumentoWord(texto: string): { cabecalho: string[]; linhas: st
   const inicioCabecalho = celulas.findIndex((c) => /c[óo]digo\s*$/i.test(c));
   if (inicioCabecalho < 0) return { cabecalho: [], linhas: [] };
 
+  // Cabeçalhos de duas linhas (4.3.11) empurram o primeiro código para longe;
+  // 40 células cobrem o pior caso observado.
   const inicioDados = celulas.findIndex(
-    (c, i) => i > inicioCabecalho && i < inicioCabecalho + 20 && /^(\d{2,4}|-)$/.test(c)
+    (c, i) => i > inicioCabecalho && i < inicioCabecalho + 40 && /^(\d{2,4}|-)$/.test(c)
   );
   if (inicioDados < 0) return { cabecalho: [], linhas: [] };
-
-  const colunas = inicioDados - inicioCabecalho;
-  if (colunas < 2) return { cabecalho: [], linhas: [] };
 
   const cabecalho = celulas
     .slice(inicioCabecalho, inicioDados)
     .map((c, i) => (i === 0 ? 'Código' : c));
 
+  // Com cabeçalho de uma linha só, o número de células dele é o número de
+  // colunas — e uma linha "cheia" seguida de um código também é uma quebra.
+  // Isso cobre as tabelas de 2 colunas (código + descrição), em que a célula
+  // anterior a cada código é texto. Em cabeçalhos de duas linhas (4.3.11) a
+  // conta sai inflada e esta regra simplesmente não dispara.
+  const colunas = cabecalho.length;
+
   const linhas: string[][] = [];
   let atual: string[] | null = null;
   for (let i = inicioDados; i < celulas.length; i++) {
     const celula = celulas[i];
-    if (ehCodigo(celula)) {
+    const anterior = i === inicioDados ? '' : celulas[i - 1];
+    const linhaCheia = atual !== null && atual.length >= colunas;
+    if (ehCodigo(celula) && (ehFimDeLinha(anterior) || linhaCheia)) {
       if (atual) linhas.push(atual);
       atual = [celula];
-    } else if (atual && atual.length < colunas) {
+    } else if (/^c[óo]digo$/i.test(celula) && i > inicioDados && /[A-Za-zÀ-ÿ]{3,}/.test(anterior)) {
+      // Um novo cabeçalho no meio do documento (4.3.11 é dividida em "Tabela I",
+      // "Tabela II"...) vem logo depois do título da seção. Esse título é a única
+      // descrição que as linhas seguintes têm, então entra como linha-marcador.
+      if (atual) linhas.push(atual);
+      atual = null;
+      linhas.push([MARCADOR_SECAO, anterior]);
+    } else if (atual) {
       atual.push(celula);
     }
-    // Células excedentes vindas de mesclagem são descartadas até o próximo código.
+    // Células antes do primeiro código (títulos de seção) são descartadas.
   }
   if (atual) linhas.push(atual);
 
-  return {
-    cabecalho,
-    linhas: linhas.map((l) => {
-      while (l.length < colunas) l.push('');
-      return l;
-    }),
-  };
+  return { cabecalho, linhas };
 }
+
+/** Primeira célula de uma linha-marcador de seção gerada pelo parser. */
+const MARCADOR_SECAO = '#secao';
+
+/** Uma célula que fecha uma linha: término vazio, "-" ou uma data. */
+const ehFimDeLinha = (celula: string): boolean =>
+  celula === '' || /^-+$/.test(celula) || normalizarData(celula) !== undefined;
 
 /**
  * Lê um .txt delimitado por barra vertical em stream, como no layout oficial dos
@@ -392,9 +410,34 @@ async function converter(
 /* 4. Mapeamento para RegistroSped                                            */
 /* -------------------------------------------------------------------------- */
 
-/** Índice da primeira coluna cujo cabeçalho casa com o padrão. */
-const acharColuna = (cabecalho: string[], padrao: RegExp): number =>
-  cabecalho.findIndex((c) => padrao.test(c));
+/**
+ * Normaliza uma data de vigência para "MM/AAAA" ou "DD/MM/AAAA".
+ *
+ * O portal mistura "01/2011", "08/03/2013", "15/12/2011 *", "01.04.2026" e até
+ * "01042026". Só o separador é padronizado; texto que não forma uma data válida
+ * (alíquotas como "0,6512" caindo na coluna errada, por exemplo) vira undefined.
+ */
+function normalizarData(valor: string | undefined): string | undefined {
+  if (!valor) return undefined;
+  const digitos = valor.replace(/\D/g, '');
+  const mesValido = (mes: number) => mes >= 1 && mes <= 12;
+  const anoValido = (ano: number) => ano >= 1990 && ano <= 2100;
+
+  if (digitos.length === 6) {
+    const mes = Number(digitos.slice(0, 2));
+    const ano = Number(digitos.slice(2));
+    return mesValido(mes) && anoValido(ano) ? `${digitos.slice(0, 2)}/${digitos.slice(2)}` : undefined;
+  }
+  if (digitos.length === 8) {
+    const dia = Number(digitos.slice(0, 2));
+    const mes = Number(digitos.slice(2, 4));
+    const ano = Number(digitos.slice(4));
+    return dia >= 1 && dia <= 31 && mesValido(mes) && anoValido(ano)
+      ? `${digitos.slice(0, 2)}/${digitos.slice(2, 4)}/${digitos.slice(4)}`
+      : undefined;
+  }
+  return undefined;
+}
 
 /**
  * Extrai os NCMs de uma célula. O portal mistura formatos numa coluna só:
@@ -403,7 +446,13 @@ const acharColuna = (cabecalho: string[], padrao: RegExp): number =>
  */
 function extrairNcms(celula: string): string[] {
   if (!celula || celula === '-') return [];
-  const achados = celula.match(/\b\d{2}\.?\d{2}(?:\.?\d{2}){0,2}\b/g) || [];
+  // Formatos aceitos: "02.01", "0206.2", "0206.10", "0206.10.00", "05.11.10.00",
+  // "1006.20", "27101259". Posições de 4 dígitos só contam com o ponto: um
+  // "2012" solto é quase sempre um ano, não a posição 20.12 da TIPI.
+  const achados =
+    celula.match(
+      /\b(?:\d{2}\.\d{2}(?:\.\d{2}){0,2}|\d{4}\.\d{1,2}(?:\.\d{2})?|\d{6}|\d{8})\b/g
+    ) || [];
   const normalizados = achados.map((n) => n.replace(/\./g, '')).filter((n) => n.length >= 4);
   return Array.from(new Set(normalizados));
 }
@@ -421,62 +470,139 @@ function cstDoTitulo(titulo: string): string {
   return achado ? achado[1] : '';
 }
 
+/** "Tabela 4.3.13 – Produtos..." → "4.3.13". */
+function numeroDaTabela(titulo: string): string | undefined {
+  const achado = titulo.match(/Tabela\s+(\d+\.\d+\.\d+)/i);
+  return achado ? achado[1] : undefined;
+}
+
+/** Campos de uma linha de produto, localizados pelo conteúdo e não pela coluna. */
+interface CamposLinha {
+  descricao: string;
+  /** Subitem numérico que a 4.3.11 usa no lugar da descrição ("831" | "01"). */
+  grupo: string;
+  ncm: string;
+  aliquota: string;
+  inicio?: string;
+  fim?: string;
+}
+
+/**
+ * Lê os campos de uma linha pelo que cada célula contém, não pela posição fixa.
+ *
+ * As tabelas do portal não têm um leiaute só: 4.3.13 tem 5 colunas, 4.3.10 tem
+ * 7, 4.3.17 tem 9 e a 4.3.11 muda de leiaute no meio do documento, com
+ * subitens numéricos e colunas de embalagem e volume. O que é estável em todas:
+ * descrição vem logo após o código, o NCM logo após a descrição, e as datas de
+ * vigência são as únicas células em formato de data.
+ */
+function lerCampos(linha: string[]): CamposLinha {
+  const temTexto = (c: string | undefined) => c !== undefined && /[A-Za-zÀ-ÿ]{3,}/.test(c);
+
+  const iDescricao = temTexto(linha[1]) ? 1 : -1;
+  // Sem descrição, a célula seguinte ao código é um subitem ("831" | "01") e o
+  // NCM fica uma casa adiante.
+  const grupo = iDescricao < 0 && /^\d{1,2}$/.test(linha[1] ?? '') ? linha[1] : '';
+  const iNcm = iDescricao >= 0 || grupo ? 2 : 1;
+
+  const datas = linha
+    .slice(iNcm + 1)
+    .map(normalizarData)
+    .filter((d): d is string => d !== undefined);
+
+  const celulaAliquota = linha.find((c, i) => i > iNcm && /^\d+(,\d+)?$/.test(c));
+
+  return {
+    descricao: iDescricao >= 0 ? linha[iDescricao] : '',
+    grupo,
+    ncm: linha[iNcm] ?? '',
+    aliquota: normalizarAliquota(celulaAliquota ?? ''),
+    inicio: datas[0],
+    fim: datas[1],
+  };
+}
+
 /**
  * Traduz uma tabela bruta em registros do app.
  *
- * Três formatos convivem no portal:
- *  - 4.3.3 / 4.3.4  -> [Código, Descrição]: o próprio Código é o CST.
- *  - 4.3.13 / 4.3.16 -> [Código, Descrição, NCM, Início, Término]: alíquota zero.
- *  - 4.3.10 / 4.3.17 -> acrescentam colunas de alíquota de PIS e COFINS.
- * Em todas elas o "Código" é a Natureza da Receita, e o CST vem do título.
+ * Dois tipos de tabela convivem no portal:
+ *  - 4.3.3 / 4.3.4 -> [Código, Descrição]: o próprio Código é o CST.
+ *  - as demais     -> linhas de produto, em que o Código é a Natureza da Receita
+ *                     e o CST vem do título da tabela.
  */
 function mapearRegistros(tabela: TabelaBruta): RegistroSped[] {
   const { titulo, cabecalho, linhas } = tabela;
   const cstTabela = cstDoTitulo(titulo);
+  const numero = numeroDaTabela(titulo);
   const ehTabelaDeCst = /situa[çc][ãa]o\s+tribut[áa]ria/i.test(titulo);
 
-  const iNcm = acharColuna(cabecalho, /^ncm/i);
-  const iDescricao = acharColuna(cabecalho, /descri[çc][ãa]o/i);
-  const iAliquota = acharColuna(cabecalho, /al[íi]quota.*pis/i);
-  const iInicio = acharColuna(cabecalho, /in[íi]cio/i);
-  const iTermino = acharColuna(cabecalho, /t[ée]rmino|fim/i);
+  // Só alíquotas percentuais entram no JSON. A 4.3.11 publica R$ por unidade de
+  // medida — um número que não faz sentido na coluna "Alíquota (%)" da tela.
+  const aliquotaPercentual =
+    cabecalho.some((c) => /al[íi]quota/i.test(c)) && !cabecalho.some((c) => /reais|r\$/i.test(c));
 
   const registros: RegistroSped[] = [];
+  // Na 4.3.11 os subitens de um código herdam a descrição da linha de grupo ou,
+  // na falta dela, o título da seção em que estão ("Tabela III - Águas e
+  // Refrigerantes...") acrescido do número do grupo.
+  const descricaoDoGrupo = new Map<string, string>();
+  let tituloDaSecao = '';
+  let semDescricao = 0;
 
   for (const linha of linhas) {
-    const codigo = (linha[0] || '').trim();
-    const descricao = (linha[iDescricao > 0 ? iDescricao : 1] || '').trim();
-    if (!codigo || !descricao) continue;
+    const codigo = linha[0]?.trim() ?? '';
+    if (!codigo) continue;
 
-    // Tabelas 4.3.3/4.3.4: o código é o próprio CST e não há NCM.
+    if (codigo === MARCADOR_SECAO) {
+      tituloDaSecao = linha[1] ?? '';
+      continue;
+    }
+
     if (ehTabelaDeCst) {
-      registros.push({ ncm: '', descricao, cst: codigo, aliquota: '' });
+      const descricao = linha[1]?.trim() ?? '';
+      if (descricao) registros.push({ ncm: '', descricao, cst: codigo, aliquota: '', tabela: numero });
+      continue;
+    }
+
+    const campos = lerCampos(linha);
+    if (campos.descricao) descricaoDoGrupo.set(codigo, campos.descricao);
+    const descricao =
+      campos.descricao ||
+      descricaoDoGrupo.get(codigo) ||
+      (tituloDaSecao && campos.grupo ? `${tituloDaSecao} — grupo ${campos.grupo}` : '');
+    if (!descricao) {
+      semDescricao++;
       continue;
     }
 
     // Linhas de cabeçalho de grupo ("100 INSUMOS E PRODUTOS AGROPECUÁRIOS") não
     // têm NCM nem vigência — são rótulos de seção, não registros consultáveis.
-    const bruto = { ncm: iNcm > 0 ? linha[iNcm] || '' : '', inicio: iInicio > 0 ? linha[iInicio] || '' : '' };
-    if (!bruto.ncm && !bruto.inicio) continue;
+    if (!campos.ncm && !campos.inicio) continue;
 
     const base = {
       descricao,
       cst: cstTabela,
-      aliquota: iAliquota > 0 ? normalizarAliquota(linha[iAliquota] || '') : '',
+      aliquota: aliquotaPercentual ? campos.aliquota : '',
       natureza_receita: codigo,
-      data_inicio: bruto.inicio || undefined,
-      data_fim: (iTermino > 0 ? linha[iTermino] : '') || undefined,
+      data_inicio: campos.inicio,
+      data_fim: campos.fim,
+      tabela: numero,
     };
 
-    const ncms = extrairNcms(bruto.ncm);
+    const ncms = extrairNcms(campos.ncm);
     if (ncms.length === 0) {
-      // Sem NCM explícito o registro continua útil: é pesquisável por descrição,
-      // CST e natureza da receita.
+      // Sem NCM explícito o registro continua útil: é pesquisável por descrição.
       registros.push({ ncm: '', ...base });
     } else {
       // Uma célula pode listar vários NCMs; cada um vira um registro pesquisável.
       for (const ncm of ncms) registros.push({ ncm, ...base });
     }
+  }
+
+  if (semDescricao > 0) {
+    // Aparece no log do Actions: se esse número crescer de repente, o leiaute
+    // do documento mudou e o parser precisa de atenção.
+    console.warn(`    ${semDescricao} linha(s) sem descrição ignorada(s) em ${numero ?? titulo}`);
   }
 
   return registros;
@@ -552,12 +678,18 @@ async function syncTabelas(): Promise<void> {
         for (const tabela of tabelas) {
           for (const registro of mapearRegistros(tabela)) {
             // NCM + CST + natureza da receita + vigência identificam a regra.
-            const chave = [
-              registro.ncm,
-              registro.cst,
-              registro.natureza_receita ?? '',
-              registro.data_inicio ?? '',
-            ].join('|');
+            // Definições de CST (4.3.3 e 4.3.4 são idênticas) colapsam por código;
+            // regras de produto são únicas por tabela + NCM + código + vigência.
+            const chave =
+              registro.natureza_receita === undefined
+                ? `cst|${registro.cst}`
+                : [
+                    registro.tabela ?? '',
+                    registro.ncm,
+                    registro.cst,
+                    registro.natureza_receita,
+                    registro.data_inicio ?? '',
+                  ].join('|');
             if (!registros.has(chave)) {
               registros.set(chave, registro);
               novos++;

@@ -49,7 +49,8 @@ O portal publica as tabelas como documentos do Word (`.doc`/`.docx`) e algumas p
 | 4.3.13 | Alíquota zero (CST 06) | ✅ |
 | 4.3.14, 4.3.15, 4.3.16 | Isenção, sem incidência, suspensão (CST 07/08/09) | ✅ |
 | 4.3.4 | CST de COFINS | ❌ idêntica à 4.3.3 (deduplicada) |
-| 4.3.5, 4.3.6, 4.3.7, 5.1.2 | Tabelas auxiliares de código + descrição | ❌ sem NCM, alíquota ou vigência |
+| 4.3.5, 4.3.6, 4.3.7 | Contribuição apurada, tipo de crédito, base de cálculo | ✅ só as linhas com vigência; sem CST, aparecem em "Todos os CSTs" |
+| 5.1.2 | Códigos de detalhamento da CPRB | ❌ só código + descrição |
 | CFOP, Dacon, 5.1.1 | Planilhas `.xls` | ❌ sem colunas de NCM/CST |
 
 O script lista, a cada execução, cada arquivo que ficou de fora e o motivo.
@@ -63,12 +64,21 @@ interface RegistroSped {
   cst: string;              // "06"
   aliquota: string;         // "5.08" (PIS) — vazio quando a tabela não traz alíquota
   natureza_receita?: string; // "101"
-  data_inicio?: string;     // "01/2011" ou "08/03/2013", como publicado
+  data_inicio?: string;     // "01/2011" ou "08/03/2013"
   data_fim?: string;        // ausente = regra ainda vigente
+  tabela?: string;          // "4.3.13" — tabela de origem no portal
 }
 ```
 
 Quando uma célula do documento cita vários NCMs ("0713.33.19, 0713.33.29 e 1106.20"), cada um vira um registro próprio, para que a busca por qualquer deles encontre a regra.
+
+## A consulta
+
+A tela abre no **CST 06** (alíquota zero), que é o que a equipe usa no dia a dia; um seletor troca para qualquer outro CST publicado, ou para todos.
+
+Para cada código de natureza da receita, só a **vigência mais recente** é exibida. Quando a Receita altera uma regra, o portal acrescenta uma linha nova com o mesmo código e outro período sem apagar a anterior — a consulta mostra a última versão, mesmo que já encerrada, porque é a informação mais atual sobre aquele código. A coluna Vigência deixa claro se a regra ainda vale.
+
+A busca filtra por **NCM ou descrição**; CST e natureza da receita aparecem na tabela, mas não são pesquisáveis.
 
 ## Stack
 
@@ -135,8 +145,9 @@ Salvaguardas do robô:
 ## Limitações conhecidas
 
 - **NCMs com 4, 6 ou 8 dígitos.** O portal referencia posições (`02.01`) e capítulos inteiros, não só códigos completos. O JSON preserva isso; uma busca por `27101259` não casa com um registro `2710`.
-- **Alíquota é só a de PIS.** As tabelas 4.3.10 e 4.3.17 trazem PIS e COFINS separados; a interface guarda um campo.
-- **Vigência sem normalização.** As datas são exibidas como publicadas (`01/2011`, `08/03/2013`), porque reescrevê-las arriscaria trocar dia e mês.
+- **Alíquota é só a de PIS, e só quando é percentual.** As tabelas 4.3.10 e 4.3.17 trazem PIS e COFINS separados; a interface guarda um campo. A 4.3.11 (CST 03) publica alíquotas em R$ por unidade de medida, que não cabem na coluna "%" — ficam de fora.
+- **Datas só com o separador normalizado.** `01/2011` e `08/03/2013` são mantidas como publicadas (`15/12/2011 *` e `01042026` viram `15/12/2011` e `01/04/2026`); o robô não reescreve dia e mês, para não arriscar invertê-los.
+- **Tabela 4.3.11 (CST 03) é a mais irregular do portal.** Muda de leiaute no meio do documento e usa subitens numéricos; os registros dela são os menos confiáveis do JSON.
 - **Deploy automático na Vercel.** Em contas Hobby, a Vercel só dispara deploy para commits do dono da conta. Se o commit do `github-actions[bot]` não gerar deploy, a alternativa é acionar um [Deploy Hook](https://vercel.com/docs/deploy-hooks) da Vercel ao final do workflow.
 
 ## Desenvolvedor
