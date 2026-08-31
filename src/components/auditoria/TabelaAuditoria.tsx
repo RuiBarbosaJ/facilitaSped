@@ -46,18 +46,14 @@ function Codigo({ valor }: { valor: string }) {
 function CelulaCst({
   cstPis,
   cstCofins,
-  natureza,
   cfop,
   cstCorrigido,
-  naturezaCorrigida,
   criterioAtivo,
 }: {
   cstPis: string;
   cstCofins: string;
-  natureza: string;
   cfop: string;
   cstCorrigido?: string;
-  naturezaCorrigida?: string;
   criterioAtivo: boolean;
 }) {
   const mudou =
@@ -94,24 +90,6 @@ function CelulaCst({
         )}
       </div>
 
-      {/* Natureza */}
-      <div>
-        <span className="text-xs text-text-tertiary">nat. </span>
-        {criterioAtivo && naturezaCorrigida !== undefined && natureza !== naturezaCorrigida ? (
-          <>
-            <span className="font-mono line-through text-text-tertiary">
-              {natureza || "—"}
-            </span>
-            <span className="mx-1 text-text-tertiary">→</span>
-            <span className={`font-mono font-semibold ${naturezaCorrigida ? "text-success" : "text-text-tertiary"}`}>
-              {naturezaCorrigida || "vazia"}
-            </span>
-          </>
-        ) : (
-          <Codigo valor={natureza} />
-        )}
-      </div>
-
       {/* CFOP */}
       {cfop && (
         <div>
@@ -131,6 +109,43 @@ function CelulaCst({
       {criterioAtivo && cstCorrigido === "" && (
         <span className="mt-0.5 inline-flex w-fit items-center gap-1 rounded-full bg-danger-soft px-1.5 py-0.5 text-[10px] font-medium text-danger">
           NCM inválido
+        </span>
+      )}
+    </div>
+  );
+}
+
+function CelulaNatureza({
+  natureza,
+  naturezaCorrigida,
+  criterioAtivo,
+}: {
+  natureza: string;
+  naturezaCorrigida?: string;
+  criterioAtivo: boolean;
+}) {
+  const mudou = criterioAtivo && naturezaCorrigida !== undefined && natureza !== naturezaCorrigida;
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-center gap-1 flex-wrap">
+        {mudou ? (
+          <>
+            <span className="font-mono line-through text-text-tertiary">
+              {natureza || "—"}
+            </span>
+            <span className="text-text-tertiary">→</span>
+            <span className={`font-mono font-semibold ${naturezaCorrigida ? "text-success" : "text-text-tertiary"}`}>
+              {naturezaCorrigida || "vazia"}
+            </span>
+          </>
+        ) : (
+          <Codigo valor={natureza} />
+        )}
+      </div>
+      {mudou && (
+        <span className="mt-0.5 inline-flex w-fit items-center gap-1 rounded-full bg-success-soft px-1.5 py-0.5 text-[10px] font-medium text-success">
+          ✓ corrigido
         </span>
       )}
     </div>
@@ -248,9 +263,16 @@ export function TabelaAuditoria({
                     <CelulaCst
                       cstPis={l.cstPis}
                       cstCofins={l.cstCofins}
-                      natureza={l.natureza}
                       cfop={l.cfop}
                       cstCorrigido={l.cstCorrigido}
+                      criterioAtivo={criterioCorrecaoAtivo}
+                    />
+                  </td>
+
+                  {/* Coluna "Nat. Receita" */}
+                  <td className="px-3 py-2.5 whitespace-nowrap text-text-secondary">
+                    <CelulaNatureza
+                      natureza={l.natureza}
                       naturezaCorrigida={l.naturezaCorrigida}
                       criterioAtivo={criterioCorrecaoAtivo}
                     />

@@ -21,17 +21,16 @@ export const COLUNAS_AUDITORIA: ColunaAuditoria[] = [
   {
     id: "informado",
     rotulo: "Informado",
-    // Uma opção por código, com prefixo. A célula junta CST de PIS, CST de
-    // COFINS, natureza e CFOP; sem separá-los o menu oferecia uma opção por
-    // combinação inteira ("CST 06/06 nat. 133 CFOP 5102"), inútil para achar
-    // todas as linhas de um CST. PIS e COFINS entram no mesmo balde porque é
-    // assim que o contador procura — e quando divergem, as duas aparecem.
     valores: (linha) => [
       linha.cstPis && `CST ${linha.cstPis}`,
       linha.cstCofins && `CST ${linha.cstCofins}`,
-      linha.natureza && `nat. ${linha.natureza}`,
       linha.cfop && `CFOP ${linha.cfop}`,
     ].filter((valor): valor is string => Boolean(valor)),
+  },
+  {
+    id: "natureza",
+    rotulo: "Nat. receita",
+    valores: (linha) => [linha.natureza || ""],
   },
   { id: "situacao", rotulo: "Situação", valores: (linha) => [linha.rotulo] },
   {
