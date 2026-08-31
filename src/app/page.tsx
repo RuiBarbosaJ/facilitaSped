@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { RefreshCw } from "lucide-react";
 
 import { agruparRegras } from "@/lib/agrupar";
@@ -8,6 +8,7 @@ import { useRegistrosSped } from "@/hooks/useRegistrosSped";
 import { useFiltroCst, CST_PADRAO, TODOS_CST } from "@/hooks/useFiltroCst";
 import { useBuscaSped } from "@/hooks/useBuscaSped";
 import { useSincronizacao } from "@/hooks/useSincronizacao";
+import { useEstadoMemoria } from "@/hooks/useEstadoMemoria";
 import { Cabecalho } from "@/components/Cabecalho";
 import { CampoBusca } from "@/components/CampoBusca";
 import { SeletorCst } from "@/components/SeletorCst";
@@ -25,14 +26,11 @@ const PAGINA = 50;
 export default function Home() {
   const { registros, carregando, erro } = useRegistrosSped();
   const { data: atualizadoEm, versoes } = useSincronizacao();
-  const [cst, setCst] = useState(CST_PADRAO);
-  const [consulta, setConsulta] = useState("");
-  const [visiveis, setVisiveis] = useState(PAGINA);
-
-  // Ordem do funil: CST + vigência mais recente → busca por NCM/descrição →
-  // agrupamento → página. O agrupamento vem DEPOIS da busca de propósito: o
-  // índice do Fuse continua indexando cada NCM separadamente.
-  const [filtrosColuna, setFiltrosColuna] = useState<Record<string, string[]>>({});
+  
+  const [cst, setCst] = useEstadoMemoria("consulta_cst", CST_PADRAO);
+  const [consulta, setConsulta] = useEstadoMemoria("consulta_texto", "");
+  const [visiveis, setVisiveis] = useEstadoMemoria("consulta_visiveis", PAGINA);
+  const [filtrosColuna, setFiltrosColuna] = useEstadoMemoria<Record<string, string[]>>("consulta_filtrosColuna", {});
   const { opcoes, regras } = useFiltroCst(registros, cst);
   const encontrados = useBuscaSped(regras, consulta);
   const resultadosAgrupados = useMemo(() => agruparRegras(encontrados), [encontrados]);

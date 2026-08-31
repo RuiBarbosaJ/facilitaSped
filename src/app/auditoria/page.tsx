@@ -12,6 +12,7 @@ import { ResumoAuditoria, type FiltroAuditoria } from "@/components/auditoria/Re
 import { TabelaAuditoria } from "@/components/auditoria/TabelaAuditoria";
 import { useRegistrosSped } from "@/hooks/useRegistrosSped";
 import { useTabelaNcm } from "@/hooks/useTabelaNcm";
+import { useEstadoMemoria } from "@/hooks/useEstadoMemoria";
 import {
   ERRO_LAYOUT,
   auditarLinha,
@@ -42,15 +43,15 @@ export default function Auditoria() {
   const ncm = useTabelaNcm();
 
   const [processando, setProcessando] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
-  const [resultado, setResultado] = useState<Resultado | null>(null);
-  const [filtro, setFiltro] = useState<FiltroAuditoria>("todos");
-  const [visiveis, setVisiveis] = useState(PAGINA);
+  const [erro, setErro] = useEstadoMemoria<string | null>("auditoria_erro", null);
+  const [resultado, setResultado] = useEstadoMemoria<Resultado | null>("auditoria_resultado", null);
+  const [filtro, setFiltro] = useEstadoMemoria<FiltroAuditoria>("auditoria_filtro", "todos");
+  const [visiveis, setVisiveis] = useEstadoMemoria("auditoria_visiveis", PAGINA);
   const [exportando, setExportando] = useState(false);
-  const [consulta, setConsulta] = useState("");
-  const [cstFiltro, setCstFiltro] = useState("todos");
-  const [cfopFiltro, setCfopFiltro] = useState("todos");
-  const [filtrosColuna, setFiltrosColuna] = useState<Record<string, string[]>>({});
+  const [consulta, setConsulta] = useEstadoMemoria("auditoria_consulta", "");
+  const [cstFiltro, setCstFiltro] = useEstadoMemoria("auditoria_cstFiltro", "todos");
+  const [cfopFiltro, setCfopFiltro] = useEstadoMemoria("auditoria_cfopFiltro", "todos");
+  const [filtrosColuna, setFiltrosColuna] = useEstadoMemoria<Record<string, string[]>>("auditoria_filtrosColuna", {});
 
   const zonaRef = useRef<HTMLDivElement>(null);
   const cartaoRef = useRef<HTMLDivElement>(null);
