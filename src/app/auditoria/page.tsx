@@ -42,6 +42,7 @@ interface Resultado {
   /** Índices das colunas CST PIS e CST COFINS na planilha original (se existirem). */
   indiceCstPis?: number;
   indiceCstCofins?: number;
+  indiceNatureza?: number;
 }
 
 export default function Auditoria() {
@@ -120,8 +121,8 @@ export default function Auditoria() {
           String(c ?? "").trim() || `Coluna ${i + 1}`
         );
 
-        // Guarda os índices das colunas CST para o export corrigido
-        const { cstPis: indiceCstPis, cstCofins: indiceCstCofins } = encontrada.cabecalho.colunas;
+        // Guarda os índices das colunas para o export corrigido
+        const { cstPis: indiceCstPis, cstCofins: indiceCstCofins, natureza: indiceNatureza } = encontrada.cabecalho.colunas;
 
         setResultado({
           arquivo: arquivo.name,
@@ -130,6 +131,7 @@ export default function Auditoria() {
           colunasOriginais: cabecalhoOriginal,
           indiceCstPis,
           indiceCstCofins,
+          indiceNatureza,
         });
       } catch (excecao) {
         setErro(descreverErroDeLeitura(excecao));
@@ -263,8 +265,8 @@ export default function Auditoria() {
       const linhas = linhasParaExport.map((l) => [
         ...colunasCliente.map((_, i) => {
           let celula = l.original[i];
-          // Substitui os valores das colunas CST na planilha original quando a
-          // correção está ativa e a linha tem CST corrigido definido.
+          // Substitui os valores das colunas CST e Natureza na planilha original
+          // quando a correção está ativa e a linha tem CST corrigido definido.
           if (
             correcaoAtiva &&
             l.cstCorrigido !== undefined &&
@@ -272,6 +274,8 @@ export default function Auditoria() {
           ) {
             if (i === resultado.indiceCstPis || i === resultado.indiceCstCofins) {
               celula = l.cstCorrigido;
+            } else if (i === resultado.indiceNatureza && l.naturezaCorrigida !== undefined) {
+              celula = l.naturezaCorrigida;
             }
           }
           return celula === undefined || celula === null ? "" : celula;

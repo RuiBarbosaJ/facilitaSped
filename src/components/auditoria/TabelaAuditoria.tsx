@@ -35,7 +35,11 @@ const ESTILO_SELO: Record<LinhaAuditada["situacao"], string> = {
 };
 
 function Codigo({ valor }: { valor: string }) {
-  return valor ? <span className="font-mono">{valor}</span> : <span className="text-text-tertiary">—</span>;
+  return valor ? (
+    <span className="font-mono">{valor}</span>
+  ) : (
+    <span className="text-text-tertiary">—</span>
+  );
 }
 
 /** Mostra o CST original e, quando a correção está ativa, o corrigido ao lado. */
@@ -45,6 +49,7 @@ function CelulaCst({
   natureza,
   cfop,
   cstCorrigido,
+  naturezaCorrigida,
   criterioAtivo,
 }: {
   cstPis: string;
@@ -52,6 +57,7 @@ function CelulaCst({
   natureza: string;
   cfop: string;
   cstCorrigido?: string;
+  naturezaCorrigida?: string;
   criterioAtivo: boolean;
 }) {
   const mudou =
@@ -67,15 +73,23 @@ function CelulaCst({
         <span className="text-xs text-text-tertiary">CST </span>
         {mudou ? (
           <>
-            <span className="font-mono line-through text-text-tertiary">{cstPis || "—"}</span>
+            <span className="font-mono line-through text-text-tertiary">
+              {cstPis || "—"}
+            </span>
             <span className="text-text-tertiary">/</span>
-            <span className="font-mono line-through text-text-tertiary">{cstCofins || "—"}</span>
+            <span className="font-mono line-through text-text-tertiary">
+              {cstCofins || "—"}
+            </span>
             <span className="mx-1 text-text-tertiary">→</span>
-            <span className="font-mono font-semibold text-success">{cstCorrigido}</span>
+            <span className="font-mono font-semibold text-success">
+              {cstCorrigido}
+            </span>
           </>
         ) : (
           <>
-            <Codigo valor={cstPis} /> <span className="text-text-tertiary">/</span> <Codigo valor={cstCofins} />
+            <Codigo valor={cstPis} />{" "}
+            <span className="text-text-tertiary">/</span>{" "}
+            <Codigo valor={cstCofins} />
           </>
         )}
       </div>
@@ -83,7 +97,19 @@ function CelulaCst({
       {/* Natureza */}
       <div>
         <span className="text-xs text-text-tertiary">nat. </span>
-        <Codigo valor={natureza} />
+        {criterioAtivo && naturezaCorrigida !== undefined && natureza !== naturezaCorrigida ? (
+          <>
+            <span className="font-mono line-through text-text-tertiary">
+              {natureza || "—"}
+            </span>
+            <span className="mx-1 text-text-tertiary">→</span>
+            <span className={`font-mono font-semibold ${naturezaCorrigida ? "text-success" : "text-text-tertiary"}`}>
+              {naturezaCorrigida || "vazia"}
+            </span>
+          </>
+        ) : (
+          <Codigo valor={natureza} />
+        )}
       </div>
 
       {/* CFOP */}
@@ -112,7 +138,14 @@ function CelulaCst({
 }
 
 /** Auditoria linha a linha. Vermelho = NCM inválido; amarelo = divergência. */
-export function TabelaAuditoria({ linhas, colunas, filtros, opcoesDe, onFiltrar, criterioCorrecaoAtivo = false }: TabelaAuditoriaProps) {
+export function TabelaAuditoria({
+  linhas,
+  colunas,
+  filtros,
+  opcoesDe,
+  onFiltrar,
+  criterioCorrecaoAtivo = false,
+}: TabelaAuditoriaProps) {
   return (
     <div className="bg-surface-card rounded-xl shadow-(--shadow-card) overflow-hidden">
       <div
@@ -123,7 +156,8 @@ export function TabelaAuditoria({ linhas, colunas, filtros, opcoesDe, onFiltrar,
       >
         <table className="min-w-full text-left text-sm">
           <caption className="sr-only">
-            Auditoria linha a linha: linhas vermelhas têm NCM inválido; amarelas, divergência entre o informado e o SPED.
+            Auditoria linha a linha: linhas vermelhas têm NCM inválido;
+            amarelas, divergência entre o informado e o SPED.
           </caption>
           <thead className="bg-surface-head">
             <tr>
@@ -132,7 +166,7 @@ export function TabelaAuditoria({ linhas, colunas, filtros, opcoesDe, onFiltrar,
                   key={coluna.id}
                   scope="col"
                   className="px-3 py-3.5 text-left text-xs font-bold text-text-secondary uppercase tracking-widest whitespace-nowrap first:pl-4 align-middle"
-                  style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+                  style={{ fontFamily: "var(--font-outfit), sans-serif" }}
                 >
                   <div className="flex items-center gap-1">
                     <span>
@@ -157,21 +191,42 @@ export function TabelaAuditoria({ linhas, colunas, filtros, opcoesDe, onFiltrar,
           <tbody>
             {linhas.length === 0 ? (
               <tr>
-                <td colSpan={colunas.length} className="h-[400px] px-6 text-center align-middle text-text-secondary">
-                  <p className="text-base font-medium">Nenhuma linha neste filtro.</p>
-                  <p className="text-sm text-text-tertiary mt-1">Remova um filtro na barra acima para ver os resultados.</p>
+                <td
+                  colSpan={colunas.length}
+                  className="h-[400px] px-6 text-center align-middle text-text-secondary"
+                >
+                  <p className="text-base font-medium">
+                    Nenhuma linha neste filtro.
+                  </p>
+                  <p className="text-sm text-text-tertiary mt-1">
+                    Remova um filtro na barra acima para ver os resultados.
+                  </p>
                 </td>
               </tr>
             ) : (
               linhas.map((l) => (
-                <tr key={l.linha} className={`align-top ${ESTILO_LINHA[l.destaque]}`}>
-                  <td className="px-3 py-2.5 whitespace-nowrap font-mono text-text-tertiary">{l.linha}</td>
+                <tr
+                  key={l.linha}
+                  className={`align-top ${ESTILO_LINHA[l.destaque]}`}
+                >
+                  <td className="px-3 py-2.5 whitespace-nowrap font-mono text-text-tertiary">
+                    {l.linha}
+                  </td>
 
                   <td className="px-3 py-2.5 min-w-[200px] max-w-56 lg:max-w-md xl:max-w-xl 2xl:max-w-3xl">
-                    <DescricaoExpandivel texto={l.nome} limiteCaracteres={100} className="text-text-primary" destacar={false} />
+                    <DescricaoExpandivel
+                      texto={l.nome}
+                      limiteCaracteres={100}
+                      className="text-text-primary"
+                      destacar={false}
+                    />
                     {l.descricaoNcm && (
                       <div className="mt-0.5">
-                        <DescricaoExpandivel texto={`NCM: ${l.descricaoNcm}`} limiteCaracteres={100} className="text-xs text-text-tertiary" />
+                        <DescricaoExpandivel
+                          texto={`NCM: ${l.descricaoNcm}`}
+                          limiteCaracteres={100}
+                          className="text-xs text-text-tertiary"
+                        />
                       </div>
                     )}
                   </td>
@@ -180,9 +235,12 @@ export function TabelaAuditoria({ linhas, colunas, filtros, opcoesDe, onFiltrar,
                     <span className="font-mono rounded bg-badge-ncm-bg px-1.5 py-0.5 text-badge-ncm-text">
                       {l.ncm || l.classificacaoOriginal || "—"}
                     </span>
-                    {l.ncm && l.classificacaoOriginal.replace(/\D/g, "") !== l.ncm && (
-                      <div className="mt-0.5 text-xs text-text-tertiary">de "{l.classificacaoOriginal}"</div>
-                    )}
+                    {l.ncm &&
+                      l.classificacaoOriginal.replace(/\D/g, "") !== l.ncm && (
+                        <div className="mt-0.5 text-xs text-text-tertiary">
+                          de "{l.classificacaoOriginal}"
+                        </div>
+                      )}
                   </td>
 
                   {/* Coluna "Informado → Corrigido" quando critério ativo */}
@@ -193,23 +251,28 @@ export function TabelaAuditoria({ linhas, colunas, filtros, opcoesDe, onFiltrar,
                       natureza={l.natureza}
                       cfop={l.cfop}
                       cstCorrigido={l.cstCorrigido}
+                      naturezaCorrigida={l.naturezaCorrigida}
                       criterioAtivo={criterioCorrecaoAtivo}
                     />
                   </td>
 
                   <td className="px-3 py-2.5 whitespace-nowrap">
-                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${ESTILO_SELO[l.situacao]}`}>
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${ESTILO_SELO[l.situacao]}`}
+                    >
                       {l.rotulo}
                     </span>
                     {/* Quando o critério está ativo e a linha tem um CST corrigido
                         (seja para o benefício ou para tributado), o status final
                         é "Coerente com o critério" — a decisão já foi tomada. */}
-                    {criterioCorrecaoAtivo && l.cstCorrigido !== undefined && l.situacao !== "invalido" && (
-                      <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-success-soft px-1.5 py-0.5 text-[10px] font-medium text-success">
-                        <span>✓</span>
-                        <span>Coerente com o critério</span>
-                      </div>
-                    )}
+                    {criterioCorrecaoAtivo &&
+                      l.cstCorrigido !== undefined &&
+                      l.situacao !== "invalido" && (
+                        <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-success-soft px-1.5 py-0.5 text-[10px] font-medium text-success">
+                          <span>✓</span>
+                          <span>Coerente com o critério</span>
+                        </div>
+                      )}
                   </td>
 
                   <td className="px-3 py-2.5 min-w-48 max-w-72">
@@ -224,21 +287,35 @@ export function TabelaAuditoria({ linhas, colunas, filtros, opcoesDe, onFiltrar,
                     ) : l.regra ? (
                       <div className="flex flex-col gap-0.5">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-xs text-text-tertiary">CST</span>
+                          <span className="text-xs text-text-tertiary">
+                            CST
+                          </span>
                           {l.regra.cstsAceitos.map((cst) => (
-                            <span key={cst} className="font-mono rounded bg-badge-cst-bg px-1.5 py-0.5 text-xs font-medium text-badge-cst-text">
+                            <span
+                              key={cst}
+                              className="font-mono rounded bg-badge-cst-bg px-1.5 py-0.5 text-xs font-medium text-badge-cst-text"
+                            >
                               {cst}
                             </span>
                           ))}
                           {l.regra.naturezas.length > 0 && (
                             <>
-                              <span className="text-xs text-text-tertiary">· nat.</span>
-                              <span className="font-mono text-xs font-medium">{l.regra.naturezas.join(" / ")}</span>
+                              <span className="text-xs text-text-tertiary">
+                                · nat.
+                              </span>
+                              <span className="font-mono text-xs font-medium">
+                                {l.regra.naturezas.join(" / ")}
+                              </span>
                             </>
                           )}
-                          <span className="text-xs text-text-tertiary">· tabela {l.regra.tabela}</span>
+                          <span className="text-xs text-text-tertiary">
+                            · tabela {l.regra.tabela}
+                          </span>
                         </div>
-                        <div className="line-clamp-2 text-xs text-text-secondary" title={l.regra.descricao}>
+                        <div
+                          className="line-clamp-2 text-xs text-text-secondary"
+                          title={l.regra.descricao}
+                        >
                           {l.regra.descricao}
                         </div>
                       </div>
@@ -255,7 +332,9 @@ export function TabelaAuditoria({ linhas, colunas, filtros, opcoesDe, onFiltrar,
                         ))}
                       </ul>
                     ) : (
-                      <span className="text-xs text-success">Coerente com o SPED</span>
+                      <span className="text-xs text-success">
+                        Coerente com o SPED
+                      </span>
                     )}
                   </td>
                 </tr>

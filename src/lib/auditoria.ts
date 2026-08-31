@@ -205,6 +205,11 @@ export interface LinhaAuditada {
    * Ex: "06" para NCMs com benefício; "01" para os demais.
    */
   cstCorrigido?: string;
+  /**
+   * Natureza sugerida pelo critério de correção escolhido.
+   * Presente apenas quando um critério está ativo.
+   */
+  naturezaCorrigida?: string;
 }
 
 /**
@@ -689,7 +694,7 @@ export function corrigirLinhas(
   return linhas.map((l) => {
     // NCM inválido → não há o que corrigir; mantém tudo como está
     if (l.situacao === "invalido") {
-      return { ...l, cstCorrigido: "" };
+      return { ...l, cstCorrigido: "", naturezaCorrigida: "" };
     }
 
     // Basta um regime vigente do NCM aceitar o CST do critério. A tabela que a
@@ -701,11 +706,16 @@ export function corrigirLinhas(
       .find((r) => r.cstsAceitos.includes(cstBeneficio));
 
     if (regraDoCriterio) {
-      // Enquadrado no critério: o CST informado fica, e a linha passa a falar só
-      // da regra que o sustenta.
+      // Enquadrado no critério: o CST informado fica, a natureza é corrigida
+      // e a linha passa a falar só da regra que o sustenta.
+      // Escolhe a natureza: se a atual for aceita, mantém; senão pega a primeira.
+      const naturezaAceita = l.natureza && regraDoCriterio.naturezas.includes(l.natureza);
+      const naturezaCorrigida = naturezaAceita ? l.natureza : (regraDoCriterio.naturezas[0] ?? "");
+      
       return {
         ...l,
         cstCorrigido: cstBeneficio,
+        naturezaCorrigida,
         situacao: "beneficio",
         rotulo: regraDoCriterio.rotulo,
         regra: regraDoCriterio,
@@ -718,9 +728,11 @@ export function corrigirLinhas(
     // intencionalmente como tributado. Como a decisão é explícita do usuário,
     // não é divergência: sai o realce amarelo, saem os alertas e sai também a
     // sugestão das outras tabelas, que o critério mandou ignorar.
+    // CST tributado (01) não tem natureza, então ela é removida ("").
     return {
       ...l,
       cstCorrigido: cstTributado,
+      naturezaCorrigida: "",
       situacao: "tributado",
       rotulo: "Tributado",
       regra: undefined,
