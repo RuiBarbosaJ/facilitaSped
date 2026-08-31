@@ -12,7 +12,7 @@ export type ColunaAuditoria = ColunaFiltravel<LinhaAuditada>;
  */
 export const COLUNAS_AUDITORIA: ColunaAuditoria[] = [
   { id: "linha", rotulo: "Linha" },
-  { id: "produto", rotulo: "Produto" },
+  { id: "produto", rotulo: "Produto", valores: (linha) => [linha.nome ? linha.nome.trim() : "—"] },
   {
     id: "classificacao",
     rotulo: "Classificação",
@@ -39,5 +39,5 @@ export const COLUNAS_AUDITORIA: ColunaAuditoria[] = [
     rotulo: "Sugestão do SPED",
     valores: (linha) => [linha.regra?.rotulo ?? ""],
   },
-  { id: "observacoes", rotulo: "Observações" },
+  { id: "observacoes", rotulo: "Observações", valores: (linha) => [linha.observacoes.length > 0 ? linha.observacoes.join(" ") : "Coerente com o SPED"] },
 ];

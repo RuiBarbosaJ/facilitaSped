@@ -31,7 +31,7 @@ export const COLUNAS_CONSULTA: ColunaConsulta[] = [
     // regra que tivesse exatamente aqueles NCMs na mesma ordem.
     valores: (regra) => regra.ncms,
   },
-  { id: "descricao", rotulo: "Descrição", alinhamento: "text-left" },
+  { id: "descricao", rotulo: "Descrição", alinhamento: "text-left", valores: (regra) => [regra.descricao || ""] },
   { id: "cst", rotulo: "CST", alinhamento: "text-left", valores: (regra) => [regra.cst] },
   {
     id: "aliquota",
