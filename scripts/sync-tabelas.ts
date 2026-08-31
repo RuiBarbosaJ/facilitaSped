@@ -906,9 +906,16 @@ async function syncTabelas(): Promise<void> {
 
     const registros = new Map<string, RegistroSped>();
     const ignorados: string[] = [];
+    const versoes: Record<string, string> = {};
 
     for (const alvo of alvos) {
       const nome = alvo.titulo.slice(0, 60) || alvo.url;
+      const matchVersao = alvo.titulo.match(/Vers[ãa]o\s+([\d.A-C]+)/i);
+      const numeroTab = numeroDaTabela(alvo.titulo);
+      if (numeroTab && matchVersao) {
+        versoes[numeroTab] = matchVersao[1];
+      }
+      
       try {
         const buffer = await baixar(alvo.url);
         const tabelas = await converter(buffer, alvo.titulo, tmpDir);
@@ -989,6 +996,7 @@ async function syncTabelas(): Promise<void> {
       const meta: SincronizacaoMeta = {
         atualizado_em: new Date().toISOString(),
         registros: dados.length,
+        versoes,
       };
       fs.writeFileSync(META_FILE, `${JSON.stringify(meta, null, 2)}\n`);
       if (semMudanca) {

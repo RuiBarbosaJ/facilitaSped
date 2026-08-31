@@ -1,6 +1,6 @@
 import type { ResumoAuditoria as Resumo } from "@/lib/auditoria";
 
-export type FiltroAuditoria = "todos" | "beneficio" | "possivel" | "tributado" | "invalido" | "divergencias";
+export type FiltroAuditoria = "todos" | "beneficio" | "possivel" | "tributado" | "invalido" | "divergencias" | "coerente";
 
 interface ResumoAuditoriaProps {
   resumo: Resumo;
@@ -15,12 +15,13 @@ const TILES: { chave: FiltroAuditoria; rotulo: string; cor: string; valor: (r: R
   { chave: "tributado", rotulo: "Tributado", cor: "text-text-secondary", valor: (r) => r.tributado },
   { chave: "divergencias", rotulo: "Divergências de CST/natureza", cor: "text-warning", valor: (r) => r.divergencias },
   { chave: "invalido", rotulo: "NCM inválido", cor: "text-danger", valor: (r) => r.invalido },
+  { chave: "coerente", rotulo: "Coerente com o SPED", cor: "text-success", valor: (r) => r.coerente },
 ];
 
 /** Contadores da auditoria; cada cartão também filtra a tabela. */
 export function ResumoAuditoria({ resumo, filtro, onFiltrar }: ResumoAuditoriaProps) {
   return (
-    <div role="group" aria-label="Resumo da auditoria" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+    <div role="group" aria-label="Resumo da auditoria" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
       {TILES.map(({ chave, rotulo, cor, valor }) => {
         const ativo = filtro === chave;
         return (

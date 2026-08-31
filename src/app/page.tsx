@@ -24,7 +24,7 @@ const PAGINA = 50;
 
 export default function Home() {
   const { registros, carregando, erro } = useRegistrosSped();
-  const atualizadoEm = useSincronizacao();
+  const { data: atualizadoEm, versoes } = useSincronizacao();
   const [cst, setCst] = useState(CST_PADRAO);
   const [consulta, setConsulta] = useState("");
   const [visiveis, setVisiveis] = useState(PAGINA);
@@ -32,9 +32,48 @@ export default function Home() {
   // Ordem do funil: CST + vigência mais recente → busca por NCM/descrição →
   // agrupamento → página. O agrupamento vem DEPOIS da busca de propósito: o
   // índice do Fuse continua indexando cada NCM separadamente.
+  const [filtrosColuna, setFiltrosColuna] = useState<Record<string, string[]>>({});
   const { opcoes, regras } = useFiltroCst(registros, cst);
   const encontrados = useBuscaSped(regras, consulta);
-  const resultados = useMemo(() => agruparRegras(encontrados), [encontrados]);
+  const resultadosAgrupados = useMemo(() => agruparRegras(encontrados), [encontrados]);
+
+  // Função para aplicar os filtros de coluna na página de Consulta
+  const resultados = useMemo(() => {
+    if (Object.keys(filtrosColuna).length === 0) return resultadosAgrupados;
+    return resultadosAgrupados.filter((regra) => {
+      for (const [coluna, selecionados] of Object.entries(filtrosColuna)) {
+        let valor = "";
+        switch (coluna) {
+          case "NCM":
+            valor = regra.ncms.length > 0 ? regra.ncms.slice(0, 3).join(", ") + (regra.ncms.length > 3 ? "..." : "") : "";
+            break;
+          case "Descrição":
+            valor = regra.descricao || "";
+            break;
+          case "CST":
+            valor = regra.cst || "";
+            break;
+          case "Alíquota":
+            valor = regra.aliquota || "";
+            break;
+          case "Nat. receita":
+            valor = regra.natureza_receita || "";
+            break;
+          case "Vigência":
+            valor = `${regra.data_inicio || ""} a ${regra.data_fim || ""}`;
+            break;
+        }
+        if (!selecionados.includes(valor)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [resultadosAgrupados, filtrosColuna]);
+
+  // Descobre a versão da tabela sendo exibida agora
+  const tabelaAtual = resultados[0]?.tabela;
+  const versaoAtual = tabelaAtual && versoes ? versoes[tabelaAtual] : null;
 
   // Trocar o CST ou a busca recomeça a paginação do topo. Fazer isso nos
   // handlers, e não num efeito, evita o render em cascata (a lista chegaria a
@@ -45,6 +84,20 @@ export default function Home() {
   }
   function aoTrocarCst(valor: string) {
     setCst(valor);
+    setVisiveis(PAGINA);
+    setFiltrosColuna({});
+  }
+
+  function aoFiltrarColuna(coluna: string, valores: string[] | null) {
+    setFiltrosColuna((atuais) => {
+      const novos = { ...atuais };
+      if (valores === null || valores.length === 0) {
+        delete novos[coluna];
+      } else {
+        novos[coluna] = valores;
+      }
+      return novos;
+    });
     setVisiveis(PAGINA);
   }
 
@@ -81,11 +134,18 @@ export default function Home() {
                 <p className="text-xs text-text-tertiary flex items-center gap-1.5">
                   <RefreshCw size={12} aria-hidden />
                   Dados da Receita Federal atualizados em {atualizadoEm}
+                  {versaoAtual && tabelaAtual && <> <span className="mx-1">•</span> Tabela {tabelaAtual} (Versão {versaoAtual})</>}
                 </p>
               )}
             </div>
 
-            <TabelaRegistros regras={exibidos} consulta={consulta} />
+            <TabelaRegistros 
+              regras={exibidos} 
+              consulta={consulta} 
+              filtrosColuna={filtrosColuna}
+              onFiltrarColuna={aoFiltrarColuna}
+              todasAsRegras={resultadosAgrupados}
+            />
 
             {restantes > 0 && (
               <div className="flex justify-center mt-6">

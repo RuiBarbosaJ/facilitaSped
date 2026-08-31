@@ -27,6 +27,7 @@ export interface MapaColunas {
   natureza?: number;
   cstPis?: number;
   cstCofins?: number;
+  cfop?: number;
 }
 
 /** Minúsculas, sem acento, sem espaços duplicados: "Classificação " → "classificacao". */
@@ -54,6 +55,7 @@ const APELIDOS: Record<keyof MapaColunas, string[]> = {
   ],
   cstPis: ["cst pis", "cst pis/pasep", "cst do pis", "cst pis saida"],
   cstCofins: ["cst cofins", "cst da cofins", "cst cofins saida"],
+  cfop: ["cfop"],
 };
 
 /**
@@ -82,6 +84,7 @@ export function localizarCabecalho(linhas: unknown[][]): { indice: number; colun
         natureza: opcional("natureza"),
         cstPis: opcional("cstPis"),
         cstCofins: opcional("cstCofins"),
+        cfop: opcional("cfop"),
       },
     };
   }
@@ -178,6 +181,7 @@ export interface LinhaAuditada {
   cstPis: string;
   cstCofins: string;
   natureza: string;
+  cfop: string;
   situacao: Situacao;
   /** Texto curto para o selo: "Alíquota zero", "Tributado", "NCM inválido"... */
   rotulo: string;
@@ -290,6 +294,7 @@ export interface LinhaPlanilha {
   natureza?: unknown;
   cstPis?: unknown;
   cstCofins?: unknown;
+  cfop?: unknown;
 }
 
 const REGEX_RODAPE = /^(sub-?)?tota(l|is)\b|^grupo\b|^quantidade\b|^resumo\b|^qtde?\b/;
@@ -309,16 +314,17 @@ export function extrairLinhas(
     const natureza = pegar(colunas.natureza);
     const cstPis = pegar(colunas.cstPis);
     const cstCofins = pegar(colunas.cstCofins);
+    const cfop = pegar(colunas.cfop);
 
     if (normalizarTexto(classificacao) === "") {
       // Sem classificação, uma linha só é produto se tiver nome e algum outro
       // dado — "Total", "Subtotal", "Grupo: Bebidas" são rodapés do relatório.
       const nomeNormalizado = normalizarTexto(nome);
-      const restoVazio = [natureza, cstPis, cstCofins].every((v) => normalizarTexto(v) === "");
+      const restoVazio = [natureza, cstPis, cstCofins, cfop].every((v) => normalizarTexto(v) === "");
       if (nomeNormalizado === "" || REGEX_RODAPE.test(nomeNormalizado) || restoVazio) continue;
     }
 
-    saida.push({ linha: i + 1, nome, classificacao, natureza, cstPis, cstCofins });
+    saida.push({ linha: i + 1, nome, classificacao, natureza, cstPis, cstCofins, cfop });
   }
   return saida;
 }
@@ -345,6 +351,7 @@ export function auditarLinha(l: LinhaPlanilha, ctx: ContextoAuditoria): LinhaAud
   const cstPis = normalizarCodigo(l.cstPis, 2);
   const cstCofins = normalizarCodigo(l.cstCofins, 2);
   const natureza = normalizarCodigo(l.natureza, 3);
+  const cfop = normalizarCodigo(l.cfop, 4);
   const observacoes: string[] = [];
   const hoje = hojeOrdinal(ctx.hoje);
 
@@ -356,6 +363,7 @@ export function auditarLinha(l: LinhaPlanilha, ctx: ContextoAuditoria): LinhaAud
     cstPis,
     cstCofins,
     natureza,
+    cfop,
     observacoes,
   };
 
@@ -492,6 +500,7 @@ export interface ResumoAuditoria {
   tributado: number;
   invalido: number;
   divergencias: number;
+  coerente: number;
 }
 
 export function resumir(linhas: LinhaAuditada[]): ResumoAuditoria {
@@ -503,5 +512,19 @@ export function resumir(linhas: LinhaAuditada[]): ResumoAuditoria {
     tributado: contar("tributado"),
     invalido: contar("invalido"),
     divergencias: linhas.filter((l) => l.destaque === "amarelo").length,
+    coerente: linhas.filter((l) => l.destaque === "nenhum" && l.situacao !== "invalido").length,
   };
+}
+
+export function valorColuna(l: LinhaAuditada, coluna: string): string {
+  switch (coluna) {
+    case "Linha": return l.linha.toString();
+    case "Produto": return (l.nome || "—").trim();
+    case "Classificação": return (l.ncm || l.classificacaoOriginal || "—").trim();
+    case "Informado": return `CST ${l.cstPis || "—"}/${l.cstCofins || "—"} nat. ${l.natureza || "—"}${l.cfop ? ` CFOP ${l.cfop}` : ""}`;
+    case "Situação": return (l.rotulo || "—").trim();
+    case "Sugestão do SPED": return (l.regra ? l.regra.rotulo : "—").trim();
+    case "Observações": return l.observacoes.length > 0 ? l.observacoes.join(" ") : "Coerente com o SPED";
+    default: return "";
+  }
 }

@@ -1,7 +1,12 @@
-import type { LinhaAuditada } from "@/lib/auditoria";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { Filter } from "lucide-react";
+import { valorColuna, type LinhaAuditada } from "@/lib/auditoria";
 
 interface TabelaAuditoriaProps {
   linhas: LinhaAuditada[];
+  todasAsLinhas: LinhaAuditada[];
+  filtrosColuna: Record<string, string[]>;
+  onFiltrarColuna: (coluna: string, valores: string[] | null) => void;
 }
 
 const COLUNAS = ["Linha", "Produto", "Classificação", "Informado", "Situação", "Sugestão do SPED", "Observações"];
@@ -28,7 +33,7 @@ function Codigo({ valor }: { valor: string }) {
 }
 
 /** Auditoria linha a linha. Vermelho = NCM inválido; amarelo = divergência. */
-export function TabelaAuditoria({ linhas }: TabelaAuditoriaProps) {
+export function TabelaAuditoria({ linhas, todasAsLinhas, filtrosColuna, onFiltrarColuna }: TabelaAuditoriaProps) {
   return (
     <div className="bg-surface-card rounded-xl border border-border-subtle shadow-(--shadow-card) overflow-hidden">
       <div
@@ -47,9 +52,17 @@ export function TabelaAuditoria({ linhas }: TabelaAuditoriaProps) {
                 <th
                   key={coluna}
                   scope="col"
-                  className="px-3 py-2.5 text-xs font-semibold text-text-tertiary uppercase tracking-wider whitespace-nowrap first:pl-4"
+                  className="px-3 py-2.5 text-left text-xs font-semibold text-text-tertiary uppercase tracking-wider whitespace-nowrap first:pl-4 align-top"
                 >
-                  {coluna}
+                  <div className="flex items-center gap-1">
+                    <span>{coluna}</span>
+                    <FiltroColunaExcel
+                      coluna={coluna}
+                      linhas={todasAsLinhas}
+                      selecionados={filtrosColuna[coluna]}
+                      onChange={(valores) => onFiltrarColuna(coluna, valores)}
+                    />
+                  </div>
                 </th>
               ))}
             </tr>
@@ -95,6 +108,12 @@ export function TabelaAuditoria({ linhas }: TabelaAuditoriaProps) {
                       <span className="text-xs text-text-tertiary">nat. </span>
                       <Codigo valor={l.natureza} />
                     </div>
+                    {l.cfop && (
+                      <div>
+                        <span className="text-xs text-text-tertiary">CFOP </span>
+                        <Codigo valor={l.cfop} />
+                      </div>
+                    )}
                   </td>
 
                   <td className="px-3 py-2.5 whitespace-nowrap">
@@ -147,6 +166,121 @@ export function TabelaAuditoria({ linhas }: TabelaAuditoriaProps) {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+function FiltroColunaExcel({
+  coluna,
+  linhas,
+  selecionados,
+  onChange,
+}: {
+  coluna: string;
+  linhas: LinhaAuditada[];
+  selecionados: string[] | undefined;
+  onChange: (s: string[] | null) => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const [busca, setBusca] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const valoresUnicos = useMemo(() => {
+    const valores = new Set<string>();
+    linhas.forEach((l) => valores.add(valorColuna(l, coluna)));
+    return Array.from(valores).sort();
+  }, [linhas, coluna]);
+
+  const filtradosBusca = useMemo(() => {
+    if (!busca) return valoresUnicos;
+    const b = busca.toLowerCase();
+    return valoresUnicos.filter(v => v.toLowerCase().includes(b));
+  }, [valoresUnicos, busca]);
+
+  useEffect(() => {
+    function aoClicarFora(e: MouseEvent) {
+      if (aberto && containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setAberto(false);
+      }
+    }
+    document.addEventListener("mousedown", aoClicarFora);
+    return () => document.removeEventListener("mousedown", aoClicarFora);
+  }, [aberto]);
+
+  const selecionadosParaRenderizar = selecionados ?? valoresUnicos;
+  
+  const toggleAll = () => {
+    if (selecionados === undefined || selecionados.length === valoresUnicos.length) {
+      onChange([]);
+    } else {
+      onChange(null);
+    }
+  };
+
+  const toggleUm = (valor: string) => {
+    const atual = selecionados ?? valoresUnicos;
+    if (atual.includes(valor)) {
+      const novo = atual.filter((v) => v !== valor);
+      onChange(novo);
+    } else {
+      const novo = [...atual, valor];
+      if (novo.length === valoresUnicos.length) {
+        onChange(null);
+      } else {
+        onChange(novo);
+      }
+    }
+  };
+
+  return (
+    <div className="relative inline-flex items-center" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setAberto(!aberto)}
+        className={`p-1 rounded hover:bg-surface-page transition-colors ${selecionados !== undefined ? "text-accent bg-accent-soft" : "text-text-tertiary"}`}
+        aria-label={`Filtrar coluna ${coluna}`}
+        title={`Filtrar coluna ${coluna}`}
+      >
+        <Filter size={14} />
+      </button>
+
+      {aberto && (
+        <div className="absolute top-full left-0 z-10 mt-1 w-64 rounded-xl border border-border-strong bg-surface-card p-3 shadow-lg font-sans">
+          <input
+            type="text"
+            placeholder="Buscar..."
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            className="w-full rounded border border-border-strong bg-surface-page px-2 py-1.5 text-xs text-text-primary focus:border-accent focus:outline-none mb-2"
+          />
+          <div className="flex flex-col max-h-48 overflow-y-auto gap-0.5 text-xs font-normal normal-case tracking-normal">
+            <label className="flex items-center gap-2 px-1 py-1 hover:bg-surface-page cursor-pointer rounded">
+              <input
+                type="checkbox"
+                checked={selecionados === undefined || selecionados.length === valoresUnicos.length}
+                onChange={toggleAll}
+                className="rounded border-border-strong text-accent focus:ring-accent"
+              />
+              <span className="font-semibold">(Selecionar Tudo)</span>
+            </label>
+            {filtradosBusca.length === 0 ? (
+              <span className="text-text-tertiary p-1">Nenhum valor encontrado</span>
+            ) : (
+              filtradosBusca.map((v) => (
+                <label key={v} className="flex items-center gap-2 px-1 py-1 hover:bg-surface-page cursor-pointer rounded">
+                  <input
+                    type="checkbox"
+                    checked={selecionadosParaRenderizar.includes(v)}
+                    onChange={() => toggleUm(v)}
+                    className="rounded border-border-strong text-accent focus:ring-accent shrink-0"
+                  />
+                  <span className="truncate" title={v}>{v || "(Vazio)"}</span>
+                </label>
+              ))
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

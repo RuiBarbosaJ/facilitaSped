@@ -19,8 +19,8 @@ function ehMeta(valor: unknown): valor is SincronizacaoMeta {
  * Devolve `null` enquanto carrega ou se o arquivo ainda não existe (a primeira
  * sincronização é quem o cria).
  */
-export function useSincronizacao(): string | null {
-  const [texto, setTexto] = useState<string | null>(null);
+export function useSincronizacao(): { data: string | null; versoes: Record<string, string> | null } {
+  const [dados, setDados] = useState<{ data: string | null; versoes: Record<string, string> | null }>({ data: null, versoes: null });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -36,13 +36,14 @@ export function useSincronizacao(): string | null {
         const quando = new Date(corpo.atualizado_em);
         if (Number.isNaN(quando.getTime())) return;
 
-        setTexto(
-          new Intl.DateTimeFormat("pt-BR", {
+        setDados({
+          data: new Intl.DateTimeFormat("pt-BR", {
             timeZone: "America/Sao_Paulo",
             dateStyle: "short",
             timeStyle: "short",
-          }).format(quando)
-        );
+          }).format(quando),
+          versoes: corpo.versoes ?? null,
+        });
       } catch {
         // Sem o carimbo a página funciona igual — apenas não mostra a data.
       }
@@ -52,5 +53,5 @@ export function useSincronizacao(): string | null {
     return () => controller.abort();
   }, []);
 
-  return texto;
+  return dados;
 }

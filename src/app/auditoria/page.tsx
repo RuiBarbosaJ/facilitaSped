@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Download, FileSpreadsheet, Loader2, RotateCcw, ShieldCheck } from "lucide-react";
 
 import { Cabecalho } from "@/components/Cabecalho";
+import { CampoBusca } from "@/components/CampoBusca";
 import { Rodape } from "@/components/Rodape";
 import { PainelInstrucoes } from "@/components/auditoria/PainelInstrucoes";
 import { ZonaUpload } from "@/components/auditoria/ZonaUpload";
@@ -19,6 +20,7 @@ import {
   indexarNcm,
   localizarCabecalho,
   resumir,
+  valorColuna,
   type LinhaAuditada,
 } from "@/lib/auditoria";
 import { TAMANHO_MAXIMO, baixarArquivo, descreverErroDeLeitura, gerarXlsx, lerAbas, tipoDeArquivo } from "@/lib/planilha";
@@ -42,6 +44,10 @@ export default function Auditoria() {
   const [filtro, setFiltro] = useState<FiltroAuditoria>("todos");
   const [visiveis, setVisiveis] = useState(PAGINA);
   const [exportando, setExportando] = useState(false);
+  const [consulta, setConsulta] = useState("");
+  const [cstFiltro, setCstFiltro] = useState("todos");
+  const [cfopFiltro, setCfopFiltro] = useState("todos");
+  const [filtrosColuna, setFiltrosColuna] = useState<Record<string, string[]>>({});
 
   const zonaRef = useRef<HTMLDivElement>(null);
   const cartaoRef = useRef<HTMLDivElement>(null);
@@ -64,6 +70,10 @@ export default function Auditoria() {
       setResultado(null);
       setFiltro("todos");
       setVisiveis(PAGINA);
+      setConsulta("");
+      setCstFiltro("todos");
+      setCfopFiltro("todos");
+      setFiltrosColuna({});
 
       if (arquivo.size === 0) {
         setErro("O arquivo está vazio (0 bytes).");
@@ -123,18 +133,90 @@ export default function Auditoria() {
         return resultado.linhas.filter((l) => l.situacao === filtro);
       case "divergencias":
         return resultado.linhas.filter((l) => l.destaque === "amarelo");
+      case "coerente":
+        return resultado.linhas.filter((l) => l.destaque === "nenhum" && l.situacao !== "invalido");
       default:
         return resultado.linhas;
     }
   }, [resultado, filtro]);
 
-  const exibidas = filtradas.slice(0, visiveis);
-  const restantes = filtradas.length - exibidas.length;
+  const filtradasEBusca = useMemo(() => {
+    return filtradas.filter((l) => {
+      // Filtro global de texto (nome do produto, NCM, etc)
+      if (consulta) {
+        const termo = consulta.toLowerCase();
+        const textoLinha = `${l.nome} ${l.ncm} ${l.classificacaoOriginal} ${l.descricaoNcm || ""} ${l.observacoes.join(" ")}`.toLowerCase();
+        if (!textoLinha.includes(termo)) return false;
+      }
+      
+      // Filtro de CST
+      if (cstFiltro !== "todos") {
+        if (l.cstPis !== cstFiltro && l.cstCofins !== cstFiltro) return false;
+      }
+      
+      // Filtro de CFOP
+      if (cfopFiltro !== "todos") {
+        if (l.cfop !== cfopFiltro) return false;
+      }
+
+      // Filtros de coluna do Excel
+      for (const col of Object.keys(filtrosColuna)) {
+        const selecionados = filtrosColuna[col];
+        if (selecionados && selecionados.length > 0) {
+          const valor = valorColuna(l, col);
+          if (!selecionados.includes(valor)) return false;
+        }
+      }
+
+      return true;
+    });
+  }, [filtradas, consulta, cstFiltro, cfopFiltro, filtrosColuna]);
+
+  const exibidas = filtradasEBusca.slice(0, visiveis);
+  const restantes = filtradasEBusca.length - exibidas.length;
 
   function aoFiltrar(novo: FiltroAuditoria) {
     setFiltro(novo);
     setVisiveis(PAGINA);
   }
+
+  function aoBuscar(valor: string) {
+    setConsulta(valor);
+    setVisiveis(PAGINA);
+  }
+
+  function aoFiltrarColuna(coluna: string, valores: string[] | null) {
+    setFiltrosColuna((atuais) => {
+      const novos = { ...atuais };
+      if (valores === null || valores.length === 0) {
+        delete novos[coluna];
+      } else {
+        novos[coluna] = valores;
+      }
+      return novos;
+    });
+    setVisiveis(PAGINA);
+  }
+
+  // Extrair opções únicas para os selects
+  const opcoesCst = useMemo(() => {
+    if (!resultado) return [];
+    const csts = new Set<string>();
+    resultado.linhas.forEach((l) => {
+      if (l.cstPis) csts.add(l.cstPis);
+      if (l.cstCofins) csts.add(l.cstCofins);
+    });
+    return Array.from(csts).sort();
+  }, [resultado]);
+
+  const opcoesCfop = useMemo(() => {
+    if (!resultado) return [];
+    const cfops = new Set<string>();
+    resultado.linhas.forEach((l) => {
+      if (l.cfop) cfops.add(l.cfop);
+    });
+    return Array.from(cfops).sort();
+  }, [resultado]);
 
   async function exportar() {
     if (!resultado) return;
@@ -148,6 +230,7 @@ export default function Auditoria() {
         "CST PIS",
         "CST COFINS",
         "Natureza da Receita de PIS",
+        "CFOP",
         "Situação",
         "Benefício SPED",
         "Tabela SPED",
@@ -166,6 +249,7 @@ export default function Auditoria() {
         l.cstPis,
         l.cstCofins,
         l.natureza,
+        l.cfop,
         l.rotulo,
         l.regra?.rotulo ?? "",
         l.regra?.tabela ?? "",
@@ -179,7 +263,7 @@ export default function Auditoria() {
       const bytes = await gerarXlsx(
         [cabecalho, ...linhas],
         "Auditoria",
-        [7, 40, 14, 14, 8, 10, 12, 22, 22, 10, 12, 14, 60, 22, 50, 70]
+        [7, 40, 14, 14, 8, 10, 12, 10, 22, 22, 10, 12, 14, 60, 22, 50, 70]
       );
       const base = resultado.arquivo.replace(/\.(xlsx?|csv)$/i, "");
       baixarArquivo(bytes, `auditoria-${base}.xlsx`);
@@ -294,6 +378,37 @@ export default function Auditoria() {
 
               <ResumoAuditoria resumo={resumo} filtro={filtro} onFiltrar={aoFiltrar} />
 
+              <div className="flex flex-col md:flex-row md:items-center gap-4 bg-surface-card border border-border-subtle p-4 rounded-xl shadow-(--shadow-card)">
+                <div className="flex-1">
+                  <CampoBusca valor={consulta} onChange={aoBuscar} />
+                </div>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 text-sm text-text-secondary">
+                    <span className="font-medium whitespace-nowrap">CST</span>
+                    <select
+                      value={cstFiltro}
+                      onChange={(e) => { setCstFiltro(e.target.value); setVisiveis(PAGINA); }}
+                      className="block w-full py-1.5 pl-2 pr-8 text-sm rounded-lg border border-border-strong bg-surface-card text-text-primary focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
+                    >
+                      <option value="todos">Todos os CSTs</option>
+                      {opcoesCst.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </label>
+                  
+                  <label className="flex items-center gap-2 text-sm text-text-secondary">
+                    <span className="font-medium whitespace-nowrap">CFOP</span>
+                    <select
+                      value={cfopFiltro}
+                      onChange={(e) => { setCfopFiltro(e.target.value); setVisiveis(PAGINA); }}
+                      className="block w-full py-1.5 pl-2 pr-8 text-sm rounded-lg border border-border-strong bg-surface-card text-text-primary focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
+                    >
+                      <option value="todos">Todos os CFOPs</option>
+                      {opcoesCfop.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </label>
+                </div>
+              </div>
+
               {resumo.divergencias === 0 && resumo.invalido === 0 && (
                 <Banner tom="ok" titulo="Nenhuma divergência encontrada.">
                   Todos os CSTs e naturezas de receita batem com o que o SPED indica para cada NCM.
@@ -302,9 +417,9 @@ export default function Auditoria() {
               )}
 
               <p className="text-sm text-text-secondary" aria-live="polite">
-                <strong className="font-semibold text-text-primary">{filtradas.length.toLocaleString("pt-BR")}</strong>{" "}
-                {filtradas.length === 1 ? "linha" : "linhas"}
-                {filtro !== "todos" ? " neste filtro" : ""}
+                <strong className="font-semibold text-text-primary">{filtradasEBusca.length.toLocaleString("pt-BR")}</strong>{" "}
+                {filtradasEBusca.length === 1 ? "linha" : "linhas"}
+                {filtro !== "todos" || consulta || cstFiltro !== "todos" || cfopFiltro !== "todos" ? " neste filtro" : ""}
                 {restantes > 0 ? ` — exibindo as primeiras ${exibidas.length}` : ""}
                 <span className="ml-3 inline-flex items-center gap-3 text-xs text-text-tertiary">
                   <span className="inline-flex items-center gap-1"><span className="size-2.5 rounded-sm bg-danger-soft border border-danger/40" /> NCM inválido</span>
@@ -312,7 +427,12 @@ export default function Auditoria() {
                 </span>
               </p>
 
-              <TabelaAuditoria linhas={exibidas} />
+              <TabelaAuditoria
+                linhas={exibidas}
+                todasAsLinhas={filtradas} // Precisamos das linhas filtradas globalmente para gerar os valores únicos de cada coluna
+                filtrosColuna={filtrosColuna}
+                onFiltrarColuna={aoFiltrarColuna}
+              />
 
               {restantes > 0 && (
                 <div className="flex justify-center">

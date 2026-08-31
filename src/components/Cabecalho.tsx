@@ -33,7 +33,18 @@ export function Cabecalho({ children }: CabecalhoProps) {
               <FileSpreadsheet size={20} aria-hidden />
             </Link>
             <div className="min-w-0">
-              <p className="text-lg font-semibold tracking-tight truncate leading-tight">Facilita Sped</p>
+              <div className="flex items-start">
+                <p 
+                  className="text-xl font-bold tracking-tight truncate leading-none py-1" 
+                  style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+                >
+                  <span className="bg-linear-to-r from-accent to-accent-hover bg-clip-text text-transparent mr-1">Facilita</span>
+                  <span className="text-text-primary">
+                    Sped
+                    <sup className="text-[0.6rem] font-black text-accent uppercase ml-[1px]" title="Rui">r</sup>
+                  </span>
+                </p>
+              </div>
               <p className="text-xs text-text-tertiary truncate">
                 Tabelas do EFD-Contribuições · NCM, CST, alíquotas e vigência
               </p>

@@ -1,9 +1,13 @@
 import { SearchX } from "lucide-react";
 import type { RegraAgrupada } from "@/lib/agrupar";
 import { LinhaRegistro } from "./LinhaRegistro";
+import { FiltroColunaExcel } from "./FiltroColunaExcel";
 
 interface TabelaRegistrosProps {
   regras: RegraAgrupada[];
+  todasAsRegras: RegraAgrupada[];
+  filtrosColuna: Record<string, string[]>;
+  onFiltrarColuna: (coluna: string, valores: string[] | null) => void;
   consulta: string;
 }
 
@@ -16,23 +20,61 @@ const COLUNAS = [
   { rotulo: "Vigência", alinhamento: "text-left" },
 ];
 
+function valorColuna(regra: RegraAgrupada, coluna: string): string {
+  switch (coluna) {
+    case "NCM":
+      return regra.ncms.length > 0 ? regra.ncms.slice(0, 3).join(", ") + (regra.ncms.length > 3 ? "..." : "") : "";
+    case "Descrição":
+      return regra.descricao || "";
+    case "CST":
+      return regra.cst || "";
+    case "Alíquota":
+      return regra.aliquota || "";
+    case "Nat. receita":
+      return regra.natureza_receita || "";
+    case "Vigência":
+      return `${regra.data_inicio || ""} a ${regra.data_fim || ""}`;
+    default:
+      return "";
+  }
+}
+
 /** Grade de resultados. Recebe apenas a fatia que deve ser exibida. */
-export function TabelaRegistros({ regras, consulta }: TabelaRegistrosProps) {
+export function TabelaRegistros({ 
+  regras, 
+  todasAsRegras,
+  filtrosColuna,
+  onFiltrarColuna,
+  consulta 
+}: TabelaRegistrosProps) {
+
   return (
     <div className="bg-surface-card rounded-xl border border-border-subtle shadow-(--shadow-card) overflow-hidden">
       <div className="overflow-x-auto">
         <table className="min-w-full text-left">
           <thead className="bg-surface-head">
             <tr>
-              {COLUNAS.map(({ rotulo, alinhamento }) => (
-                <th
-                  key={rotulo}
-                  scope="col"
-                  className={`px-4 py-2.5 text-xs font-semibold text-text-tertiary uppercase tracking-wider whitespace-nowrap ${alinhamento}`}
-                >
-                  {rotulo}
-                </th>
-              ))}
+              {COLUNAS.map(({ rotulo, alinhamento }) => {
+                const valoresUnicos = Array.from(new Set(todasAsRegras.map(r => valorColuna(r, rotulo)))).sort();
+                
+                return (
+                  <th
+                    key={rotulo}
+                    scope="col"
+                    className={`px-4 py-2.5 text-xs font-semibold text-text-tertiary uppercase tracking-wider whitespace-nowrap align-top ${alinhamento}`}
+                  >
+                    <div className={`flex items-center gap-1 ${alinhamento === "text-right" ? "justify-end" : ""}`}>
+                      <span>{rotulo}</span>
+                      <FiltroColunaExcel
+                        coluna={rotulo}
+                        valoresUnicos={valoresUnicos}
+                        selecionados={filtrosColuna[rotulo]}
+                        onChange={(valores) => onFiltrarColuna(rotulo, valores)}
+                      />
+                    </div>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody className="divide-y divide-border-subtle">

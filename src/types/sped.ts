@@ -22,6 +22,8 @@ export interface SincronizacaoMeta {
   atualizado_em: string;
   /** Quantas regras o arquivo tinha nessa sincronização. */
   registros: number;
+  /** Versões das tabelas do portal SPED mapeadas pelo número da tabela. */
+  versoes?: Record<string, string>;
 }
 
 /** Um código da Nomenclatura Comum do Mercosul, como publicado pelo Siscomex. */

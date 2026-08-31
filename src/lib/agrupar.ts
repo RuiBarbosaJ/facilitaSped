@@ -8,6 +8,7 @@ export interface RegraAgrupada {
   cst: string;
   aliquota: string;
   natureza_receita?: string;
+  tabela?: string;
   data_inicio?: string;
   data_fim?: string;
 }
@@ -67,6 +68,7 @@ export function agruparRegras(registros: RegistroSped[]): RegraAgrupada[] {
       cst: registro.cst,
       aliquota: registro.aliquota,
       natureza_receita: registro.natureza_receita,
+      tabela: registro.tabela,
       data_inicio: registro.data_inicio,
       data_fim: registro.data_fim,
     });
