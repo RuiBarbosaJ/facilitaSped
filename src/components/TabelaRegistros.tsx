@@ -1,55 +1,34 @@
+"use client";
+
 import { SearchX } from "lucide-react";
+
 import type { RegraAgrupada } from "@/lib/agrupar";
+import type { ColunaConsulta } from "@/lib/colunasConsulta";
+import type { FiltrosColuna } from "@/lib/filtrosColuna";
+import { FiltroColuna } from "./FiltroColuna";
 import { LinhaRegistro } from "./LinhaRegistro";
-import { FiltroColunaExcel } from "./FiltroColunaExcel";
 
 interface TabelaRegistrosProps {
+  /** Só a fatia que deve ser exibida. */
   regras: RegraAgrupada[];
-  todasAsRegras: RegraAgrupada[];
-  filtrosColuna: Record<string, string[]>;
-  onFiltrarColuna: (coluna: string, valores: string[] | null) => void;
+  /** As colunas visíveis agora — a Alíquota some quando nenhuma regra tem uma. */
+  colunas: ColunaConsulta[];
+  filtros: FiltrosColuna;
+  opcoesDe: (id: string) => string[];
+  onFiltrar: (id: string, valores: string[] | null) => void;
   consulta: string;
 }
 
-const COLUNAS = [
-  { rotulo: "NCM", alinhamento: "text-left" },
-  { rotulo: "Descrição", alinhamento: "text-left" },
-  { rotulo: "CST", alinhamento: "text-left" },
-  { rotulo: "Alíquota", alinhamento: "text-right" },
-  { rotulo: "Nat. receita", alinhamento: "text-left" },
-  { rotulo: "Vigência", alinhamento: "text-left" },
-];
-
-function valorColuna(regra: RegraAgrupada, coluna: string): string {
-  switch (coluna) {
-    case "NCM":
-      return regra.ncms.length > 0 ? regra.ncms.slice(0, 3).join(", ") + (regra.ncms.length > 3 ? "..." : "") : "";
-    case "Descrição":
-      return regra.descricao || "";
-    case "CST":
-      return regra.cst || "";
-    case "Alíquota":
-      return regra.aliquota || "";
-    case "Nat. receita":
-      return regra.natureza_receita || "";
-    case "Vigência":
-      return `${regra.data_inicio || ""} a ${regra.data_fim || ""}`;
-    default:
-      return "";
-  }
-}
-
-/** Grade de resultados. Recebe apenas a fatia que deve ser exibida. */
-export function TabelaRegistros({ 
-  regras, 
-  todasAsRegras,
-  filtrosColuna,
-  onFiltrarColuna,
-  consulta 
+/** Grade de resultados da consulta. */
+export function TabelaRegistros({
+  regras,
+  colunas,
+  filtros,
+  opcoesDe,
+  onFiltrar,
+  consulta,
 }: TabelaRegistrosProps) {
-
-  const mostrarAliquota = todasAsRegras.some(r => r.aliquota && r.aliquota.trim() !== "");
-  const colunasVisiveis = COLUNAS.filter(c => c.rotulo !== "Alíquota" || mostrarAliquota);
+  const mostrarAliquota = colunas.some((coluna) => coluna.id === "aliquota");
 
   return (
     <div className="bg-surface-card rounded-xl shadow-(--shadow-card) overflow-hidden">
@@ -58,45 +37,48 @@ export function TabelaRegistros({
           <caption className="sr-only">Tabela de registros do SPED</caption>
           <thead className="bg-surface-head">
             <tr>
-              {colunasVisiveis.map(({ rotulo, alinhamento }, i) => {
-                const valoresUnicos = Array.from(new Set(todasAsRegras.map(r => valorColuna(r, rotulo)))).sort();
-                const alinharDireita = i >= colunasVisiveis.length / 2;
-                
-                return (
-                  <th
-                    key={rotulo}
-                    scope="col"
-                    className={`px-4 py-3.5 text-xs font-bold text-text-secondary uppercase tracking-widest whitespace-nowrap align-middle ${alinhamento}`}
-                    style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
+              {colunas.map((coluna, i) => (
+                <th
+                  key={coluna.id}
+                  scope="col"
+                  className={`px-4 py-3.5 text-xs font-bold text-text-secondary uppercase tracking-widest whitespace-nowrap align-middle ${coluna.alinhamento}`}
+                  style={{ fontFamily: "var(--font-outfit), sans-serif" }}
+                >
+                  <div
+                    className={`flex items-center gap-1 ${
+                      coluna.alinhamento === "text-right" ? "justify-end" : ""
+                    }`}
                   >
-                    <div className={`flex items-center gap-1 ${alinhamento === "text-right" ? "justify-end" : ""}`}>
-                      <span>{rotulo}</span>
-                      <FiltroColunaExcel
-                        coluna={rotulo}
-                        valoresUnicos={valoresUnicos}
-                        selecionados={filtrosColuna[rotulo]}
-                        onChange={(valores) => onFiltrarColuna(rotulo, valores)}
-                        alinharDireita={alinharDireita}
+                    <span>{coluna.rotulo}</span>
+                    {coluna.valores && (
+                      <FiltroColuna
+                        rotulo={coluna.rotulo}
+                        opcoes={opcoesDe(coluna.id)}
+                        selecionados={filtros[coluna.id]}
+                        onChange={(valores) => onFiltrar(coluna.id, valores)}
+                        alinharDireita={i >= colunas.length / 2}
                       />
-                    </div>
-                  </th>
-                );
-              })}
+                    )}
+                  </div>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {regras.length > 0 ? (
-              regras.map((regra) => <LinhaRegistro key={regra.chave} regra={regra} mostrarAliquota={mostrarAliquota} />)
+              regras.map((regra) => (
+                <LinhaRegistro key={regra.chave} regra={regra} mostrarAliquota={mostrarAliquota} />
+              ))
             ) : (
               <tr>
-                <td colSpan={colunasVisiveis.length} className="h-[400px] px-6 text-center align-middle">
+                <td colSpan={colunas.length} className="h-[400px] px-6 text-center align-middle">
                   <SearchX className="mx-auto h-8 w-8 text-text-tertiary mb-3" aria-hidden />
                   <p className="text-text-secondary">
                     Nenhum resultado
                     {consulta ? ` para “${consulta}”` : " para este filtro"}
                   </p>
                   <p className="text-sm text-text-tertiary mt-1">
-                    Tente outro termo ou troque o CST.
+                    Tente outro termo ou remova um filtro na barra acima.
                   </p>
                 </td>
               </tr>

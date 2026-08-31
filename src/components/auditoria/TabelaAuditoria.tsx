@@ -1,15 +1,19 @@
-import { valorColuna, type LinhaAuditada } from "@/lib/auditoria";
+"use client";
+
+import type { LinhaAuditada } from "@/lib/auditoria";
+import type { ColunaAuditoria } from "@/lib/colunasAuditoria";
+import type { FiltrosColuna } from "@/lib/filtrosColuna";
 import { DescricaoExpandivel } from "../DescricaoExpandivel";
-import { FiltroColunaExcel } from "../FiltroColunaExcel";
+import { FiltroColuna } from "../FiltroColuna";
 
 interface TabelaAuditoriaProps {
+  /** Só a fatia que deve ser exibida. */
   linhas: LinhaAuditada[];
-  todasAsLinhas: LinhaAuditada[];
-  filtrosColuna: Record<string, string[]>;
-  onFiltrarColuna: (coluna: string, valores: string[] | null) => void;
+  colunas: ColunaAuditoria[];
+  filtros: FiltrosColuna;
+  opcoesDe: (id: string) => string[];
+  onFiltrar: (id: string, valores: string[] | null) => void;
 }
-
-const COLUNAS = ["Linha", "Produto", "Classificação", "Informado", "Situação", "Sugestão do SPED", "Observações"];
 
 /**
  * Além do fundo, uma borda à esquerda: no tema escuro os tons suaves quase se
@@ -33,7 +37,7 @@ function Codigo({ valor }: { valor: string }) {
 }
 
 /** Auditoria linha a linha. Vermelho = NCM inválido; amarelo = divergência. */
-export function TabelaAuditoria({ linhas, todasAsLinhas, filtrosColuna, onFiltrarColuna }: TabelaAuditoriaProps) {
+export function TabelaAuditoria({ linhas, colunas, filtros, opcoesDe, onFiltrar }: TabelaAuditoriaProps) {
   return (
     <div className="bg-surface-card rounded-xl shadow-(--shadow-card) overflow-hidden">
       <div
@@ -48,22 +52,24 @@ export function TabelaAuditoria({ linhas, todasAsLinhas, filtrosColuna, onFiltra
           </caption>
           <thead className="bg-surface-head">
             <tr>
-              {COLUNAS.map((coluna, i) => (
+              {colunas.map((coluna, i) => (
                 <th
-                  key={coluna}
+                  key={coluna.id}
                   scope="col"
                   className="px-3 py-3.5 text-left text-xs font-bold text-text-secondary uppercase tracking-widest whitespace-nowrap first:pl-4 align-middle"
                   style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
                 >
                   <div className="flex items-center gap-1">
-                    <span>{coluna}</span>
-                    <FiltroColunaExcel
-                      coluna={coluna}
-                      valoresUnicos={Array.from(new Set(todasAsLinhas.map(l => valorColuna(l, coluna)))).sort()}
-                      selecionados={filtrosColuna[coluna]}
-                      onChange={(valores) => onFiltrarColuna(coluna, valores)}
-                      alinharDireita={i >= COLUNAS.length / 2}
-                    />
+                    <span>{coluna.rotulo}</span>
+                    {coluna.valores && (
+                      <FiltroColuna
+                        rotulo={coluna.rotulo}
+                        opcoes={opcoesDe(coluna.id)}
+                        selecionados={filtros[coluna.id]}
+                        onChange={(valores) => onFiltrar(coluna.id, valores)}
+                        alinharDireita={i >= colunas.length / 2}
+                      />
+                    )}
                   </div>
                 </th>
               ))}
@@ -72,9 +78,9 @@ export function TabelaAuditoria({ linhas, todasAsLinhas, filtrosColuna, onFiltra
           <tbody>
             {linhas.length === 0 ? (
               <tr>
-                <td colSpan={COLUNAS.length} className="h-[400px] px-6 text-center align-middle text-text-secondary">
+                <td colSpan={colunas.length} className="h-[400px] px-6 text-center align-middle text-text-secondary">
                   <p className="text-base font-medium">Nenhuma linha neste filtro.</p>
-                  <p className="text-sm text-text-tertiary mt-1">Tente remover alguns filtros para ver os resultados.</p>
+                  <p className="text-sm text-text-tertiary mt-1">Remova um filtro na barra acima para ver os resultados.</p>
                 </td>
               </tr>
             ) : (

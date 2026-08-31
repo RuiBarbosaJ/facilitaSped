@@ -6,6 +6,8 @@ import { AlertTriangle, Download, FileSpreadsheet, Loader2, RotateCcw, ShieldChe
 import { Cabecalho } from "@/components/Cabecalho";
 import { CampoBusca } from "@/components/CampoBusca";
 import { Rodape } from "@/components/Rodape";
+import { SeletorCst } from "@/components/SeletorCst";
+import { BarraFiltros } from "@/components/BarraFiltros";
 import { PainelInstrucoes } from "@/components/auditoria/PainelInstrucoes";
 import { ZonaUpload } from "@/components/auditoria/ZonaUpload";
 import { ResumoAuditoria, type FiltroAuditoria } from "@/components/auditoria/ResumoAuditoria";
@@ -13,6 +15,9 @@ import { TabelaAuditoria } from "@/components/auditoria/TabelaAuditoria";
 import { useRegistrosSped } from "@/hooks/useRegistrosSped";
 import { useTabelaNcm } from "@/hooks/useTabelaNcm";
 import { useEstadoMemoria } from "@/hooks/useEstadoMemoria";
+import { useFiltroCst, TODOS_CST } from "@/hooks/useFiltroCst";
+import { useFiltrosColuna } from "@/hooks/useFiltrosColuna";
+import { COLUNAS_AUDITORIA } from "@/lib/colunasAuditoria";
 import {
   ERRO_LAYOUT,
   auditarLinha,
@@ -22,7 +27,6 @@ import {
   indexarRegrasSemNcm,
   localizarCabecalho,
   resumir,
-  valorColuna,
   type LinhaAuditada,
 } from "@/lib/auditoria";
 import { TAMANHO_MAXIMO, baixarArquivo, descreverErroDeLeitura, gerarXlsx, lerAbas, tipoDeArquivo } from "@/lib/planilha";
@@ -34,13 +38,13 @@ interface Resultado {
   arquivo: string;
   aba: string;
   linhas: LinhaAuditada[];
-  /** Cabeçalho como veio do cliente — o export devolve essas colunas intactas. */
   colunasOriginais: string[];
 }
 
 export default function Auditoria() {
   const { registros, carregando: carregandoSped, erro: erroSped } = useRegistrosSped();
   const ncm = useTabelaNcm();
+  const { opcoes: opcoesCstBase } = useFiltroCst(registros, TODOS_CST);
 
   const [processando, setProcessando] = useState(false);
   const [erro, setErro] = useEstadoMemoria<string | null>("auditoria_erro", null);
@@ -49,22 +53,18 @@ export default function Auditoria() {
   const [visiveis, setVisiveis] = useEstadoMemoria("auditoria_visiveis", PAGINA);
   const [exportando, setExportando] = useState(false);
   const [consulta, setConsulta] = useEstadoMemoria("auditoria_consulta", "");
-  const [cstFiltro, setCstFiltro] = useEstadoMemoria("auditoria_cstFiltro", "todos");
+  const [cstFiltro, setCstFiltro] = useEstadoMemoria("auditoria_cstFiltro", TODOS_CST);
   const [cfopFiltro, setCfopFiltro] = useEstadoMemoria("auditoria_cfopFiltro", "todos");
-  const [filtrosColuna, setFiltrosColuna] = useEstadoMemoria<Record<string, string[]>>("auditoria_filtrosColuna", {});
 
   const zonaRef = useRef<HTMLDivElement>(null);
   const cartaoRef = useRef<HTMLDivElement>(null);
 
-  // Os índices são caros de montar (10 mil NCMs) e não mudam entre arquivos.
   const indiceBase = useMemo(() => indexarBase(registros), [registros]);
   const indiceSemNcm = useMemo(() => indexarRegrasSemNcm(registros), [registros]);
   const indiceNcm = useMemo(() => (ncm.tabela ? indexarNcm(ncm.tabela.codigos) : null), [ncm.tabela]);
 
   const pronto = !carregandoSped && !erroSped && !ncm.carregando;
 
-  // Quem usa teclado ou leitor de tela precisa ser levado ao que mudou: o
-  // cartão de resultado ao terminar, a zona de upload ao recomeçar.
   useEffect(() => {
     if (resultado) cartaoRef.current?.focus();
   }, [resultado]);
@@ -76,9 +76,8 @@ export default function Auditoria() {
       setFiltro("todos");
       setVisiveis(PAGINA);
       setConsulta("");
-      setCstFiltro("todos");
+      setCstFiltro(TODOS_CST);
       setCfopFiltro("todos");
-      setFiltrosColuna({});
 
       if (arquivo.size === 0) {
         setErro("O arquivo está vazio (0 bytes).");
@@ -100,8 +99,6 @@ export default function Auditoria() {
         }
 
         const abas = await lerAbas(buffer);
-        // O relatório costuma estar na primeira aba, mas há exports com uma aba
-        // de capa vazia na frente: usamos a primeira aba que tenha o cabeçalho.
         const encontrada = abas
           .map((aba) => ({ aba, cabecalho: localizarCabecalho(aba.linhas) }))
           .find((x) => x.cabecalho !== null);
@@ -126,7 +123,7 @@ export default function Auditoria() {
         setProcessando(false);
       }
     },
-    [indiceBase, indiceSemNcm, indiceNcm]
+    [indiceBase, indiceSemNcm, indiceNcm, setErro, setResultado, setFiltro, setVisiveis, setConsulta, setCstFiltro, setCfopFiltro]
   );
 
   const resumo = useMemo(() => (resultado ? resumir(resultado.linhas) : null), [resultado]);
@@ -150,38 +147,39 @@ export default function Auditoria() {
 
   const filtradasEBusca = useMemo(() => {
     return filtradas.filter((l) => {
-      // Filtro global de texto (nome do produto, NCM, etc)
       if (consulta) {
         const termo = consulta.toLowerCase();
         const textoLinha = `${l.nome} ${l.ncm} ${l.classificacaoOriginal} ${l.descricaoNcm || ""} ${l.observacoes.join(" ")}`.toLowerCase();
         if (!textoLinha.includes(termo)) return false;
       }
       
-      // Filtro de CST
-      if (cstFiltro !== "todos") {
-        if (l.cstPis !== cstFiltro && l.cstCofins !== cstFiltro) return false;
+      if (cstFiltro !== TODOS_CST) {
+        if (!l.regra?.cstsAceitos.includes(cstFiltro)) return false;
       }
       
-      // Filtro de CFOP
       if (cfopFiltro !== "todos") {
         if (l.cfop !== cfopFiltro) return false;
       }
 
-      // Filtros de coluna do Excel
-      for (const col of Object.keys(filtrosColuna)) {
-        const selecionados = filtrosColuna[col];
-        if (selecionados) {
-          const valor = valorColuna(l, col);
-          if (!selecionados.includes(valor)) return false;
-        }
-      }
-
       return true;
     });
-  }, [filtradas, consulta, cstFiltro, cfopFiltro, filtrosColuna]);
+  }, [filtradas, consulta, cstFiltro, cfopFiltro]);
 
-  const exibidas = filtradasEBusca.slice(0, visiveis);
-  const restantes = filtradasEBusca.length - exibidas.length;
+  const {
+    filtros,
+    itensFiltrados: exibiveis,
+    opcoesDe,
+    definir: definirFiltroColuna,
+    limpar: limparFiltrosColuna,
+  } = useFiltrosColuna(
+    filtradasEBusca,
+    COLUNAS_AUDITORIA,
+    "auditoria_filtrosColuna",
+    () => setVisiveis(PAGINA)
+  );
+
+  const exibidas = exibiveis.slice(0, visiveis);
+  const restantes = exibiveis.length - exibidas.length;
 
   function aoFiltrar(novo: FiltroAuditoria) {
     setFiltro(novo);
@@ -193,29 +191,19 @@ export default function Auditoria() {
     setVisiveis(PAGINA);
   }
 
-  function aoFiltrarColuna(coluna: string, valores: string[] | null) {
-    setFiltrosColuna((atuais) => {
-      const novos = { ...atuais };
-      if (valores === null) {
-        delete novos[coluna];
-      } else {
-        novos[coluna] = valores;
-      }
-      return novos;
-    });
-    setVisiveis(PAGINA);
-  }
-
-  // Extrair opções únicas para os selects
   const opcoesCst = useMemo(() => {
     if (!resultado) return [];
     const csts = new Set<string>();
     resultado.linhas.forEach((l) => {
-      if (l.cstPis) csts.add(l.cstPis);
-      if (l.cstCofins) csts.add(l.cstCofins);
+      if (l.regra?.cstsAceitos) {
+        l.regra.cstsAceitos.forEach((c) => csts.add(c));
+      }
     });
-    return Array.from(csts).sort();
-  }, [resultado]);
+    return Array.from(csts).sort().map((c) => {
+      const achou = opcoesCstBase.find((o) => o.cst === c);
+      return achou ? achou : { cst: c, rotulo: `CST ${c}` };
+    });
+  }, [resultado, opcoesCstBase]);
 
   const opcoesCfop = useMemo(() => {
     if (!resultado) return [];
@@ -226,15 +214,19 @@ export default function Auditoria() {
     return Array.from(cfops).sort();
   }, [resultado]);
 
+  const filtrosAtivos = Object.entries(filtros).map(([id, valores]) => ({
+    id,
+    rotulo: COLUNAS_AUDITORIA.find((c) => c.id === id)?.rotulo ?? id,
+    valores,
+    onRemover: () => definirFiltroColuna(id, null),
+  }));
+
   async function exportar() {
     if (!resultado) return;
     setExportando(true);
     try {
-      // As colunas do cliente saem intactas, na ordem original — o contador
-      // precisa do código interno dele para reimportar no ERP. A auditoria é
-      // acrescentada depois delas.
       const colunasCliente = resultado.colunasOriginais;
-      const COLUNAS_AUDITORIA = [
+      const COLUNAS_AUDITORIA_EXPORT = [
         "Linha",
         "NCM (8 dígitos)",
         "Situação",
@@ -247,7 +239,7 @@ export default function Auditoria() {
         "Descrição NCM (Siscomex)",
         "Observações",
       ];
-      const cabecalho = [...colunasCliente, ...COLUNAS_AUDITORIA];
+      const cabecalho = [...colunasCliente, ...COLUNAS_AUDITORIA_EXPORT];
       const linhas = resultado.linhas.map((l) => [
         ...colunasCliente.map((_, i) => {
           const celula = l.original[i];
@@ -282,7 +274,6 @@ export default function Auditoria() {
     setErro(null);
     setFiltro("todos");
     setVisiveis(PAGINA);
-    // A zona só volta ao DOM no próximo render.
     requestAnimationFrame(() => zonaRef.current?.focus());
   }
 
@@ -387,25 +378,19 @@ export default function Auditoria() {
                 <div className="flex-1">
                   <CampoBusca valor={consulta} onChange={aoBuscar} />
                 </div>
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2 text-sm text-text-secondary">
-                    <span className="font-medium whitespace-nowrap">CST</span>
-                    <select
-                      value={cstFiltro}
-                      onChange={(e) => { setCstFiltro(e.target.value); setVisiveis(PAGINA); }}
-                      className="block w-full py-1.5 pl-2 pr-8 text-sm rounded-lg border border-border-strong bg-surface-card text-text-primary focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
-                    >
-                      <option value="todos">Todos os CSTs</option>
-                      {opcoesCst.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </label>
+                <div className="flex flex-wrap md:flex-nowrap gap-4">
+                  <SeletorCst 
+                    valor={cstFiltro} 
+                    opcoes={opcoesCst} 
+                    onChange={(v) => { setCstFiltro(v); setVisiveis(PAGINA); }} 
+                  />
                   
-                  <label className="flex items-center gap-2 text-sm text-text-secondary">
+                  <label className="flex items-center gap-2 text-sm text-text-secondary w-full md:w-auto">
                     <span className="font-medium whitespace-nowrap">CFOP</span>
                     <select
                       value={cfopFiltro}
                       onChange={(e) => { setCfopFiltro(e.target.value); setVisiveis(PAGINA); }}
-                      className="block w-full py-1.5 pl-2 pr-8 text-sm rounded-lg border border-border-strong bg-surface-card text-text-primary focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
+                      className="block w-full py-2 pl-2.5 pr-8 text-sm rounded-lg border border-border-strong bg-surface-card text-text-primary focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
                     >
                       <option value="todos">Todos os CFOPs</option>
                       {opcoesCfop.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -413,6 +398,8 @@ export default function Auditoria() {
                   </label>
                 </div>
               </div>
+
+              <BarraFiltros filtros={filtrosAtivos} onLimparTudo={limparFiltrosColuna} />
 
               {resumo.divergencias === 0 && resumo.invalido === 0 && (
                 <Banner tom="ok" titulo="Nenhuma divergência encontrada.">
@@ -422,9 +409,9 @@ export default function Auditoria() {
               )}
 
               <p className="text-sm text-text-secondary" aria-live="polite">
-                <strong className="font-semibold text-text-primary">{filtradasEBusca.length.toLocaleString("pt-BR")}</strong>{" "}
-                {filtradasEBusca.length === 1 ? "linha" : "linhas"}
-                {filtro !== "todos" || consulta || cstFiltro !== "todos" || cfopFiltro !== "todos" ? " neste filtro" : ""}
+                <strong className="font-semibold text-text-primary">{exibiveis.length.toLocaleString("pt-BR")}</strong>{" "}
+                {exibiveis.length === 1 ? "linha" : "linhas"}
+                {filtro !== "todos" || consulta || cstFiltro !== TODOS_CST || cfopFiltro !== "todos" || filtrosAtivos.length > 0 ? " neste filtro" : ""}
                 {restantes > 0 ? ` — exibindo as primeiras ${exibidas.length}` : ""}
                 <span className="ml-3 inline-flex items-center gap-3 text-xs text-text-tertiary">
                   <span className="inline-flex items-center gap-1"><span className="size-2.5 rounded-sm bg-danger-soft border border-danger/40" /> NCM inválido</span>
@@ -434,13 +421,14 @@ export default function Auditoria() {
 
               <TabelaAuditoria
                 linhas={exibidas}
-                todasAsLinhas={filtradas} // Precisamos das linhas filtradas globalmente para gerar os valores únicos de cada coluna
-                filtrosColuna={filtrosColuna}
-                onFiltrarColuna={aoFiltrarColuna}
+                colunas={COLUNAS_AUDITORIA}
+                filtros={filtros}
+                opcoesDe={opcoesDe}
+                onFiltrar={definirFiltroColuna}
               />
 
               {restantes > 0 && (
-                <div className="flex justify-center">
+                <div className="flex justify-center mt-2">
                   <button
                     type="button"
                     onClick={() => setVisiveis((atual) => atual + PAGINA)}
