@@ -21,16 +21,19 @@ export const COLUNAS_AUDITORIA: ColunaAuditoria[] = [
   {
     id: "informado",
     rotulo: "Informado",
-    valores: (linha) => [
-      linha.cstPis && `CST ${linha.cstPis}`,
-      linha.cstCofins && `CST ${linha.cstCofins}`,
-      linha.cfop && `CFOP ${linha.cfop}`,
-    ].filter((valor): valor is string => Boolean(valor)),
+    valores: (linha) => {
+      const cst = linha.cstCorrigido !== undefined && linha.cstCorrigido !== "" ? linha.cstCorrigido : undefined;
+      return [
+        cst ? `CST ${cst}` : linha.cstPis && `CST ${linha.cstPis}`,
+        cst ? `CST ${cst}` : linha.cstCofins && `CST ${linha.cstCofins}`,
+        linha.cfop && `CFOP ${linha.cfop}`,
+      ].filter((valor): valor is string => Boolean(valor));
+    },
   },
   {
     id: "natureza",
     rotulo: "Nat. receita",
-    valores: (linha) => [linha.natureza || ""],
+    valores: (linha) => [(linha.naturezaCorrigida ?? linha.natureza) || ""],
   },
   { id: "situacao", rotulo: "Situação", valores: (linha) => [linha.rotulo] },
   {
