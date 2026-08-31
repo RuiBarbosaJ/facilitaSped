@@ -8,6 +8,7 @@ interface FiltroColunaExcelProps {
   valoresUnicos: string[];
   selecionados: string[] | undefined;
   onChange: (s: string[] | null) => void;
+  alinharDireita?: boolean;
 }
 
 export function FiltroColunaExcel({
@@ -15,6 +16,7 @@ export function FiltroColunaExcel({
   valoresUnicos,
   selecionados,
   onChange,
+  alinharDireita = false,
 }: FiltroColunaExcelProps) {
   const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState("");
@@ -76,7 +78,7 @@ export function FiltroColunaExcel({
       </button>
 
       {aberto && (
-        <div className="absolute top-full left-0 z-10 mt-1 w-64 rounded-xl border border-border-strong bg-surface-card p-3 shadow-lg font-sans text-left">
+        <div className={`absolute top-full z-10 mt-1 w-64 rounded-xl border border-border-strong bg-surface-card p-3 shadow-lg font-sans text-left ${alinharDireita ? 'right-0' : 'left-0'}`}>
           <input
             type="text"
             placeholder="Buscar..."

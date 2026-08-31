@@ -45,7 +45,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: APLICAR_TEMA }} />
       </head>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <a href="#conteudo-principal" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-4 focus:bg-surface-page focus:text-accent">
+          Pular para o conteúdo principal
+        </a>
+        {children}
+      </body>
     </html>
   );
 }

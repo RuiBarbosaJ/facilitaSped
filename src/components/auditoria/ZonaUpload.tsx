@@ -81,34 +81,41 @@ export function ZonaUpload({ onArquivo, processando, desabilitada, mensagemDesab
         }}
         onDragLeave={aoSairArrastando}
         onDrop={aoSoltar}
-        className={`group relative flex min-h-72 flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed p-8 text-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ${
+        className={`group relative flex min-h-[320px] flex-col items-center justify-center gap-5 rounded-2xl border-2 border-dashed p-8 text-center transition-all duration-300 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 overflow-hidden ${
           arrastando
-            ? "border-accent bg-accent-soft"
-            : "border-border-strong bg-surface-card hover:border-accent hover:bg-accent-soft/40"
+            ? "border-accent bg-accent-soft scale-[1.02] shadow-2xl shadow-accent/10"
+            : "border-border-strong bg-surface-card hover:border-accent hover:bg-accent-soft/30 hover:shadow-lg"
         } ${bloqueada ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
       >
+        {/* Efeito de pulso animado quando o arquivo está sobre a área */}
+        {arrastando && (
+          <div className="absolute inset-0 bg-linear-to-b from-transparent to-accent/5 animate-pulse rounded-2xl pointer-events-none"></div>
+        )}
+
         <span
-          className={`grid place-items-center size-16 rounded-2xl transition-colors ${
-            arrastando ? "bg-accent text-accent-contrast" : "bg-accent-soft text-accent group-hover:bg-accent group-hover:text-accent-contrast"
+          className={`relative z-10 grid place-items-center size-20 rounded-full transition-all duration-500 ease-out ${
+            arrastando 
+              ? "bg-accent text-accent-contrast scale-125 shadow-lg shadow-accent/40" 
+              : "bg-accent-soft text-accent group-hover:bg-accent group-hover:text-accent-contrast group-hover:scale-110 group-hover:shadow-md"
           }`}
         >
           {processando ? (
-            <Loader2 size={28} className="animate-spin" aria-hidden />
+            <Loader2 size={36} className="animate-spin" aria-hidden />
           ) : arrastando ? (
-            <FileUp size={28} aria-hidden />
+            <FileUp size={36} className="animate-bounce" aria-hidden />
           ) : (
-            <UploadCloud size={28} aria-hidden />
+            <UploadCloud size={36} className="transition-transform duration-300 group-hover:-translate-y-1" aria-hidden />
           )}
         </span>
 
-        <div>
-          <p className="text-base font-semibold">
-            {processando ? "Auditando a planilha…" : arrastando ? "Solte para auditar" : "Arraste o relatório do Alterdata aqui"}
+        <div className="relative z-10">
+          <p className="text-lg font-bold tracking-tight">
+            {processando ? "Auditando a planilha…" : arrastando ? "Solte o arquivo agora" : "Arraste o relatório do Alterdata aqui"}
           </p>
-          <p id={idDescricao} className="mt-1 text-sm text-text-secondary">
+          <p id={idDescricao} className="mt-2 text-sm text-text-secondary max-w-md mx-auto leading-relaxed">
             {desabilitada && mensagemDesabilitada
               ? mensagemDesabilitada
-              : "ou clique para escolher um arquivo .xls ou .xlsx. Nada sai do seu computador: a auditoria roda no navegador."}
+              : "ou clique para escolher um arquivo .xls ou .xlsx. Todo o processamento ocorre no seu próprio navegador para garantir a sua privacidade."}
           </p>
         </div>
 
@@ -122,6 +129,7 @@ export function ZonaUpload({ onArquivo, processando, desabilitada, mensagemDesab
           onChange={aoEscolher}
           disabled={bloqueada}
           aria-label="Escolher planilha para auditoria"
+          suppressHydrationWarning
         />
       </div>
 

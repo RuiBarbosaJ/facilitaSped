@@ -41,10 +41,10 @@
   --text-secondary: #4a5769;
   --text-tertiary: #5d6b80;
 
-  /* destaque: a identidade azul do produto */
-  --accent: #1a4f9c;
-  --accent-hover: #133c78;
-  --accent-soft: #e6eefb;
+  /* destaque: a identidade azul do Gov.br (RFB) */
+  --accent: #1351b4;
+  --accent-hover: #0c326f;
+  --accent-soft: #e6edf7;
   --accent-contrast: #ffffff;
 
   /* estados */
@@ -58,8 +58,8 @@
   /* selos de código */
   --badge-ncm-bg: #eaeef4;
   --badge-ncm-text: #1c2430;
-  --badge-cst-bg: #e6eefb;
-  --badge-cst-text: #1a4f9c;
+  --badge-cst-bg: #e6edf7;
+  --badge-cst-text: #1351b4;
 
   /* sombras discretas, coerentes com o tema claro */
   --shadow-card: 0 1px 2px rgb(16 21 28 / 0.04), 0 1px 3px rgb(16 21 28 / 0.06);

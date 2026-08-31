@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileSpreadsheet } from "lucide-react";
+import Image from "next/image";
 import type { ReactNode } from "react";
 import { BotaoTema } from "./BotaoTema";
 
@@ -22,18 +22,32 @@ export function Cabecalho({ children }: CabecalhoProps) {
 
   return (
     <header className="bg-surface-card border-b border-border-subtle sticky top-0 z-10 shadow-(--shadow-header)">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between gap-4 py-4">
-          <div className="flex items-center gap-3 min-w-0">
+      {/* Barra superior fina com as cores do Brasil (Gov.br / RFB style) */}
+      <div className="h-1 w-full bg-linear-to-r from-[#00A859] via-[#FED000] to-[#1351B4]"></div>
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-y-4 gap-x-2 py-4 relative">
+          {/* Botão de Tema (Esquerda no desktop, Segunda linha à esquerda no mobile) */}
+          <div className="flex-1 basis-0 flex items-center justify-start order-2 sm:order-1">
+            <BotaoTema />
+          </div>
+
+          {/* Logo e Título (Centro no desktop, Primeira linha centralizada no mobile) */}
+          <div className="w-full sm:w-auto flex items-center justify-center gap-3 min-w-0 order-1 sm:order-2 shrink-0">
             <Link
               href="/"
-              className="shrink-0 grid place-items-center size-10 rounded-xl bg-accent text-accent-contrast focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+              className="shrink-0 flex items-center justify-center size-12 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 transition-transform hover:scale-105"
               aria-label="Facilita Sped — início"
             >
-              <FileSpreadsheet size={20} aria-hidden />
+              <Image 
+                src="/logo-sped-v2.png" 
+                alt="Logo SPED" 
+                width={48} 
+                height={48}
+                className="w-full h-full object-contain drop-shadow-md"
+              />
             </Link>
             <div className="min-w-0">
-              <div className="flex items-start">
+              <div className="flex items-start justify-center sm:justify-start">
                 <p 
                   className="text-xl font-bold tracking-tight truncate leading-none py-1" 
                   style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
@@ -46,13 +60,14 @@ export function Cabecalho({ children }: CabecalhoProps) {
                 </p>
               </div>
               <p className="text-xs text-text-tertiary truncate">
-                Tabelas do EFD-Contribuições · NCM, CST, alíquotas e vigência
+                Tabelas EFD-Contribuições
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 sm:gap-5">
-            <nav aria-label="Páginas" className="flex items-center gap-1">
+          {/* Navegação (Direita no desktop, Segunda linha à direita no mobile) */}
+          <div className="flex-1 basis-0 flex items-center justify-end gap-3 sm:gap-5 order-3 sm:order-3">
+            <nav aria-label="Páginas" className="flex items-center justify-end gap-1 flex-wrap sm:flex-nowrap">
               {PAGINAS.map(({ href, rotulo }) => {
                 const ativa = atual === href;
                 return (
@@ -71,7 +86,6 @@ export function Cabecalho({ children }: CabecalhoProps) {
                 );
               })}
             </nav>
-            <BotaoTema />
           </div>
         </div>
 

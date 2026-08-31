@@ -16,16 +16,20 @@ export function Vigencia({ inicio, fim }: VigenciaProps) {
   }
 
   return (
-    <span className="whitespace-nowrap text-sm text-text-secondary">
-      {inicio || "—"}
-      <span className="text-text-tertiary"> a </span>
-      {fim ? (
-        fim
-      ) : (
-        <span className="inline-flex items-center rounded-full bg-success-soft px-2 py-0.5 text-xs font-medium text-success">
-          vigente
-        </span>
-      )}
+    <span className="inline-flex items-center gap-2 whitespace-nowrap text-sm text-text-secondary">
+      <span className="inline-block w-[90px] text-left">
+        {inicio || "—"}
+      </span>
+      <span className={`text-text-tertiary ${fim ? "" : "invisible"}`}>a</span>
+      <span className="inline-flex items-center justify-start w-[90px]">
+        {fim ? (
+          fim
+        ) : (
+          <span className="inline-flex items-center rounded-full bg-success-soft px-2 py-0.5 text-[11px] font-semibold text-success uppercase tracking-wider">
+            vigente
+          </span>
+        )}
+      </span>
     </span>
   );
 }

@@ -1,6 +1,6 @@
-import { useState, useMemo, useRef, useEffect } from "react";
-import { Filter } from "lucide-react";
 import { valorColuna, type LinhaAuditada } from "@/lib/auditoria";
+import { DescricaoExpandivel } from "../DescricaoExpandivel";
+import { FiltroColunaExcel } from "../FiltroColunaExcel";
 
 interface TabelaAuditoriaProps {
   linhas: LinhaAuditada[];
@@ -35,7 +35,7 @@ function Codigo({ valor }: { valor: string }) {
 /** Auditoria linha a linha. Vermelho = NCM inválido; amarelo = divergência. */
 export function TabelaAuditoria({ linhas, todasAsLinhas, filtrosColuna, onFiltrarColuna }: TabelaAuditoriaProps) {
   return (
-    <div className="bg-surface-card rounded-xl border border-border-subtle shadow-(--shadow-card) overflow-hidden">
+    <div className="bg-surface-card rounded-xl shadow-(--shadow-card) overflow-hidden">
       <div
         className="overflow-x-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
         role="region"
@@ -48,30 +48,33 @@ export function TabelaAuditoria({ linhas, todasAsLinhas, filtrosColuna, onFiltra
           </caption>
           <thead className="bg-surface-head">
             <tr>
-              {COLUNAS.map((coluna) => (
+              {COLUNAS.map((coluna, i) => (
                 <th
                   key={coluna}
                   scope="col"
-                  className="px-3 py-2.5 text-left text-xs font-semibold text-text-tertiary uppercase tracking-wider whitespace-nowrap first:pl-4 align-top"
+                  className="px-3 py-3.5 text-left text-xs font-bold text-text-secondary uppercase tracking-widest whitespace-nowrap first:pl-4 align-middle"
+                  style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
                 >
                   <div className="flex items-center gap-1">
                     <span>{coluna}</span>
                     <FiltroColunaExcel
                       coluna={coluna}
-                      linhas={todasAsLinhas}
+                      valoresUnicos={Array.from(new Set(todasAsLinhas.map(l => valorColuna(l, coluna)))).sort()}
                       selecionados={filtrosColuna[coluna]}
                       onChange={(valores) => onFiltrarColuna(coluna, valores)}
+                      alinharDireita={i >= COLUNAS.length / 2}
                     />
                   </div>
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-border-subtle">
+          <tbody>
             {linhas.length === 0 ? (
               <tr>
-                <td colSpan={COLUNAS.length} className="px-6 py-12 text-center text-text-secondary">
-                  Nenhuma linha neste filtro.
+                <td colSpan={COLUNAS.length} className="h-[400px] px-6 text-center align-middle text-text-secondary">
+                  <p className="text-base font-medium">Nenhuma linha neste filtro.</p>
+                  <p className="text-sm text-text-tertiary mt-1">Tente remover alguns filtros para ver os resultados.</p>
                 </td>
               </tr>
             ) : (
@@ -79,13 +82,11 @@ export function TabelaAuditoria({ linhas, todasAsLinhas, filtrosColuna, onFiltra
                 <tr key={l.linha} className={`align-top ${ESTILO_LINHA[l.destaque]}`}>
                   <td className="px-3 py-2.5 whitespace-nowrap font-mono text-text-tertiary">{l.linha}</td>
 
-                  <td className="px-3 py-2.5 min-w-40 max-w-56">
-                    <div className="line-clamp-2 text-text-primary" title={l.nome}>
-                      {l.nome || <span className="text-text-tertiary">—</span>}
-                    </div>
+                  <td className="px-3 py-2.5 min-w-[200px] max-w-56 lg:max-w-md xl:max-w-xl 2xl:max-w-3xl">
+                    <DescricaoExpandivel texto={l.nome} limiteCaracteres={100} className="text-text-primary" destacar={false} />
                     {l.descricaoNcm && (
-                      <div className="mt-0.5 line-clamp-1 text-xs text-text-tertiary" title={l.descricaoNcm}>
-                        NCM: {l.descricaoNcm}
+                      <div className="mt-0.5">
+                        <DescricaoExpandivel texto={`NCM: ${l.descricaoNcm}`} limiteCaracteres={100} className="text-xs text-text-tertiary" />
                       </div>
                     )}
                   </td>
@@ -166,121 +167,6 @@ export function TabelaAuditoria({ linhas, todasAsLinhas, filtrosColuna, onFiltra
           </tbody>
         </table>
       </div>
-    </div>
-  );
-}
-
-function FiltroColunaExcel({
-  coluna,
-  linhas,
-  selecionados,
-  onChange,
-}: {
-  coluna: string;
-  linhas: LinhaAuditada[];
-  selecionados: string[] | undefined;
-  onChange: (s: string[] | null) => void;
-}) {
-  const [aberto, setAberto] = useState(false);
-  const [busca, setBusca] = useState("");
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const valoresUnicos = useMemo(() => {
-    const valores = new Set<string>();
-    linhas.forEach((l) => valores.add(valorColuna(l, coluna)));
-    return Array.from(valores).sort();
-  }, [linhas, coluna]);
-
-  const filtradosBusca = useMemo(() => {
-    if (!busca) return valoresUnicos;
-    const b = busca.toLowerCase();
-    return valoresUnicos.filter(v => v.toLowerCase().includes(b));
-  }, [valoresUnicos, busca]);
-
-  useEffect(() => {
-    function aoClicarFora(e: MouseEvent) {
-      if (aberto && containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setAberto(false);
-      }
-    }
-    document.addEventListener("mousedown", aoClicarFora);
-    return () => document.removeEventListener("mousedown", aoClicarFora);
-  }, [aberto]);
-
-  const selecionadosParaRenderizar = selecionados ?? valoresUnicos;
-  
-  const toggleAll = () => {
-    if (selecionados === undefined || selecionados.length === valoresUnicos.length) {
-      onChange([]);
-    } else {
-      onChange(null);
-    }
-  };
-
-  const toggleUm = (valor: string) => {
-    const atual = selecionados ?? valoresUnicos;
-    if (atual.includes(valor)) {
-      const novo = atual.filter((v) => v !== valor);
-      onChange(novo);
-    } else {
-      const novo = [...atual, valor];
-      if (novo.length === valoresUnicos.length) {
-        onChange(null);
-      } else {
-        onChange(novo);
-      }
-    }
-  };
-
-  return (
-    <div className="relative inline-flex items-center" ref={containerRef}>
-      <button
-        type="button"
-        onClick={() => setAberto(!aberto)}
-        className={`p-1 rounded hover:bg-surface-page transition-colors ${selecionados !== undefined ? "text-accent bg-accent-soft" : "text-text-tertiary"}`}
-        aria-label={`Filtrar coluna ${coluna}`}
-        title={`Filtrar coluna ${coluna}`}
-      >
-        <Filter size={14} />
-      </button>
-
-      {aberto && (
-        <div className="absolute top-full left-0 z-10 mt-1 w-64 rounded-xl border border-border-strong bg-surface-card p-3 shadow-lg font-sans">
-          <input
-            type="text"
-            placeholder="Buscar..."
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            className="w-full rounded border border-border-strong bg-surface-page px-2 py-1.5 text-xs text-text-primary focus:border-accent focus:outline-none mb-2"
-          />
-          <div className="flex flex-col max-h-48 overflow-y-auto gap-0.5 text-xs font-normal normal-case tracking-normal">
-            <label className="flex items-center gap-2 px-1 py-1 hover:bg-surface-page cursor-pointer rounded">
-              <input
-                type="checkbox"
-                checked={selecionados === undefined || selecionados.length === valoresUnicos.length}
-                onChange={toggleAll}
-                className="rounded border-border-strong text-accent focus:ring-accent"
-              />
-              <span className="font-semibold">(Selecionar Tudo)</span>
-            </label>
-            {filtradosBusca.length === 0 ? (
-              <span className="text-text-tertiary p-1">Nenhum valor encontrado</span>
-            ) : (
-              filtradosBusca.map((v) => (
-                <label key={v} className="flex items-center gap-2 px-1 py-1 hover:bg-surface-page cursor-pointer rounded">
-                  <input
-                    type="checkbox"
-                    checked={selecionadosParaRenderizar.includes(v)}
-                    onChange={() => toggleUm(v)}
-                    className="rounded border-border-strong text-accent focus:ring-accent shrink-0"
-                  />
-                  <span className="truncate" title={v}>{v || "(Vazio)"}</span>
-                </label>
-              ))
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

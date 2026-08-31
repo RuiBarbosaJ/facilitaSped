@@ -1,12 +1,24 @@
 # Facilita Sped
 
-Consulta rápida das tabelas de códigos do **SPED EFD-Contribuições** (NCM, CST de PIS/COFINS, alíquotas, natureza da receita e vigência), atualizada automaticamente todos os dias a partir do portal da Receita Federal.
+Consulta rápida das tabelas de códigos do **SPED EFD-Contribuições** (NCM, CST de PIS/COFINS, alíquotas, natureza da receita e vigência), atualizada automaticamente todos os dias a partir do portal da Receita Federal — e **auditoria do cadastro de produtos**, que confere o relatório de NCM do Alterdata contra essas mesmas tabelas.
 
 ## O problema
 
+São duas dores no mesmo dia de trabalho, e o Facilita Sped resolve as duas.
+
+### 1. Achar a regra — a consulta
+
 Na **Escal Contabilidade**, os contadores consultavam as tabelas 4.3.x do EFD-Contribuições em planilhas de Excel pesadas, montadas à mão a partir dos arquivos publicados pela Receita. Toda vez que o governo atualizava uma tabela, as planilhas quebravam: fórmulas apontando para linhas que mudaram de lugar, versões diferentes circulando entre as pessoas, e ninguém sabendo qual era a atual.
 
-O Facilita Sped substitui essas planilhas por uma página web com busca instantânea. Não há nada para manter na mão: um robô visita o portal do SPED todo dia de madrugada e, se alguma tabela mudou, a página é republicada sozinha.
+A página inicial substitui essas planilhas por uma busca instantânea. Não há nada para manter na mão: um robô visita o portal do SPED todo dia de madrugada e, se alguma tabela mudou, a página é republicada sozinha.
+
+### 2. Aplicar a regra no cadastro — a auditoria
+
+Saber a regra não é o mesmo que saber se ela foi aplicada. Antes de fechar a apuração, alguém precisava abrir o relatório de NCM do Alterdata e conferir, item a item, se o código cadastrado ainda existe na nomenclatura vigente e se o CST de PIS/COFINS preenchido corresponde ao que a Receita concede àquele NCM. Em cadastro de milhares de produtos, essa conferência era feita por amostragem — ou simplesmente não era feita.
+
+O erro custa nos dois sentidos: um CST de alíquota zero em produto tributado vira imposto não recolhido, com multa e juros na fiscalização; um CST tributado em produto de alíquota zero vira imposto pago à toa, todo mês, sem ninguém perceber. E há ainda o NCM que a Receita revogou e continua no cadastro, reprovando a escrituração.
+
+A página [`/auditoria`](#auditoria-de-planilhas-alterdata) faz essa conferência de uma vez: recebe o relatório exportado do Alterdata, cruza cada linha com a nomenclatura NCM do Siscomex e com as tabelas do SPED, e devolve a planilha marcada — vermelho para NCM inválido, amarelo para CST ou natureza da receita divergentes do que a regra indica. O que levava uma tarde de amostragem passa a cobrir o cadastro inteiro em segundos, sem que nenhum dado do cliente saia do navegador.
 
 ## Como funciona
 

@@ -175,6 +175,8 @@ export interface RegraSugerida {
 export interface LinhaAuditada {
   /** Número da linha na planilha original (1-based, como o Excel mostra). */
   linha: number;
+  /** Células originais da linha, na ordem do arquivo do cliente. */
+  original: unknown[];
   nome: string;
   classificacaoOriginal: string;
   ncm: string;
@@ -206,6 +208,25 @@ export function indexarBase(base: RegistroSped[]): Map<string, RegistroSped[]> {
     const lista = indice.get(r.ncm) ?? [];
     lista.push(r);
     indice.set(r.ncm, lista);
+  }
+  return indice;
+}
+
+/**
+ * Índice das regras que a Receita descreve só por texto, sem citar NCM
+ * ("Leite fluido pasteurizado...", "Queijo do reino", "Carvão mineral
+ * destinado à geração de energia elétrica"). São ~30% dos registros e nunca
+ * casam pelo código; a única pista que a planilha do cliente traz é o próprio
+ * código de natureza da receita. Sem isso, um leite UHT com CST 06 e natureza
+ * 110 — tudo certo — seria acusado de divergência.
+ */
+export function indexarRegrasSemNcm(base: RegistroSped[]): Map<string, RegistroSped[]> {
+  const indice = new Map<string, RegistroSped[]>();
+  for (const r of base) {
+    if (r.ncm || !r.natureza_receita || !r.tabela || !(r.tabela in BENEFICIOS)) continue;
+    const lista = indice.get(r.natureza_receita) ?? [];
+    lista.push(r);
+    indice.set(r.natureza_receita, lista);
   }
   return indice;
 }
@@ -289,6 +310,8 @@ function encontrarRegras(ncm: string, indice: Map<string, RegistroSped[]>, hoje:
 
 export interface LinhaPlanilha {
   linha: number;
+  /** A linha como veio da planilha, para o export devolver as colunas do cliente. */
+  original: unknown[];
   nome: unknown;
   classificacao: unknown;
   natureza?: unknown;
@@ -324,13 +347,15 @@ export function extrairLinhas(
       if (nomeNormalizado === "" || REGEX_RODAPE.test(nomeNormalizado) || restoVazio) continue;
     }
 
-    saida.push({ linha: i + 1, nome, classificacao, natureza, cstPis, cstCofins, cfop });
+    saida.push({ linha: i + 1, original: l, nome, classificacao, natureza, cstPis, cstCofins, cfop });
   }
   return saida;
 }
 
 export interface ContextoAuditoria {
   base: Map<string, RegistroSped[]>;
+  /** Regras de benefício sem NCM, por código de natureza da receita. */
+  semNcm: Map<string, RegistroSped[]>;
   /** null quando a tabela oficial não pôde ser carregada. */
   ncm: Map<string, NcmOficial[]> | null;
   hoje: Date;
@@ -357,6 +382,7 @@ export function auditarLinha(l: LinhaPlanilha, ctx: ContextoAuditoria): LinhaAud
 
   const comum = {
     linha: l.linha,
+    original: l.original,
     nome: String(l.nome ?? "").trim(),
     classificacaoOriginal: String(l.classificacao ?? "").trim(),
     ncm,
@@ -478,6 +504,40 @@ export function auditarLinha(l: LinhaPlanilha, ctx: ContextoAuditoria): LinhaAud
       );
     }
   }
+  // A regra pode existir sem NCM: o SPED descreve o produto por texto e a única
+  // ligação possível é a natureza da receita informada pelo cliente.
+  const porNatureza = natureza
+    ? (ctx.semNcm.get(natureza) ?? []).filter((r) => situacaoDaRegra(r, hoje) === "vigente")
+    : [];
+  if (porNatureza.length > 0) {
+    const regraTexto = [...porNatureza].sort((a, b) => ordinalData(b.data_inicio) - ordinalData(a.data_inicio))[0];
+    const beneficioTexto = BENEFICIOS[regraTexto.tabela ?? ""];
+    observacoes.push(
+      `A regra da natureza ${natureza} (tabela ${regraTexto.tabela}) não traz NCM na tabela do SPED — a Receita descreve o produto por texto. Confira pela descrição.`
+    );
+    if (cstPis && !beneficioTexto?.csts.includes(cstPis))
+      observacoes.push(`CST PIS ${cstPis} informado; a regra dessa natureza admite ${listar(beneficioTexto?.csts ?? [])}.`);
+    if (cstCofins && !beneficioTexto?.csts.includes(cstCofins))
+      observacoes.push(`CST COFINS ${cstCofins} informado; a regra dessa natureza admite ${listar(beneficioTexto?.csts ?? [])}.`);
+    return {
+      ...comum,
+      situacao: "possivel",
+      rotulo: `Possível ${(beneficioTexto?.rotulo ?? "benefício").toLowerCase()}`,
+      regra: {
+        tabela: regraTexto.tabela ?? "",
+        rotulo: beneficioTexto?.rotulo ?? "Benefício",
+        descricao: regraTexto.descricao,
+        naturezas: [natureza],
+        cstsAceitos: beneficioTexto?.csts ?? [],
+        ncmRegra: "",
+        inicio: regraTexto.data_inicio,
+        fim: regraTexto.data_fim,
+      },
+      descricaoNcm,
+      destaque: "nenhum",
+    };
+  }
+
   if (cstPis && CSTS_DE_BENEFICIO.has(cstPis))
     observacoes.push(`CST PIS ${cstPis} informado, mas o NCM não consta nas tabelas de benefício do SPED.`);
   if (cstCofins && CSTS_DE_BENEFICIO.has(cstCofins))

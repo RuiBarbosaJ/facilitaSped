@@ -91,7 +91,7 @@ export default function Home() {
   function aoFiltrarColuna(coluna: string, valores: string[] | null) {
     setFiltrosColuna((atuais) => {
       const novos = { ...atuais };
-      if (valores === null || valores.length === 0) {
+      if (valores === null) {
         delete novos[coluna];
       } else {
         novos[coluna] = valores;
@@ -106,7 +106,7 @@ export default function Home() {
   const rotuloCst = cst === TODOS_CST ? "todos os CSTs" : `CST ${cst}`;
 
   return (
-    <div className="min-h-screen bg-surface-page text-text-primary font-sans">
+    <div className="min-h-screen flex flex-col bg-surface-page text-text-primary font-sans">
       <Cabecalho>
         <div className="flex flex-col md:flex-row md:items-center gap-3">
           <SeletorCst valor={cst} opcoes={opcoes} onChange={aoTrocarCst} />
@@ -114,7 +114,10 @@ export default function Home() {
         </div>
       </Cabecalho>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main id="conteudo-principal" className="flex-1 w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* A marca no cabeçalho não serve de título da página para quem usa
+            leitor de tela; o h1 dá o ponto de partida sem alterar o visual. */}
+        <h1 className="sr-only">Consulta das tabelas de códigos do SPED EFD-Contribuições</h1>
         {carregando ? (
           <Carregando />
         ) : erro ? (

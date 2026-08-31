@@ -31,80 +31,45 @@ export function PainelInstrucoes() {
   }
 
   return (
-    <section
-      aria-labelledby="instrucoes-titulo"
-      className="bg-surface-card rounded-2xl border border-border-subtle shadow-(--shadow-card) p-6 flex flex-col gap-5"
-    >
-      <div className="flex items-start gap-3">
-        <span className="shrink-0 grid place-items-center size-9 rounded-lg bg-accent-soft text-accent">
-          <Info size={18} aria-hidden />
+    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 px-2 mb-2">
+      <div className="flex flex-1 items-start gap-3 text-sm text-text-secondary">
+        <span className="shrink-0 grid place-items-center size-8 rounded-full bg-accent-soft text-accent">
+          <Info size={16} aria-hidden />
         </span>
-        <div>
-          <h2 id="instrucoes-titulo" className="font-semibold">
-            Como preparar a planilha
-          </h2>
-          <p className="text-sm text-text-secondary mt-1">
-            Exporte do Alterdata o <strong className="font-medium text-text-primary">relatório padrão de NCM</strong>{" "}
-            (.xls ou .xlsx). A primeira aba precisa trazer as colunas abaixo — outras colunas são ignoradas,
-            e linhas de título antes do cabeçalho não atrapalham.
+        <div className="min-w-0">
+          <p>
+            Utilize o <strong className="font-semibold text-text-primary">relatório padrão de NCM</strong> do Alterdata (.xls/.xlsx) ou preencha o nosso modelo padrão.
+          </p>
+          <p className="mt-1.5 text-xs text-text-tertiary">
+            Colunas esperadas:{" "}
+            {COLUNAS_MODELO.map((coluna, i) => (
+              <span key={coluna}>
+                {i > 0 && ", "}
+                <span
+                  className={
+                    (COLUNAS_OBRIGATORIAS as readonly string[]).includes(coluna)
+                      ? "font-mono font-medium text-text-secondary"
+                      : "font-mono"
+                  }
+                >
+                  {coluna}
+                </span>
+              </span>
+            ))}
+            . As duas primeiras são obrigatórias.
           </p>
         </div>
       </div>
 
-      <ul className="flex flex-wrap gap-2" aria-label="Colunas esperadas">
-        {COLUNAS_MODELO.map((coluna) => {
-          const obrigatoria = (COLUNAS_OBRIGATORIAS as readonly string[]).includes(coluna);
-          return (
-            <li
-              key={coluna}
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-sm font-mono ${
-                obrigatoria
-                  ? "border-accent/40 bg-accent-soft text-accent"
-                  : "border-border-subtle bg-surface-page text-text-secondary"
-              }`}
-            >
-              {coluna}
-              {obrigatoria && (
-                <span className="text-[10px] font-sans font-semibold uppercase tracking-wider">obrigatória</span>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-
-      <dl className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-        <div className="rounded-lg bg-surface-page p-3">
-          <dt className="text-xs font-semibold uppercase tracking-wider text-text-tertiary">Classificação</dt>
-          <dd className="mt-1 text-text-secondary">
-            NCM com ou sem pontos (<span className="font-mono">0709.60.00</span>). Zeros à esquerda perdidos
-            pelo Excel são recompostos.
-          </dd>
-        </div>
-        <div className="rounded-lg bg-surface-page p-3">
-          <dt className="text-xs font-semibold uppercase tracking-wider text-text-tertiary">CST PIS / COFINS</dt>
-          <dd className="mt-1 text-text-secondary">
-            Comparados com o CST que as tabelas 4.3.x do SPED indicam para o NCM.
-          </dd>
-        </div>
-        <div className="rounded-lg bg-surface-page p-3">
-          <dt className="text-xs font-semibold uppercase tracking-wider text-text-tertiary">Natureza da receita</dt>
-          <dd className="mt-1 text-text-secondary">
-            Conferida com o código da regra do SPED quando o NCM tem benefício.
-          </dd>
-        </div>
-      </dl>
-
-      <div>
-        <button
-          type="button"
-          onClick={baixarModelo}
-          disabled={gerando}
-          className="inline-flex items-center gap-2 rounded-lg border border-border-strong bg-surface-card px-4 py-2 text-sm font-medium text-text-primary hover:bg-surface-page disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-colors"
-        >
-          {gerando ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <Download size={16} aria-hidden />}
-          Baixar Modelo Padrão (.xlsx)
-        </button>
-      </div>
-    </section>
+      <button
+        type="button"
+        onClick={baixarModelo}
+        disabled={gerando}
+        className="shrink-0 inline-flex items-center gap-2 rounded-xl bg-surface-card px-4 py-2 text-sm font-medium text-accent border border-border-subtle shadow-sm hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-colors"
+      >
+        {gerando ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <Download size={16} aria-hidden />}
+        Baixar Modelo Padrão
+      </button>
+    </div>
   );
 }

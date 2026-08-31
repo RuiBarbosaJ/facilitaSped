@@ -32,6 +32,20 @@ function ehRegistroSped(valor: unknown): valor is RegistroSped {
  * assíncrona: assim ele não entra no bundle da página e a Vercel o serve como
  * asset estático cacheável.
  */
+/**
+ * O usuário é contador, não desenvolvedor: "Failed to fetch" e "HTTP 503" não
+ * dizem nada a ele. Traduz a falha em algo que indique o que fazer.
+ */
+function mensagemAmigavel(excecao: unknown): string {
+  if (excecao instanceof TypeError) {
+    return "Não foi possível baixar as tabelas do SPED. Verifique sua conexão com a internet e recarregue a página.";
+  }
+  if (excecao instanceof Error && /formato/i.test(excecao.message)) {
+    return "As tabelas do SPED chegaram em um formato inesperado. Avise o responsável pelo sistema.";
+  }
+  return "As tabelas do SPED não estão disponíveis no momento. Tente novamente em alguns minutos.";
+}
+
 export function useRegistrosSped(): EstadoRegistros {
   const [registros, setRegistros] = useState<RegistroSped[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -59,7 +73,7 @@ export function useRegistrosSped(): EstadoRegistros {
         setErro(null);
       } catch (excecao) {
         if (excecao instanceof DOMException && excecao.name === "AbortError") return;
-        setErro(excecao instanceof Error ? excecao.message : "Erro desconhecido");
+        setErro(mensagemAmigavel(excecao));
       } finally {
         if (!controller.signal.aborted) setCarregando(false);
       }

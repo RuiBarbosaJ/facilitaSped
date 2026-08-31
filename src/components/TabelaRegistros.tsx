@@ -48,20 +48,26 @@ export function TabelaRegistros({
   consulta 
 }: TabelaRegistrosProps) {
 
+  const mostrarAliquota = todasAsRegras.some(r => r.aliquota && r.aliquota.trim() !== "");
+  const colunasVisiveis = COLUNAS.filter(c => c.rotulo !== "Alíquota" || mostrarAliquota);
+
   return (
-    <div className="bg-surface-card rounded-xl border border-border-subtle shadow-(--shadow-card) overflow-hidden">
+    <div className="bg-surface-card rounded-xl shadow-(--shadow-card) overflow-hidden">
       <div className="overflow-x-auto">
         <table className="min-w-full text-left">
+          <caption className="sr-only">Tabela de registros do SPED</caption>
           <thead className="bg-surface-head">
             <tr>
-              {COLUNAS.map(({ rotulo, alinhamento }) => {
+              {colunasVisiveis.map(({ rotulo, alinhamento }, i) => {
                 const valoresUnicos = Array.from(new Set(todasAsRegras.map(r => valorColuna(r, rotulo)))).sort();
+                const alinharDireita = i >= colunasVisiveis.length / 2;
                 
                 return (
                   <th
                     key={rotulo}
                     scope="col"
-                    className={`px-4 py-2.5 text-xs font-semibold text-text-tertiary uppercase tracking-wider whitespace-nowrap align-top ${alinhamento}`}
+                    className={`px-4 py-3.5 text-xs font-bold text-text-secondary uppercase tracking-widest whitespace-nowrap align-middle ${alinhamento}`}
+                    style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
                   >
                     <div className={`flex items-center gap-1 ${alinhamento === "text-right" ? "justify-end" : ""}`}>
                       <span>{rotulo}</span>
@@ -70,6 +76,7 @@ export function TabelaRegistros({
                         valoresUnicos={valoresUnicos}
                         selecionados={filtrosColuna[rotulo]}
                         onChange={(valores) => onFiltrarColuna(rotulo, valores)}
+                        alinharDireita={alinharDireita}
                       />
                     </div>
                   </th>
@@ -77,12 +84,12 @@ export function TabelaRegistros({
               })}
             </tr>
           </thead>
-          <tbody className="divide-y divide-border-subtle">
+          <tbody>
             {regras.length > 0 ? (
-              regras.map((regra) => <LinhaRegistro key={regra.chave} regra={regra} />)
+              regras.map((regra) => <LinhaRegistro key={regra.chave} regra={regra} mostrarAliquota={mostrarAliquota} />)
             ) : (
               <tr>
-                <td colSpan={COLUNAS.length} className="px-6 py-16 text-center">
+                <td colSpan={colunasVisiveis.length} className="h-[400px] px-6 text-center align-middle">
                   <SearchX className="mx-auto h-8 w-8 text-text-tertiary mb-3" aria-hidden />
                   <p className="text-text-secondary">
                     Nenhum resultado

@@ -1,7 +1,7 @@
 /** Fonte dos dados e contato do desenvolvedor — igual em todas as páginas. */
 export function Rodape() {
   return (
-    <footer className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 mt-2 border-t border-border-subtle text-xs text-text-tertiary flex flex-col sm:flex-row justify-between gap-1">
+    <footer className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 mt-2 border-t border-border-subtle text-xs text-text-tertiary flex flex-col sm:flex-row justify-between gap-1">
       <span>Fonte: Receita Federal — tabelas do SPED EFD-Contribuições, sincronizadas diariamente.</span>
       <div className="flex flex-col sm:items-end gap-0.5">
         <span>

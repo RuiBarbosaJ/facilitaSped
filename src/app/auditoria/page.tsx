@@ -18,6 +18,7 @@ import {
   extrairLinhas,
   indexarBase,
   indexarNcm,
+  indexarRegrasSemNcm,
   localizarCabecalho,
   resumir,
   valorColuna,
@@ -32,6 +33,8 @@ interface Resultado {
   arquivo: string;
   aba: string;
   linhas: LinhaAuditada[];
+  /** Cabeçalho como veio do cliente — o export devolve essas colunas intactas. */
+  colunasOriginais: string[];
 }
 
 export default function Auditoria() {
@@ -54,6 +57,7 @@ export default function Auditoria() {
 
   // Os índices são caros de montar (10 mil NCMs) e não mudam entre arquivos.
   const indiceBase = useMemo(() => indexarBase(registros), [registros]);
+  const indiceSemNcm = useMemo(() => indexarRegrasSemNcm(registros), [registros]);
   const indiceNcm = useMemo(() => (ncm.tabela ? indexarNcm(ncm.tabela.codigos) : null), [ncm.tabela]);
 
   const pronto = !carregandoSped && !erroSped && !ncm.carregando;
@@ -105,20 +109,23 @@ export default function Auditoria() {
           return;
         }
 
-        const contexto = { base: indiceBase, ncm: indiceNcm, hoje: new Date() };
+        const contexto = { base: indiceBase, semNcm: indiceSemNcm, ncm: indiceNcm, hoje: new Date() };
         const linhas = extrairLinhas(encontrada.aba.linhas, encontrada.cabecalho).map((l) => auditarLinha(l, contexto));
         if (linhas.length === 0) {
           setErro("A planilha tem o cabeçalho certo, mas nenhuma linha de produto abaixo dele.");
           return;
         }
-        setResultado({ arquivo: arquivo.name, aba: encontrada.aba.nome, linhas });
+        const cabecalhoOriginal = (encontrada.aba.linhas[encontrada.cabecalho.indice] ?? []).map((c, i) =>
+          String(c ?? "").trim() || `Coluna ${i + 1}`
+        );
+        setResultado({ arquivo: arquivo.name, aba: encontrada.aba.nome, linhas, colunasOriginais: cabecalhoOriginal });
       } catch (excecao) {
         setErro(descreverErroDeLeitura(excecao));
       } finally {
         setProcessando(false);
       }
     },
-    [indiceBase, indiceNcm]
+    [indiceBase, indiceSemNcm, indiceNcm]
   );
 
   const resumo = useMemo(() => (resultado ? resumir(resultado.linhas) : null), [resultado]);
@@ -162,7 +169,7 @@ export default function Auditoria() {
       // Filtros de coluna do Excel
       for (const col of Object.keys(filtrosColuna)) {
         const selecionados = filtrosColuna[col];
-        if (selecionados && selecionados.length > 0) {
+        if (selecionados) {
           const valor = valorColuna(l, col);
           if (!selecionados.includes(valor)) return false;
         }
@@ -188,7 +195,7 @@ export default function Auditoria() {
   function aoFiltrarColuna(coluna: string, valores: string[] | null) {
     setFiltrosColuna((atuais) => {
       const novos = { ...atuais };
-      if (valores === null || valores.length === 0) {
+      if (valores === null) {
         delete novos[coluna];
       } else {
         novos[coluna] = valores;
@@ -222,15 +229,13 @@ export default function Auditoria() {
     if (!resultado) return;
     setExportando(true);
     try {
-      const cabecalho = [
+      // As colunas do cliente saem intactas, na ordem original — o contador
+      // precisa do código interno dele para reimportar no ERP. A auditoria é
+      // acrescentada depois delas.
+      const colunasCliente = resultado.colunasOriginais;
+      const COLUNAS_AUDITORIA = [
         "Linha",
-        "Nome Produto",
-        "Classificação",
         "NCM (8 dígitos)",
-        "CST PIS",
-        "CST COFINS",
-        "Natureza da Receita de PIS",
-        "CFOP",
         "Situação",
         "Benefício SPED",
         "Tabela SPED",
@@ -241,15 +246,14 @@ export default function Auditoria() {
         "Descrição NCM (Siscomex)",
         "Observações",
       ];
+      const cabecalho = [...colunasCliente, ...COLUNAS_AUDITORIA];
       const linhas = resultado.linhas.map((l) => [
+        ...colunasCliente.map((_, i) => {
+          const celula = l.original[i];
+          return celula === undefined || celula === null ? "" : celula;
+        }),
         l.linha,
-        l.nome,
-        l.classificacaoOriginal,
         l.ncm,
-        l.cstPis,
-        l.cstCofins,
-        l.natureza,
-        l.cfop,
         l.rotulo,
         l.regra?.rotulo ?? "",
         l.regra?.tabela ?? "",
@@ -263,7 +267,7 @@ export default function Auditoria() {
       const bytes = await gerarXlsx(
         [cabecalho, ...linhas],
         "Auditoria",
-        [7, 40, 14, 14, 8, 10, 12, 10, 22, 22, 10, 12, 14, 60, 22, 50, 70]
+        [...colunasCliente.map(() => 22), 7, 14, 22, 22, 10, 12, 14, 60, 22, 50, 70]
       );
       const base = resultado.arquivo.replace(/\.(xlsx?|csv)$/i, "");
       baixarArquivo(bytes, `auditoria-${base}.xlsx`);
@@ -282,10 +286,10 @@ export default function Auditoria() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-page text-text-primary font-sans">
+    <div className="min-h-screen flex flex-col bg-surface-page text-text-primary font-sans">
       <Cabecalho />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-6">
+      <main id="conteudo-principal" className="flex-1 w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-6">
         <div className="flex flex-col gap-1">
           <p className="text-xs font-semibold uppercase tracking-wider text-accent">Auditoria de planilhas</p>
           <h1 className="text-2xl font-semibold tracking-tight">Confira o NCM do Alterdata contra o SPED</h1>
