@@ -13,6 +13,8 @@ interface TabelaAuditoriaProps {
   filtros: FiltrosColuna;
   opcoesDe: (id: string) => string[];
   onFiltrar: (id: string, valores: string[] | null) => void;
+  /** Quando true, a coluna "Informado" exibe o CST corrigido ao lado do original. */
+  criterioCorrecaoAtivo?: boolean;
 }
 
 /**
@@ -36,8 +38,81 @@ function Codigo({ valor }: { valor: string }) {
   return valor ? <span className="font-mono">{valor}</span> : <span className="text-text-tertiary">—</span>;
 }
 
+/** Mostra o CST original e, quando a correção está ativa, o corrigido ao lado. */
+function CelulaCst({
+  cstPis,
+  cstCofins,
+  natureza,
+  cfop,
+  cstCorrigido,
+  criterioAtivo,
+}: {
+  cstPis: string;
+  cstCofins: string;
+  natureza: string;
+  cfop: string;
+  cstCorrigido?: string;
+  criterioAtivo: boolean;
+}) {
+  const mudou =
+    criterioAtivo &&
+    cstCorrigido !== undefined &&
+    cstCorrigido !== "" &&
+    (cstPis !== cstCorrigido || cstCofins !== cstCorrigido);
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      {/* CST PIS / COFINS */}
+      <div className="flex items-center gap-1 flex-wrap">
+        <span className="text-xs text-text-tertiary">CST </span>
+        {mudou ? (
+          <>
+            <span className="font-mono line-through text-text-tertiary">{cstPis || "—"}</span>
+            <span className="text-text-tertiary">/</span>
+            <span className="font-mono line-through text-text-tertiary">{cstCofins || "—"}</span>
+            <span className="mx-1 text-text-tertiary">→</span>
+            <span className="font-mono font-semibold text-success">{cstCorrigido}</span>
+          </>
+        ) : (
+          <>
+            <Codigo valor={cstPis} /> <span className="text-text-tertiary">/</span> <Codigo valor={cstCofins} />
+          </>
+        )}
+      </div>
+
+      {/* Natureza */}
+      <div>
+        <span className="text-xs text-text-tertiary">nat. </span>
+        <Codigo valor={natureza} />
+      </div>
+
+      {/* CFOP */}
+      {cfop && (
+        <div>
+          <span className="text-xs text-text-tertiary">CFOP </span>
+          <Codigo valor={cfop} />
+        </div>
+      )}
+
+      {/* Badge de correção aplicada */}
+      {mudou && (
+        <span className="mt-0.5 inline-flex w-fit items-center gap-1 rounded-full bg-success-soft px-1.5 py-0.5 text-[10px] font-medium text-success">
+          ✓ corrigido
+        </span>
+      )}
+
+      {/* NCM inválido não corrigido */}
+      {criterioAtivo && cstCorrigido === "" && (
+        <span className="mt-0.5 inline-flex w-fit items-center gap-1 rounded-full bg-danger-soft px-1.5 py-0.5 text-[10px] font-medium text-danger">
+          NCM inválido
+        </span>
+      )}
+    </div>
+  );
+}
+
 /** Auditoria linha a linha. Vermelho = NCM inválido; amarelo = divergência. */
-export function TabelaAuditoria({ linhas, colunas, filtros, opcoesDe, onFiltrar }: TabelaAuditoriaProps) {
+export function TabelaAuditoria({ linhas, colunas, filtros, opcoesDe, onFiltrar, criterioCorrecaoAtivo = false }: TabelaAuditoriaProps) {
   return (
     <div className="bg-surface-card rounded-xl shadow-(--shadow-card) overflow-hidden">
       <div
@@ -60,7 +135,11 @@ export function TabelaAuditoria({ linhas, colunas, filtros, opcoesDe, onFiltrar 
                   style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
                 >
                   <div className="flex items-center gap-1">
-                    <span>{coluna.rotulo}</span>
+                    <span>
+                      {coluna.rotulo === "Informado" && criterioCorrecaoAtivo
+                        ? "Informado → Corrigido"
+                        : coluna.rotulo}
+                    </span>
                     {coluna.valores && (
                       <FiltroColuna
                         rotulo={coluna.rotulo}
@@ -102,25 +181,20 @@ export function TabelaAuditoria({ linhas, colunas, filtros, opcoesDe, onFiltrar 
                       {l.ncm || l.classificacaoOriginal || "—"}
                     </span>
                     {l.ncm && l.classificacaoOriginal.replace(/\D/g, "") !== l.ncm && (
-                      <div className="mt-0.5 text-xs text-text-tertiary">de “{l.classificacaoOriginal}”</div>
+                      <div className="mt-0.5 text-xs text-text-tertiary">de "{l.classificacaoOriginal}"</div>
                     )}
                   </td>
 
+                  {/* Coluna "Informado → Corrigido" quando critério ativo */}
                   <td className="px-3 py-2.5 whitespace-nowrap text-text-secondary">
-                    <div>
-                      <span className="text-xs text-text-tertiary">CST </span>
-                      <Codigo valor={l.cstPis} /> <span className="text-text-tertiary">/</span> <Codigo valor={l.cstCofins} />
-                    </div>
-                    <div>
-                      <span className="text-xs text-text-tertiary">nat. </span>
-                      <Codigo valor={l.natureza} />
-                    </div>
-                    {l.cfop && (
-                      <div>
-                        <span className="text-xs text-text-tertiary">CFOP </span>
-                        <Codigo valor={l.cfop} />
-                      </div>
-                    )}
+                    <CelulaCst
+                      cstPis={l.cstPis}
+                      cstCofins={l.cstCofins}
+                      natureza={l.natureza}
+                      cfop={l.cfop}
+                      cstCorrigido={l.cstCorrigido}
+                      criterioAtivo={criterioCorrecaoAtivo}
+                    />
                   </td>
 
                   <td className="px-3 py-2.5 whitespace-nowrap">

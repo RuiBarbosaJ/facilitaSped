@@ -6,21 +6,21 @@ import { AlertTriangle, Download, FileSpreadsheet, Loader2, RotateCcw, ShieldChe
 import { Cabecalho } from "@/components/Cabecalho";
 import { CampoBusca } from "@/components/CampoBusca";
 import { Rodape } from "@/components/Rodape";
-import { SeletorCst } from "@/components/SeletorCst";
 import { BarraFiltros } from "@/components/BarraFiltros";
 import { PainelInstrucoes } from "@/components/auditoria/PainelInstrucoes";
 import { ZonaUpload } from "@/components/auditoria/ZonaUpload";
 import { ResumoAuditoria, type FiltroAuditoria } from "@/components/auditoria/ResumoAuditoria";
 import { TabelaAuditoria } from "@/components/auditoria/TabelaAuditoria";
+import { CriterioCorrecao, SEM_CORRECAO } from "@/components/auditoria/CriterioCorrecao";
 import { useRegistrosSped } from "@/hooks/useRegistrosSped";
 import { useTabelaNcm } from "@/hooks/useTabelaNcm";
 import { useEstadoMemoria } from "@/hooks/useEstadoMemoria";
-import { useFiltroCst, TODOS_CST } from "@/hooks/useFiltroCst";
 import { useFiltrosColuna } from "@/hooks/useFiltrosColuna";
 import { COLUNAS_AUDITORIA } from "@/lib/colunasAuditoria";
 import {
   ERRO_LAYOUT,
   auditarLinha,
+  corrigirLinhas,
   extrairLinhas,
   indexarBase,
   indexarNcm,
@@ -39,12 +39,14 @@ interface Resultado {
   aba: string;
   linhas: LinhaAuditada[];
   colunasOriginais: string[];
+  /** Índices das colunas CST PIS e CST COFINS na planilha original (se existirem). */
+  indiceCstPis?: number;
+  indiceCstCofins?: number;
 }
 
 export default function Auditoria() {
   const { registros, carregando: carregandoSped, erro: erroSped } = useRegistrosSped();
   const ncm = useTabelaNcm();
-  const { opcoes: opcoesCstBase } = useFiltroCst(registros, TODOS_CST);
 
   const [processando, setProcessando] = useState(false);
   const [erro, setErro] = useEstadoMemoria<string | null>("auditoria_erro", null);
@@ -53,8 +55,9 @@ export default function Auditoria() {
   const [visiveis, setVisiveis] = useEstadoMemoria("auditoria_visiveis", PAGINA);
   const [exportando, setExportando] = useState(false);
   const [consulta, setConsulta] = useEstadoMemoria("auditoria_consulta", "");
-  const [cstFiltro, setCstFiltro] = useEstadoMemoria("auditoria_cstFiltro", TODOS_CST);
   const [cfopFiltro, setCfopFiltro] = useEstadoMemoria("auditoria_cfopFiltro", "todos");
+  /** CST selecionado como critério de correção. SEM_CORRECAO = nenhuma correção ativa. */
+  const [criterioCorrecao, setCriterioCorrecao] = useEstadoMemoria("auditoria_criterio", SEM_CORRECAO);
 
   const zonaRef = useRef<HTMLDivElement>(null);
   const cartaoRef = useRef<HTMLDivElement>(null);
@@ -76,8 +79,8 @@ export default function Auditoria() {
       setFiltro("todos");
       setVisiveis(PAGINA);
       setConsulta("");
-      setCstFiltro(TODOS_CST);
       setCfopFiltro("todos");
+      setCriterioCorrecao(SEM_CORRECAO);
 
       if (arquivo.size === 0) {
         setErro("O arquivo está vazio (0 bytes).");
@@ -116,34 +119,51 @@ export default function Auditoria() {
         const cabecalhoOriginal = (encontrada.aba.linhas[encontrada.cabecalho.indice] ?? []).map((c, i) =>
           String(c ?? "").trim() || `Coluna ${i + 1}`
         );
-        setResultado({ arquivo: arquivo.name, aba: encontrada.aba.nome, linhas, colunasOriginais: cabecalhoOriginal });
+
+        // Guarda os índices das colunas CST para o export corrigido
+        const { cstPis: indiceCstPis, cstCofins: indiceCstCofins } = encontrada.cabecalho.colunas;
+
+        setResultado({
+          arquivo: arquivo.name,
+          aba: encontrada.aba.nome,
+          linhas,
+          colunasOriginais: cabecalhoOriginal,
+          indiceCstPis,
+          indiceCstCofins,
+        });
       } catch (excecao) {
         setErro(descreverErroDeLeitura(excecao));
       } finally {
         setProcessando(false);
       }
     },
-    [indiceBase, indiceSemNcm, indiceNcm, setErro, setResultado, setFiltro, setVisiveis, setConsulta, setCstFiltro, setCfopFiltro]
+    [indiceBase, indiceSemNcm, indiceNcm, setErro, setResultado, setFiltro, setVisiveis, setConsulta, setCfopFiltro, setCriterioCorrecao]
   );
 
   const resumo = useMemo(() => (resultado ? resumir(resultado.linhas) : null), [resultado]);
 
-  const filtradas = useMemo(() => {
+  /** Linhas com a correção aplicada (quando critério ativo) ou originais. */
+  const linhasComCorrecao = useMemo(() => {
     if (!resultado) return [];
+    if (criterioCorrecao === SEM_CORRECAO) return resultado.linhas;
+    return corrigirLinhas(resultado.linhas, criterioCorrecao, "01");
+  }, [resultado, criterioCorrecao]);
+
+  const filtradas = useMemo(() => {
     switch (filtro) {
       case "beneficio":
       case "possivel":
       case "tributado":
       case "invalido":
-        return resultado.linhas.filter((l) => l.situacao === filtro);
+        return linhasComCorrecao.filter((l) => l.situacao === filtro);
       case "divergencias":
-        return resultado.linhas.filter((l) => l.destaque === "amarelo");
+        return linhasComCorrecao.filter((l) => l.destaque === "amarelo");
       case "coerente":
-        return resultado.linhas.filter((l) => l.destaque === "nenhum" && l.situacao !== "invalido");
+        return linhasComCorrecao.filter((l) => l.destaque === "nenhum" && l.situacao !== "invalido");
       default:
-        return resultado.linhas;
+        return linhasComCorrecao;
     }
-  }, [resultado, filtro]);
+  }, [linhasComCorrecao, filtro]);
 
   const filtradasEBusca = useMemo(() => {
     return filtradas.filter((l) => {
@@ -152,18 +172,14 @@ export default function Auditoria() {
         const textoLinha = `${l.nome} ${l.ncm} ${l.classificacaoOriginal} ${l.descricaoNcm || ""} ${l.observacoes.join(" ")}`.toLowerCase();
         if (!textoLinha.includes(termo)) return false;
       }
-      
-      if (cstFiltro !== TODOS_CST) {
-        if (!l.regra?.cstsAceitos.includes(cstFiltro)) return false;
-      }
-      
+
       if (cfopFiltro !== "todos") {
         if (l.cfop !== cfopFiltro) return false;
       }
 
       return true;
     });
-  }, [filtradas, consulta, cstFiltro, cfopFiltro]);
+  }, [filtradas, consulta, cfopFiltro]);
 
   const {
     filtros,
@@ -181,6 +197,20 @@ export default function Auditoria() {
   const exibidas = exibiveis.slice(0, visiveis);
   const restantes = exibiveis.length - exibidas.length;
 
+  // Resumo da correção: quantas linhas vão para cada CST
+  const { totalBeneficio, totalTributado } = useMemo(() => {
+    if (criterioCorrecao === SEM_CORRECAO || !resultado) {
+      return { totalBeneficio: 0, totalTributado: 0 };
+    }
+    const beneficio = resultado.linhas.filter(
+      (l) => l.situacao === "beneficio" || l.situacao === "possivel"
+    ).length;
+    const tributado = resultado.linhas.filter(
+      (l) => l.situacao === "tributado"
+    ).length;
+    return { totalBeneficio: beneficio, totalTributado: tributado };
+  }, [criterioCorrecao, resultado]);
+
   function aoFiltrar(novo: FiltroAuditoria) {
     setFiltro(novo);
     setVisiveis(PAGINA);
@@ -190,20 +220,6 @@ export default function Auditoria() {
     setConsulta(valor);
     setVisiveis(PAGINA);
   }
-
-  const opcoesCst = useMemo(() => {
-    if (!resultado) return [];
-    const csts = new Set<string>();
-    resultado.linhas.forEach((l) => {
-      if (l.regra?.cstsAceitos) {
-        l.regra.cstsAceitos.forEach((c) => csts.add(c));
-      }
-    });
-    return Array.from(csts).sort().map((c) => {
-      const achou = opcoesCstBase.find((o) => o.cst === c);
-      return achou ? achou : { cst: c, rotulo: `CST ${c}` };
-    });
-  }, [resultado, opcoesCstBase]);
 
   const opcoesCfop = useMemo(() => {
     if (!resultado) return [];
@@ -226,6 +242,9 @@ export default function Auditoria() {
     setExportando(true);
     try {
       const colunasCliente = resultado.colunasOriginais;
+      const correcaoAtiva = criterioCorrecao !== SEM_CORRECAO;
+      const linhasParaExport = correcaoAtiva ? corrigirLinhas(resultado.linhas, criterioCorrecao, "01") : resultado.linhas;
+
       const COLUNAS_AUDITORIA_EXPORT = [
         "Linha",
         "NCM (8 dígitos)",
@@ -239,10 +258,22 @@ export default function Auditoria() {
         "Descrição NCM (Siscomex)",
         "Observações",
       ];
+
       const cabecalho = [...colunasCliente, ...COLUNAS_AUDITORIA_EXPORT];
-      const linhas = resultado.linhas.map((l) => [
+      const linhas = linhasParaExport.map((l) => [
         ...colunasCliente.map((_, i) => {
-          const celula = l.original[i];
+          let celula = l.original[i];
+          // Substitui os valores das colunas CST na planilha original quando a
+          // correção está ativa e a linha tem CST corrigido definido.
+          if (
+            correcaoAtiva &&
+            l.cstCorrigido !== undefined &&
+            l.cstCorrigido !== ""
+          ) {
+            if (i === resultado.indiceCstPis || i === resultado.indiceCstCofins) {
+              celula = l.cstCorrigido;
+            }
+          }
           return celula === undefined || celula === null ? "" : celula;
         }),
         l.linha,
@@ -250,7 +281,7 @@ export default function Auditoria() {
         l.rotulo,
         l.regra?.rotulo ?? "",
         l.regra?.tabela ?? "",
-        l.regra?.cstsAceitos.join(" ou ") ?? "",
+        correcaoAtiva && l.cstCorrigido ? l.cstCorrigido : (l.regra?.cstsAceitos.join(" ou ") ?? ""),
         l.regra?.naturezas.join(" ou ") ?? "",
         l.regra?.descricao ?? "",
         l.regra ? `${l.regra.inicio ?? ""}${l.regra.fim ? ` a ${l.regra.fim}` : l.regra.inicio ? " (vigente)" : ""}` : "",
@@ -263,7 +294,8 @@ export default function Auditoria() {
         [...colunasCliente.map(() => 22), 7, 14, 22, 22, 10, 12, 14, 60, 22, 50, 70]
       );
       const base = resultado.arquivo.replace(/\.(xlsx?|csv)$/i, "");
-      baixarArquivo(bytes, `auditoria-${base}.xlsx`);
+      const sufixo = correcaoAtiva ? `-cst${criterioCorrecao}` : "";
+      baixarArquivo(bytes, `auditoria${sufixo}-${base}.xlsx`);
     } finally {
       setExportando(false);
     }
@@ -274,6 +306,7 @@ export default function Auditoria() {
     setErro(null);
     setFiltro("todos");
     setVisiveis(PAGINA);
+    setCriterioCorrecao(SEM_CORRECAO);
     requestAnimationFrame(() => zonaRef.current?.focus());
   }
 
@@ -331,6 +364,7 @@ export default function Auditoria() {
         ) : (
           resumo && (
             <>
+              {/* Cabeçalho do resultado */}
               <div
                 ref={cartaoRef}
                 tabIndex={-1}
@@ -346,7 +380,7 @@ export default function Auditoria() {
                     </p>
                     <p className="text-xs text-text-tertiary">
                       {resumo.total.toLocaleString("pt-BR")} {resumo.total === 1 ? "linha auditada" : "linhas auditadas"}
-                      {` · aba “${resultado.aba}”`}
+                      {` · aba "${resultado.aba}"`}
                       {ncm.tabela ? ` · NCM conferido pela ${ncm.tabela.fonte}` : ""}
                     </p>
                   </div>
@@ -367,24 +401,28 @@ export default function Auditoria() {
                     className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-contrast hover:bg-accent-hover disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 transition-colors"
                   >
                     {exportando ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <Download size={16} aria-hidden />}
-                    Exportar Planilha Auditada
+                    {criterioCorrecao !== SEM_CORRECAO ? "Exportar Planilha Corrigida" : "Exportar Planilha Auditada"}
                   </button>
                 </div>
               </div>
 
               <ResumoAuditoria resumo={resumo} filtro={filtro} onFiltrar={aoFiltrar} />
 
+              {/* Critério de Correção — principal novidade */}
+              <CriterioCorrecao
+                valor={criterioCorrecao}
+                onChange={(v) => { setCriterioCorrecao(v); setVisiveis(PAGINA); }}
+                totalLinhas={resumo.total}
+                totalBeneficio={totalBeneficio}
+                totalTributado={totalTributado}
+              />
+
+              {/* Barra de busca e filtro de CFOP */}
               <div className="flex flex-col md:flex-row md:items-center gap-4 bg-surface-card border border-border-subtle p-4 rounded-xl shadow-(--shadow-card)">
                 <div className="flex-1">
                   <CampoBusca valor={consulta} onChange={aoBuscar} />
                 </div>
                 <div className="flex flex-wrap md:flex-nowrap gap-4">
-                  <SeletorCst 
-                    valor={cstFiltro} 
-                    opcoes={opcoesCst} 
-                    onChange={(v) => { setCstFiltro(v); setVisiveis(PAGINA); }} 
-                  />
-                  
                   <label className="flex items-center gap-2 text-sm text-text-secondary w-full md:w-auto">
                     <span className="font-medium whitespace-nowrap">CFOP</span>
                     <select
@@ -411,8 +449,13 @@ export default function Auditoria() {
               <p className="text-sm text-text-secondary" aria-live="polite">
                 <strong className="font-semibold text-text-primary">{exibiveis.length.toLocaleString("pt-BR")}</strong>{" "}
                 {exibiveis.length === 1 ? "linha" : "linhas"}
-                {filtro !== "todos" || consulta || cstFiltro !== TODOS_CST || cfopFiltro !== "todos" || filtrosAtivos.length > 0 ? " neste filtro" : ""}
+                {filtro !== "todos" || consulta || cfopFiltro !== "todos" || filtrosAtivos.length > 0 ? " neste filtro" : ""}
                 {restantes > 0 ? ` — exibindo as primeiras ${exibidas.length}` : ""}
+                {criterioCorrecao !== SEM_CORRECAO && (
+                  <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">
+                    Correção CST {criterioCorrecao} ativa
+                  </span>
+                )}
                 <span className="ml-3 inline-flex items-center gap-3 text-xs text-text-tertiary">
                   <span className="inline-flex items-center gap-1"><span className="size-2.5 rounded-sm bg-danger-soft border border-danger/40" /> NCM inválido</span>
                   <span className="inline-flex items-center gap-1"><span className="size-2.5 rounded-sm bg-warning-soft border border-warning/40" /> divergência</span>
@@ -425,6 +468,7 @@ export default function Auditoria() {
                 filtros={filtros}
                 opcoesDe={opcoesDe}
                 onFiltrar={definirFiltroColuna}
+                criterioCorrecaoAtivo={criterioCorrecao !== SEM_CORRECAO}
               />
 
               {restantes > 0 && (

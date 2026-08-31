@@ -193,6 +193,12 @@ export interface LinhaAuditada {
   /** Uma frase por problema encontrado; vazio quando a linha está coerente. */
   observacoes: string[];
   destaque: Destaque;
+  /**
+   * CST sugerido pelo critério de correção escolhido pelo usuário.
+   * Presente apenas quando um critério está ativo.
+   * Ex: "06" para NCMs com benefício; "01" para os demais.
+   */
+  cstCorrigido?: string;
 }
 
 /**
@@ -587,4 +593,38 @@ export function valorColuna(l: LinhaAuditada, coluna: string): string {
     case "Observações": return l.observacoes.length > 0 ? l.observacoes.join(" ") : "Coerente com o SPED";
     default: return "";
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Critério de correção                                                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Aplica o critério de correção estilo Alterdata a um conjunto de linhas já
+ * auditadas. A lógica é simples e direta:
+ *
+ * - NCM com regra de benefício vigente no SPED → `cstBeneficio` (ex: "06")
+ * - NCM inválido ou sem regra vigente           → `cstTributado` (padrão "01")
+ *
+ * O resultado é uma nova lista com o campo `cstCorrigido` preenchido em cada
+ * linha. Linhas com NCM inválido recebem string vazia para indicar que a
+ * correção não é aplicável.
+ */
+export function corrigirLinhas(
+  linhas: LinhaAuditada[],
+  cstBeneficio: string,
+  cstTributado = "01"
+): LinhaAuditada[] {
+  return linhas.map((l) => {
+    // NCM inválido → não há o que corrigir
+    if (l.situacao === "invalido") {
+      return { ...l, cstCorrigido: "" };
+    }
+    // Tem regra de benefício vigente (inclui "possivel") → aplica CST de benefício
+    if (l.situacao === "beneficio" || l.situacao === "possivel") {
+      return { ...l, cstCorrigido: cstBeneficio };
+    }
+    // Tributado normal
+    return { ...l, cstCorrigido: cstTributado };
+  });
 }
