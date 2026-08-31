@@ -600,18 +600,19 @@ export function valorColuna(l: LinhaAuditada, coluna: string): string {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Aplica o critério de correção estilo Alterdata a um conjunto de linhas já
- * auditadas.
+ * Aplica o critério de correção estilo Alterdata e sincroniza a exibição.
  *
- * Lógica exata:
- * - NCM inválido                                     → sem correção (vazio)
- * - Regra do SPED aceita `cstBeneficio` para este NCM → `cstBeneficio` (ex: "06")
- * - Regra existe mas é de outro tipo de benefício     → `cstTributado` ("01")
- *   (ex: NCM monofásico quando critério é CST 06 — não é alíquota zero)
- * - Sem regra vigente (tributado puro)               → `cstTributado` ("01")
+ * Lógica do cstCorrigido:
+ * - NCM inválido                                           → vazio (inaplicável)
+ * - Regra do SPED aceita `cstBeneficio` para este NCM     → `cstBeneficio`
+ * - Regra de outro tipo de benefício ou sem regra vigente → `cstTributado` ("01")
  *
- * O campo `cstCorrigido` fica vazio string para NCM inválido (inaplicável),
- * ou preenchido com o CST resultante para todas as demais linhas.
+ * Efeitos na UI (sincroniza com o critério ativo):
+ * - `destaque` → "nenhum" em toda linha corrigida: remove o realce amarelo e
+ *   retira a linha dos contadores de "Divergências" nos cards de resumo.
+ * - `observacoes` → esvaziadas (benefício correto) ou substituídas por uma
+ *   nota informativa (requalificado para tributado), nunca mais um alerta de
+ *   divergência — a decisão já foi tomada pelo critério escolhido.
  */
 export function corrigirLinhas(
   linhas: LinhaAuditada[],
@@ -619,21 +620,39 @@ export function corrigirLinhas(
   cstTributado = "01"
 ): LinhaAuditada[] {
   return linhas.map((l) => {
-    // NCM inválido → não há o que corrigir
+    // NCM inválido → não há o que corrigir; mantém tudo como está
     if (l.situacao === "invalido") {
       return { ...l, cstCorrigido: "" };
     }
 
-    // Verifica se a regra do SPED para este NCM específico aceita o CST escolhido.
-    // Ex: NCM monofásico (SPED: CST 02/04) + critério CST 06 → NÃO é alíquota zero
-    //     → cai no cstTributado ("01"), não recebe CST 06 errado.
     const regraAceitaCst = l.regra?.cstsAceitos.includes(cstBeneficio) ?? false;
 
     if ((l.situacao === "beneficio" || l.situacao === "possivel") && regraAceitaCst) {
-      return { ...l, cstCorrigido: cstBeneficio };
+      // NCM tem exatamente o benefício do critério → CST correto aplicado.
+      // Limpa qualquer divergência residual (ex: produto que já tinha CST errado
+      // e agora será corrigido para o valor certo via exportação).
+      return {
+        ...l,
+        cstCorrigido: cstBeneficio,
+        destaque: "nenhum",
+        observacoes: [],
+      };
     }
 
-    // Tributado normal, ou benefício de outro tipo que não o escolhido
-    return { ...l, cstCorrigido: cstTributado };
+    // NCM sem o benefício do critério → requalificado intencionalmente como
+    // tributado (CST 01). Como a decisão é explícita do usuário via critério,
+    // não é divergência: remove o realce amarelo e substitui os alertas por
+    // uma nota informativa neutra.
+    const notaRequalificacao = l.regra
+      ? `Requalificado pelo critério de correção: NCM não se enquadra na regra do critério selecionado — tratado como ${cstTributado === "01" ? "tributado normal (CST 01)" : `CST ${cstTributado}`}.`
+      : "";
+
+    return {
+      ...l,
+      cstCorrigido: cstTributado,
+      destaque: "nenhum",
+      observacoes: notaRequalificacao ? [notaRequalificacao] : [],
+    };
   });
 }
+

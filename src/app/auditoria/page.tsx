@@ -140,14 +140,19 @@ export default function Auditoria() {
     [indiceBase, indiceSemNcm, indiceNcm, setErro, setResultado, setFiltro, setVisiveis, setConsulta, setCfopFiltro, setCriterioCorrecao]
   );
 
-  const resumo = useMemo(() => (resultado ? resumir(resultado.linhas) : null), [resultado]);
-
   /** Linhas com a correção aplicada (quando critério ativo) ou originais. */
   const linhasComCorrecao = useMemo(() => {
     if (!resultado) return [];
     if (criterioCorrecao === SEM_CORRECAO) return resultado.linhas;
     return corrigirLinhas(resultado.linhas, criterioCorrecao, "01");
   }, [resultado, criterioCorrecao]);
+
+  /**
+   * Resumo calculado sobre as linhas já corrigidas: quando o critério está
+   * ativo, as diverGências resolvidas pela correção saem do card "Divergências"
+   * e entram no card "Coerente com o SPED", igual ao comportamento do Alterdata.
+   */
+  const resumo = useMemo(() => (linhasComCorrecao.length > 0 ? resumir(linhasComCorrecao) : null), [linhasComCorrecao]);
 
   const filtradas = useMemo(() => {
     switch (filtro) {

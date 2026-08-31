@@ -201,10 +201,38 @@ export function TabelaAuditoria({ linhas, colunas, filtros, opcoesDe, onFiltrar,
                     <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${ESTILO_SELO[l.situacao]}`}>
                       {l.rotulo}
                     </span>
+                    {/* Quando o critério está ativo e a linha tem um CST corrigido
+                        (seja para o benefício ou para tributado), o status final
+                        é "Coerente com o critério" — a decisão já foi tomada. */}
+                    {criterioCorrecaoAtivo && l.cstCorrigido !== undefined && l.situacao !== "invalido" && (
+                      <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-success-soft px-1.5 py-0.5 text-[10px] font-medium text-success">
+                        <span>✓</span>
+                        <span>Coerente com o critério</span>
+                      </div>
+                    )}
                   </td>
 
                   <td className="px-3 py-2.5 min-w-48 max-w-72">
-                    {l.regra ? (
+                    {/* Quando critério ativo e linha foi requalificada para tributado:
+                        mostra a sugestão original do SPED como referência (dimmed)
+                        mais uma nota de que o item foi tratado como tributado. */}
+                    {criterioCorrecaoAtivo && l.cstCorrigido === "01" && l.regra ? (
+                      <div className="flex flex-col gap-1">
+                        <span className="inline-flex w-fit items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-[10px] font-medium text-success">
+                          Tratado como tributado (CST 01)
+                        </span>
+                        <div className="opacity-40">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-xs text-text-tertiary">SPED (referência):</span>
+                            {l.regra.cstsAceitos.map((cst) => (
+                              <span key={cst} className="font-mono rounded bg-badge-cst-bg px-1.5 py-0.5 text-xs text-badge-cst-text">
+                                {cst}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : l.regra ? (
                       <div className="flex flex-col gap-0.5">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span className="text-xs text-text-tertiary">CST</span>
