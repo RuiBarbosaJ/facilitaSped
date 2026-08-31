@@ -213,25 +213,14 @@ export function TabelaAuditoria({ linhas, colunas, filtros, opcoesDe, onFiltrar,
                   </td>
 
                   <td className="px-3 py-2.5 min-w-48 max-w-72">
-                    {/* Quando critério ativo e linha foi requalificada para tributado:
-                        mostra a sugestão original do SPED como referência (dimmed)
-                        mais uma nota de que o item foi tratado como tributado. */}
-                    {criterioCorrecaoAtivo && l.cstCorrigido === "01" && l.regra ? (
-                      <div className="flex flex-col gap-1">
-                        <span className="inline-flex w-fit items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-[10px] font-medium text-success">
-                          Tratado como tributado (CST 01)
-                        </span>
-                        <div className="opacity-40">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="text-xs text-text-tertiary">SPED (referência):</span>
-                            {l.regra.cstsAceitos.map((cst) => (
-                              <span key={cst} className="font-mono rounded bg-badge-cst-bg px-1.5 py-0.5 text-xs text-badge-cst-text">
-                                {cst}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
+                    {/* Com o critério ligado, a linha requalificada não mostra mais a
+                        regra das outras tabelas: o critério mandou ignorá-las, e
+                        exibir "CST 03/04" ao lado de um CST corrigido para 01 (ou 06)
+                        só faz o contador duvidar da correção que ele mesmo pediu. */}
+                    {criterioCorrecaoAtivo && l.cstCorrigido === "01" ? (
+                      <span className="inline-flex w-fit items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-[10px] font-medium text-success">
+                        Tratado como tributado (CST 01)
+                      </span>
                     ) : l.regra ? (
                       <div className="flex flex-col gap-0.5">
                         <div className="flex flex-wrap items-center gap-1.5">

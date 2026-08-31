@@ -188,6 +188,12 @@ export interface LinhaAuditada {
   /** Texto curto para o selo: "Alíquota zero", "Tributado", "NCM inválido"... */
   rotulo: string;
   regra?: RegraSugerida;
+  /**
+   * Todos os regimes vigentes do NCM, a `regra` primeiro. É o que permite ao
+   * critério de correção perguntar "existe regra de alíquota zero para este
+   * NCM?" sem se prender à tabela que a auditoria escolheu exibir.
+   */
+  regrasAplicaveis?: RegraSugerida[];
   /** Descrição oficial do NCM, quando a tabela Siscomex está disponível. */
   descricaoNcm?: string;
   /** Uma frase por problema encontrado; vazio quando a linha está coerente. */
@@ -292,26 +298,47 @@ function ordenarRegras(a: RegistroSped, b: RegistroSped): number {
 interface RegrasEncontradas {
   /** Regras vigentes hoje no nível mais específico que tem alguma. */
   vigentes: RegistroSped[];
+  /**
+   * Regras vigentes nos níveis mais abrangentes, que o nível específico esconderia.
+   * Um mesmo NCM pode estar em duas tabelas ao mesmo tempo sem contradição: cerveja
+   * (2203.00.00) é monofásica por unidade para o fabricante (4.3.11) e alíquota zero
+   * para o varejista de bebidas frias (4.3.13, posição 2203, natureza 918). Qual vale
+   * depende do papel de quem vende — a auditoria precisa enxergar as duas.
+   */
+  alternativas: RegistroSped[];
   /** A regra mais específica que já valeu ou ainda vai valer, quando nenhuma vale hoje. */
   foraDeVigencia?: RegistroSped;
 }
 
 /**
- * Do código completo até o capítulo (2 dígitos), pára no primeiro nível que
- * tenha regra vigente. Uma regra encerrada mais específica não pode esconder
- * uma vigente mais genérica: medicamentos (3004.90.99) tiveram alíquota zero
- * até 2020, mas a regra monofásica da posição 3004 continua valendo.
+ * Do código completo até o capítulo (2 dígitos). O primeiro nível com regra
+ * vigente dá as `vigentes`; o que vem depois, de tabela diferente, entra como
+ * alternativa. Uma regra encerrada mais específica não pode esconder uma vigente
+ * mais genérica: medicamentos (3004.90.99) tiveram alíquota zero até 2020, mas a
+ * regra monofásica da posição 3004 continua valendo.
  */
 function encontrarRegras(ncm: string, indice: Map<string, RegistroSped[]>, hoje: number): RegrasEncontradas {
+  let vigentes: RegistroSped[] = [];
+  const alternativas: RegistroSped[] = [];
+  const tabelasVistas = new Set<string>();
   let foraDeVigencia: RegistroSped | undefined;
+
   for (let tamanho = 8; tamanho >= 2; tamanho--) {
     const candidatos = indice.get(ncm.slice(0, tamanho));
     if (!candidatos?.length) continue;
-    const vigentes = candidatos.filter((c) => situacaoDaRegra(c, hoje) === "vigente").sort(ordenarRegras);
-    if (vigentes.length > 0) return { vigentes, foraDeVigencia };
-    foraDeVigencia ??= [...candidatos].sort(ordenarRegras)[0];
+    const doNivel = candidatos.filter((c) => situacaoDaRegra(c, hoje) === "vigente").sort(ordenarRegras);
+    if (doNivel.length === 0) {
+      if (vigentes.length === 0) foraDeVigencia ??= [...candidatos].sort(ordenarRegras)[0];
+      continue;
+    }
+    // Só interessa o que acrescenta um regime novo; repetir a mesma tabela num
+    // nível mais amplo não muda o CST admitido, só duplicaria a leitura.
+    if (vigentes.length === 0) vigentes = doNivel;
+    else alternativas.push(...doNivel.filter((r) => !tabelasVistas.has(r.tabela ?? "")));
+    for (const r of doNivel) tabelasVistas.add(r.tabela ?? "");
   }
-  return { vigentes: [], foraDeVigencia };
+
+  return { vigentes, alternativas, foraDeVigencia };
 }
 
 export interface LinhaPlanilha {
@@ -428,23 +455,52 @@ export function auditarLinha(l: LinhaPlanilha, ctx: ContextoAuditoria): LinhaAud
   }
 
   // 2. Tem benefício vigente no SPED?
-  const { vigentes, foraDeVigencia } = encontrarRegras(ncm, ctx.base, hoje);
-  const principal = vigentes[0];
+  const { vigentes, alternativas, foraDeVigencia } = encontrarRegras(ncm, ctx.base, hoje);
+  const aplicaveis = [...vigentes, ...alternativas];
+
+  // A regra mais específica é o palpite padrão, mas quem manda é o CST informado:
+  // se ele não cabe nela e cabe em outro regime vigente do mesmo NCM, foi esse o
+  // regime que o cliente aplicou — cobrar o outro seria acusar quem está certo.
+  const aceitaOInformado = (r: RegistroSped) => {
+    const csts = BENEFICIOS[r.tabela ?? ""]?.csts ?? [];
+    return (cstPis !== "" && csts.includes(cstPis)) || (cstCofins !== "" && csts.includes(cstCofins));
+  };
+  const principal = (!vigentes[0] || aceitaOInformado(vigentes[0])
+    ? vigentes[0]
+    : aplicaveis.find(aceitaOInformado)) ?? vigentes[0];
   const beneficio = principal?.tabela ? BENEFICIOS[principal.tabela] : undefined;
 
   if (principal && beneficio) {
-    const irmas = vigentes.filter((r) => r.tabela === principal.tabela);
-    const naturezas = Array.from(new Set(irmas.map((r) => r.natureza_receita ?? "").filter(Boolean)));
-    const sugerida: RegraSugerida = {
-      tabela: principal.tabela ?? "",
-      rotulo: beneficio.rotulo,
-      descricao: principal.descricao,
-      naturezas,
-      cstsAceitos: beneficio.csts,
-      ncmRegra: principal.ncm,
-      inicio: principal.data_inicio,
-      fim: principal.data_fim,
+    const montar = (r: RegistroSped): RegraSugerida => {
+      const irmas = aplicaveis.filter((x) => x.tabela === r.tabela && x.ncm === r.ncm);
+      return {
+        tabela: r.tabela ?? "",
+        rotulo: BENEFICIOS[r.tabela ?? ""].rotulo,
+        descricao: r.descricao,
+        naturezas: Array.from(new Set(irmas.map((x) => x.natureza_receita ?? "").filter(Boolean))),
+        cstsAceitos: BENEFICIOS[r.tabela ?? ""].csts,
+        ncmRegra: r.ncm,
+        inicio: r.data_inicio,
+        fim: r.data_fim,
+      };
     };
+    const sugerida = montar(principal);
+    const naturezas = sugerida.naturezas;
+    // Um regime por tabela, a exibida na frente — é a lista que o critério consulta.
+    const regrasAplicaveis = [
+      sugerida,
+      ...aplicaveis
+        .filter((r) => r.tabela !== principal.tabela)
+        .filter((r, i, todas) => todas.findIndex((x) => x.tabela === r.tabela) === i)
+        .map(montar),
+    ];
+
+    if (alternativas.length > 0 || vigentes.some((r) => r.tabela !== principal.tabela)) {
+      const outras = regrasAplicaveis.slice(1).map((r) => `${r.rotulo} (tabela ${r.tabela})`);
+      observacoes.push(
+        `Este NCM tem mais de um regime vigente no SPED — também consta como ${listar(outras)}; qual vale depende da operação.`
+      );
+    }
 
     if (principal.ncm.length === 2) {
       observacoes.push(`A regra do SPED cita o capítulo ${principal.ncm} inteiro; confira se o produto é o descrito.`);
@@ -468,6 +524,7 @@ export function auditarLinha(l: LinhaPlanilha, ctx: ContextoAuditoria): LinhaAud
         situacao: "possivel",
         rotulo: `Possível ${beneficio.rotulo.toLowerCase()}`,
         regra: sugerida,
+        regrasAplicaveis,
         descricaoNcm,
         destaque: "nenhum",
       };
@@ -492,6 +549,7 @@ export function auditarLinha(l: LinhaPlanilha, ctx: ContextoAuditoria): LinhaAud
       situacao: "beneficio",
       rotulo: beneficio.rotulo,
       regra: sugerida,
+      regrasAplicaveis,
       descricaoNcm,
       destaque: observacoes.some((o) => /informad/.test(o)) ? "amarelo" : "nenhum",
     };
@@ -518,6 +576,16 @@ export function auditarLinha(l: LinhaPlanilha, ctx: ContextoAuditoria): LinhaAud
   if (porNatureza.length > 0) {
     const regraTexto = [...porNatureza].sort((a, b) => ordinalData(b.data_inicio) - ordinalData(a.data_inicio))[0];
     const beneficioTexto = BENEFICIOS[regraTexto.tabela ?? ""];
+    const regraPorTexto: RegraSugerida = {
+      tabela: regraTexto.tabela ?? "",
+      rotulo: beneficioTexto?.rotulo ?? "Benefício",
+      descricao: regraTexto.descricao,
+      naturezas: [natureza],
+      cstsAceitos: beneficioTexto?.csts ?? [],
+      ncmRegra: "",
+      inicio: regraTexto.data_inicio,
+      fim: regraTexto.data_fim,
+    };
     observacoes.push(
       `A regra da natureza ${natureza} (tabela ${regraTexto.tabela}) não traz NCM na tabela do SPED — a Receita descreve o produto por texto. Confira pela descrição.`
     );
@@ -529,16 +597,8 @@ export function auditarLinha(l: LinhaPlanilha, ctx: ContextoAuditoria): LinhaAud
       ...comum,
       situacao: "possivel",
       rotulo: `Possível ${(beneficioTexto?.rotulo ?? "benefício").toLowerCase()}`,
-      regra: {
-        tabela: regraTexto.tabela ?? "",
-        rotulo: beneficioTexto?.rotulo ?? "Benefício",
-        descricao: regraTexto.descricao,
-        naturezas: [natureza],
-        cstsAceitos: beneficioTexto?.csts ?? [],
-        ncmRegra: "",
-        inicio: regraTexto.data_inicio,
-        fim: regraTexto.data_fim,
-      },
+      regra: regraPorTexto,
+      regrasAplicaveis: [regraPorTexto],
       descricaoNcm,
       destaque: "nenhum",
     };
@@ -602,10 +662,17 @@ export function valorColuna(l: LinhaAuditada, coluna: string): string {
 /**
  * Aplica o critério de correção estilo Alterdata e sincroniza a exibição.
  *
+ * O critério funciona como chave geral: enquanto está ligado, a auditoria só
+ * enxerga a tabela do benefício escolhido. Cerveja é monofásica (4.3.11, CST 03)
+ * e alíquota zero para o varejista (4.3.13, CST 06) ao mesmo tempo; com o
+ * critério de CST 06 ligado, mostrar "o SPED indica 03 ou 04" ao lado de uma
+ * linha corrigida para 06 só confunde. Por isso a regra exibida passa a ser a do
+ * critério, e as das outras tabelas somem da linha.
+ *
  * Lógica do cstCorrigido:
- * - NCM inválido                                           → vazio (inaplicável)
- * - Regra do SPED aceita `cstBeneficio` para este NCM     → `cstBeneficio`
- * - Regra de outro tipo de benefício ou sem regra vigente → `cstTributado` ("01")
+ * - NCM inválido                                            → vazio (inaplicável)
+ * - Algum regime vigente do NCM aceita `cstBeneficio`       → `cstBeneficio`
+ * - Nenhum regime vigente aceita                            → `cstTributado` ("01")
  *
  * Efeitos na UI (sincroniza com o critério ativo):
  * - `destaque` → "nenhum" em toda linha corrigida: remove o realce amarelo e
@@ -625,33 +692,42 @@ export function corrigirLinhas(
       return { ...l, cstCorrigido: "" };
     }
 
-    const regraAceitaCst = l.regra?.cstsAceitos.includes(cstBeneficio) ?? false;
+    // Basta um regime vigente do NCM aceitar o CST do critério. A tabela que a
+    // auditoria escolheu exibir não decide: o NCM 22030000 casa com a posição
+    // 2203 da tabela 4.3.13 (alíquota zero, natureza 918) mesmo tendo regra
+    // própria de 8 dígitos na 4.3.11.
+    const regraDoCriterio = (l.regrasAplicaveis ?? [l.regra])
+      .filter((r): r is RegraSugerida => Boolean(r))
+      .find((r) => r.cstsAceitos.includes(cstBeneficio));
 
-    if ((l.situacao === "beneficio" || l.situacao === "possivel") && regraAceitaCst) {
-      // NCM tem exatamente o benefício do critério → CST correto aplicado.
-      // Limpa qualquer divergência residual (ex: produto que já tinha CST errado
-      // e agora será corrigido para o valor certo via exportação).
+    if (regraDoCriterio) {
+      // Enquadrado no critério: o CST informado fica, e a linha passa a falar só
+      // da regra que o sustenta.
       return {
         ...l,
         cstCorrigido: cstBeneficio,
+        situacao: "beneficio",
+        rotulo: regraDoCriterio.rotulo,
+        regra: regraDoCriterio,
         destaque: "nenhum",
         observacoes: [],
       };
     }
 
-    // NCM sem o benefício do critério → requalificado intencionalmente como
-    // tributado (CST 01). Como a decisão é explícita do usuário via critério,
-    // não é divergência: remove o realce amarelo e substitui os alertas por
-    // uma nota informativa neutra.
-    const notaRequalificacao = l.regra
-      ? `Requalificado pelo critério de correção: NCM não se enquadra na regra do critério selecionado — tratado como ${cstTributado === "01" ? "tributado normal (CST 01)" : `CST ${cstTributado}`}.`
-      : "";
-
+    // Nenhum regime vigente aceita o CST do critério → requalificado
+    // intencionalmente como tributado. Como a decisão é explícita do usuário,
+    // não é divergência: sai o realce amarelo, saem os alertas e sai também a
+    // sugestão das outras tabelas, que o critério mandou ignorar.
     return {
       ...l,
       cstCorrigido: cstTributado,
+      situacao: "tributado",
+      rotulo: "Tributado",
+      regra: undefined,
       destaque: "nenhum",
-      observacoes: notaRequalificacao ? [notaRequalificacao] : [],
+      observacoes: [
+        `Tratado como ${cstTributado === "01" ? "tributado (CST 01)" : `CST ${cstTributado}`} conforme o critério de correção.`,
+      ],
     };
   });
 }
