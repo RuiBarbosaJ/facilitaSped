@@ -601,14 +601,17 @@ export function valorColuna(l: LinhaAuditada, coluna: string): string {
 
 /**
  * Aplica o critério de correção estilo Alterdata a um conjunto de linhas já
- * auditadas. A lógica é simples e direta:
+ * auditadas.
  *
- * - NCM com regra de benefício vigente no SPED → `cstBeneficio` (ex: "06")
- * - NCM inválido ou sem regra vigente           → `cstTributado` (padrão "01")
+ * Lógica exata:
+ * - NCM inválido                                     → sem correção (vazio)
+ * - Regra do SPED aceita `cstBeneficio` para este NCM → `cstBeneficio` (ex: "06")
+ * - Regra existe mas é de outro tipo de benefício     → `cstTributado` ("01")
+ *   (ex: NCM monofásico quando critério é CST 06 — não é alíquota zero)
+ * - Sem regra vigente (tributado puro)               → `cstTributado` ("01")
  *
- * O resultado é uma nova lista com o campo `cstCorrigido` preenchido em cada
- * linha. Linhas com NCM inválido recebem string vazia para indicar que a
- * correção não é aplicável.
+ * O campo `cstCorrigido` fica vazio string para NCM inválido (inaplicável),
+ * ou preenchido com o CST resultante para todas as demais linhas.
  */
 export function corrigirLinhas(
   linhas: LinhaAuditada[],
@@ -620,11 +623,17 @@ export function corrigirLinhas(
     if (l.situacao === "invalido") {
       return { ...l, cstCorrigido: "" };
     }
-    // Tem regra de benefício vigente (inclui "possivel") → aplica CST de benefício
-    if (l.situacao === "beneficio" || l.situacao === "possivel") {
+
+    // Verifica se a regra do SPED para este NCM específico aceita o CST escolhido.
+    // Ex: NCM monofásico (SPED: CST 02/04) + critério CST 06 → NÃO é alíquota zero
+    //     → cai no cstTributado ("01"), não recebe CST 06 errado.
+    const regraAceitaCst = l.regra?.cstsAceitos.includes(cstBeneficio) ?? false;
+
+    if ((l.situacao === "beneficio" || l.situacao === "possivel") && regraAceitaCst) {
       return { ...l, cstCorrigido: cstBeneficio };
     }
-    // Tributado normal
+
+    // Tributado normal, ou benefício de outro tipo que não o escolhido
     return { ...l, cstCorrigido: cstTributado };
   });
 }

@@ -197,17 +197,21 @@ export default function Auditoria() {
   const exibidas = exibiveis.slice(0, visiveis);
   const restantes = exibiveis.length - exibidas.length;
 
-  // Resumo da correção: quantas linhas vão para cada CST
+  // Resumo da correção: quantas linhas vão para cada CST (espelha exatamente a lógica de corrigirLinhas)
   const { totalBeneficio, totalTributado } = useMemo(() => {
     if (criterioCorrecao === SEM_CORRECAO || !resultado) {
       return { totalBeneficio: 0, totalTributado: 0 };
     }
+    // Só conta como "benefício" as linhas em que a regra do SPED aceita o CST escolhido.
+    // Ex: NCM monofásico (SPED → CST 04) com critério CST 06 NÃO é alíquota zero → vai para 01.
     const beneficio = resultado.linhas.filter(
-      (l) => l.situacao === "beneficio" || l.situacao === "possivel"
+      (l) =>
+        (l.situacao === "beneficio" || l.situacao === "possivel") &&
+        (l.regra?.cstsAceitos.includes(criterioCorrecao) ?? false)
     ).length;
     const tributado = resultado.linhas.filter(
-      (l) => l.situacao === "tributado"
-    ).length;
+      (l) => l.situacao !== "invalido"
+    ).length - beneficio;
     return { totalBeneficio: beneficio, totalTributado: tributado };
   }, [criterioCorrecao, resultado]);
 
