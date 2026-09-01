@@ -2,8 +2,11 @@ name: Sync Sped Data
 
 on:
   schedule:
-    # Diariamente às 06:00 UTC, antes do expediente comercial no Brasil.
-    - cron: '0 6 * * *'
+    # 09:00 UTC = 06:00 em Brasília. O Brasil não tem mais horário de verão
+    # (Decreto 9.772/2019), então o fuso é UTC-3 o ano inteiro e não há data em
+    # que este horário escorregue. O agendamento do GitHub é best-effort: pode
+    # atrasar alguns minutos em horário de pico.
+    - cron: '0 9 * * *'
   workflow_dispatch:
 
 # Necessário para que o GITHUB_TOKEN possa fazer push do JSON atualizado.
@@ -18,7 +21,8 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # A confirmação de publicação espera o deploy da Vercel; 20 min ficaria justo.
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
@@ -61,11 +65,81 @@ jobs:
             echo "has_changes=true" >> $GITHUB_OUTPUT
           fi
 
+      # O push publica o carimbo do dia e é o que dispara o deploy na Vercel
+      # (a integração Git da Vercel escuta o push; o GITHUB_TOKEN não dispara
+      # outros workflows do Actions, então não há risco de laço). Como o
+      # carimbo muda todo dia, há um commit — e um deploy — por dia, que é o
+      # preço de a tela mostrar a data da conferência mais recente.
       - name: Commit and push if changed
         if: steps.git-diff.outputs.has_changes == 'true'
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add public/data
-          git commit -m "chore(data): atualiza tabelas SPED"
+          # O carimbo é regravado todo dia (o contador precisa ver a data da
+          # conferência avançar). Só quando as tabelas ou a NCM mudam de fato é
+          # que o commit anuncia atualização de dados.
+          if git diff --cached --quiet -- public/data/tabelas-sped.json public/data/ncm.json; then
+            git commit -m "chore(data): confere tabelas SPED (sem alteração na Receita)"
+          else
+            git commit -m "chore(data): atualiza tabelas SPED"
+          fi
           git push
+
+      # O push acima já dispara o deploy pela integração Git da Vercel — mas
+      # "já dispara" não é garantia. Se a integração estiver desconectada ou o
+      # build falhar, o site segue servindo o carimbo de ontem e ninguém
+      # percebe: a tela do contador continua dizendo que os dados são de dias
+      # atrás. Este passo confere o que o usuário realmente recebe, força o
+      # deploy se preciso, e falha alto se nem assim publicar.
+      - name: Garantir que a atualização chegou aos usuários
+        if: steps.git-diff.outputs.has_changes == 'true'
+        env:
+          # Aceita a URL como variável (preferível: aparece no log e facilita
+          # depurar) ou como segredo, para não depender de onde ela foi criada.
+          SITE_URL: ${{ vars.SITE_URL || secrets.SITE_URL }}
+          DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: |
+          set -uo pipefail
+
+          if [ -z "${SITE_URL:-}" ]; then
+            echo "::warning::SITE_URL não configurada — sem ela não dá para conferir se o deploy chegou ao ar. Crie em Settings > Secrets and variables > Actions (aba Variables, ou Secrets) com esse nome exato e a URL de produção."
+            exit 0
+          fi
+
+          esperado=$(node -p "require('./public/data/sync-meta.json').verificado_em")
+          echo "Carimbo publicado neste run: $esperado"
+
+          # A query string quebra o cache do CDN; sem ela a Vercel poderia
+          # devolver a cópia antiga e o robô se acharia desatualizado à toa.
+          no_ar() {
+            for _ in $(seq 1 "$1"); do
+              atual=$(curl -fsS --max-time 20 -H 'Cache-Control: no-cache' \
+                "${SITE_URL%/}/data/sync-meta.json?t=$(date +%s)" \
+                | node -pe "JSON.parse(require('fs').readFileSync(0,'utf8')).verificado_em" 2>/dev/null || true)
+              [ "$atual" = "$esperado" ] && return 0
+              sleep 15
+            done
+            return 1
+          }
+
+          if no_ar 20; then
+            echo "Publicado: o site já serve o carimbo de hoje."
+            exit 0
+          fi
+
+          if [ -z "${DEPLOY_HOOK:-}" ]; then
+            echo "::error::5 minutos depois do push o site ainda serve o carimbo anterior — a integração Git da Vercel não publicou. Configure o segredo VERCEL_DEPLOY_HOOK para o robô forçar o deploy sozinho."
+            exit 1
+          fi
+
+          echo "A integração Git não publicou em 5 min. Acionando o Deploy Hook da Vercel..."
+          curl -fsS -X POST "$DEPLOY_HOOK" -o /dev/null
+
+          if no_ar 24; then
+            echo "Publicado após o Deploy Hook."
+            exit 0
+          fi
+
+          echo "::error::O Deploy Hook foi acionado e, 6 minutos depois, o site continua servindo o carimbo anterior. Confira os builds do projeto na Vercel."
+          exit 1

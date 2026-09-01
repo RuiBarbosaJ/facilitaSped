@@ -16,10 +16,16 @@ export interface RegistroSped {
   origem?: "descricao";
 }
 
-/** Carimbo da última sincronização bem-sucedida que trouxe dados novos. */
+/** Carimbo da sincronização com o portal do SPED, regravado a cada execução bem-sucedida. */
 export interface SincronizacaoMeta {
-  /** Instante em que o robô gravou estes dados, em ISO 8601 UTC. */
+  /** Última vez que os DADOS mudaram de fato, em ISO 8601 UTC. */
   atualizado_em: string;
+  /**
+   * Última vez que o robô CONFERIU o portal com sucesso, mesmo sem mudança.
+   * É a data que a tela mostra: o contador precisa saber que a checagem
+   * diária aconteceu hoje. Ausente em carimbos gravados por versões antigas.
+   */
+  verificado_em?: string;
   /** Quantas regras o arquivo tinha nessa sincronização. */
   registros: number;
   /** Versões das tabelas do portal SPED mapeadas pelo número da tabela. */

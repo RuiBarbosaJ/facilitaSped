@@ -594,10 +594,19 @@ function lerCampos(linha: string[]): CamposLinha {
 
   const celulaAliquota = linha.find((c, i) => i > iNcm && /^\d+(,\d+)?$/.test(c));
 
+  // Sub-linha de grupo da 4.3.11 (["633","","2202.10.00","Copo Descartável",
+  // "Todas",...]): sem descrição e sem número de grupo, o índice fixo cai numa
+  // célula vazia e o NCM real, uma casa adiante, era perdido junto com a regra.
+  const ncmDaCelula = linha[iNcm] ?? '';
+  const ncmVarrido =
+    ncmDaCelula.trim() === ''
+      ? (linha.slice(1, 4).find((c) => /^\s*\d{2,4}(\.\d{2}){0,3}\s*$/.test(c ?? '') && extrairNcms(c ?? '').length === 1) ?? '')
+      : '';
+
   return {
     descricao: iDescricao >= 0 ? linha[iDescricao] : '',
     grupo,
-    ncm: linha[iNcm] ?? '',
+    ncm: ncmDaCelula.trim() === '' ? ncmVarrido : ncmDaCelula,
     aliquota: normalizarAliquota(celulaAliquota ?? ''),
     inicio: datas[0],
     fim: datas[1],
@@ -630,6 +639,14 @@ function mapearRegistros(tabela: TabelaBruta): RegistroSped[] {
   const descricaoDoGrupo = new Map<string, string>();
   let tituloDaSecao = '';
   let semDescricao = 0;
+  /**
+   * A última descrição de produto lida. Na 4.3.11 as bebidas frias vêm como uma
+   * linha de grupo ("Refrigerantes...") seguida de dezenas de sub-linhas que só
+   * trazem embalagem e volume — 119 naturezas de receita (612 a 633 e outras)
+   * eram descartadas por "não ter descrição", e com elas o NCM 2202.10.00.
+   * O mapa por código nunca as alcançava: cada sub-linha tem código próprio.
+   */
+  let descricaoAnterior = '';
 
   for (const linha of linhas) {
     const codigo = linha[0]?.trim() ?? '';
@@ -647,15 +664,43 @@ function mapearRegistros(tabela: TabelaBruta): RegistroSped[] {
     }
 
     const campos = lerCampos(linha);
-    if (campos.descricao) descricaoDoGrupo.set(codigo, campos.descricao);
+    if (campos.descricao) {
+      descricaoDoGrupo.set(codigo, campos.descricao);
+      descricaoAnterior = campos.descricao;
+    }
+
+    // As células de texto que sobram numa sub-linha são o que a distingue das
+    // irmãs ("Vidro", "De 351 a 600 ml"): sem elas, as 20 embalagens de um
+    // refrigerante virariam 20 registros com a mesma descrição e o contador não
+    // saberia qual natureza corresponde ao produto dele.
+    const qualificadores =
+      !campos.descricao && descricaoAnterior
+        ? linha
+            .slice(1)
+            .filter((c) => c && c !== campos.ncm && /[A-Za-zÀ-ÿ]{3,}/.test(c) && normalizarData(c) === undefined)
+            .map((c) => c.trim())
+        : [];
+
+    const herdada =
+      descricaoAnterior && qualificadores.length > 0
+        ? `${descricaoAnterior} — ${qualificadores.join(' — ')}`
+        : '';
     const descricao =
       campos.descricao ||
       descricaoDoGrupo.get(codigo) ||
-      (tituloDaSecao && campos.grupo ? `${tituloDaSecao} — grupo ${campos.grupo}` : '');
+      // O título da seção descreve o grupo em que a linha está; a descrição da
+      // linha anterior pode ser de outro grupo, então só entra por último.
+      (tituloDaSecao && campos.grupo ? `${tituloDaSecao} — grupo ${campos.grupo}` : '') ||
+      herdada;
     if (!descricao) {
       semDescricao++;
       continue;
     }
+    // Texto emprestado não empresta NCM: os códigos citados na descrição de um
+    // grupo já pertencem à linha do grupo. Ler os da sub-linha atribuía à
+    // natureza 207 (venda de animais vivos) os NCMs da carne que o COMPRADOR
+    // produz — a auditoria passaria a jurar que carne bovina tem suspensão.
+    const usouTextoEmprestado = !campos.descricao && descricao === herdada;
 
     // Linhas de cabeçalho de grupo ("100 INSUMOS E PRODUTOS AGROPECUÁRIOS") não
     // têm NCM nem vigência — são rótulos de seção, não registros consultáveis.
@@ -674,7 +719,7 @@ function mapearRegistros(tabela: TabelaBruta): RegistroSped[] {
     // Coluna NCM primeiro; se vazia, os códigos citados na descrição — marcados
     // como tal, porque um capítulo citado no texto localiza o produto sem defini-lo.
     const ncms = extrairNcms(campos.ncm);
-    const daDescricao = ncms.length === 0 ? extrairNcmsDaDescricao(descricao) : [];
+    const daDescricao = ncms.length === 0 && !usouTextoEmprestado ? extrairNcmsDaDescricao(descricao) : [];
     const ncmsFinais = ncms.length > 0 ? ncms : daDescricao;
     if (ncmsFinais.length === 0) {
       // Sem NCM explícito o registro continua útil: é pesquisável por descrição.
@@ -733,6 +778,16 @@ function contarCodigosNcmAtuais(): number {
 function lerArquivo(caminho: string): string | undefined {
   try {
     return fs.readFileSync(caminho, 'utf8');
+  } catch {
+    return undefined;
+  }
+}
+
+/** O carimbo publicado hoje, para preservar `atualizado_em` num dia sem mudanças. */
+function lerMetaAtual(): SincronizacaoMeta | undefined {
+  try {
+    const meta: unknown = JSON.parse(lerArquivo(META_FILE) ?? '');
+    return typeof meta === 'object' && meta !== null ? (meta as SincronizacaoMeta) : undefined;
   } catch {
     return undefined;
   }
@@ -981,31 +1036,33 @@ async function syncTabelas(): Promise<void> {
       );
     }
 
-    // O carimbo de tempo mora num arquivo à parte e só é reescrito quando os
-    // dados de fato mudam. Se ele fosse gravado a cada execução, o
-    // `git status` do workflow acusaria mudança todo dia e geraria um commit
-    // (e um deploy) diário sem nenhuma alteração real da Receita.
+    // O carimbo é regravado em TODA sincronização bem-sucedida: o contador
+    // precisa ver na tela que a conferência diária com a Receita aconteceu
+    // hoje, mesmo num dia em que ela não publicou nada (`verificado_em`).
+    // `atualizado_em` continua marcando a última vez que os DADOS mudaram, e
+    // as versões das tabelas são renovadas sempre — o portal pode reversionar
+    // um arquivo sem alterar o conteúdo extraído. O preço é um commit (e um
+    // deploy) diário de um arquivo de poucos bytes; é requisito do produto,
+    // não descuido. Se a coleta falhar, nada é gravado e a data para de andar
+    // — que é exatamente o alarme certo.
     const conteudo = JSON.stringify(dados);
     const semMudanca = conteudo === lerArquivo(OUTPUT_FILE);
-    // O carimbo também é criado quando ainda não existe: sem isso, uma base que
-    // ficasse meses sem alteração nunca ganharia data para mostrar na tela.
-    if (semMudanca && lerArquivo(META_FILE) !== undefined) {
-      console.log(`\nNenhuma mudança: as ${dados.length} regras seguem iguais às publicadas.`);
-    } else {
-      if (!semMudanca) fs.writeFileSync(OUTPUT_FILE, conteudo);
-      const meta: SincronizacaoMeta = {
-        atualizado_em: new Date().toISOString(),
-        registros: dados.length,
-        versoes,
-      };
-      fs.writeFileSync(META_FILE, `${JSON.stringify(meta, null, 2)}\n`);
-      if (semMudanca) {
-        console.log(`\nRegras inalteradas (${dados.length}); carimbo de atualização criado.`);
-      } else {
-        console.log(`\n${dados.length} registros únicos salvos em ${OUTPUT_FILE}`);
-      }
-      console.log(`Carimbo gravado em ${META_FILE}`);
-    }
+    if (!semMudanca) fs.writeFileSync(OUTPUT_FILE, conteudo);
+
+    const agora = new Date().toISOString();
+    const meta: SincronizacaoMeta = {
+      atualizado_em: semMudanca ? (lerMetaAtual()?.atualizado_em ?? agora) : agora,
+      verificado_em: agora,
+      registros: dados.length,
+      versoes,
+    };
+    fs.writeFileSync(META_FILE, `${JSON.stringify(meta, null, 2)}\n`);
+    console.log(
+      semMudanca
+        ? `\nNenhuma mudança: as ${dados.length} regras seguem iguais às publicadas.`
+        : `\n${dados.length} registros únicos salvos em ${OUTPUT_FILE}`
+    );
+    console.log(`Carimbo gravado em ${META_FILE} (verificado em ${agora}).`);
 
     // A tabela NCM é independente das tabelas do SPED: falhar aqui não pode
     // desfazer o trabalho acima, por isso ela trata os próprios erros.

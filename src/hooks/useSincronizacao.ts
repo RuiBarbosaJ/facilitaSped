@@ -10,7 +10,13 @@ function ehMeta(valor: unknown): valor is SincronizacaoMeta {
 }
 
 /**
- * Quando o robô trouxe dados novos da Receita pela última vez.
+ * Quando o robô conferiu a Receita pela última vez.
+ *
+ * A data exibida é a da última CONFERÊNCIA bem-sucedida (`verificado_em`), não
+ * a da última mudança de conteúdo: a checagem é diária e o contador precisa
+ * ver que ela aconteceu hoje mesmo quando a Receita não publicou nada.
+ * Carimbos gravados por versões antigas do robô só têm `atualizado_em`, que
+ * serve de reserva.
  *
  * O carimbo é gravado em UTC e formatado aqui no horário de Brasília — o cron
  * roda 06:00 UTC, que é 03:00 no Brasil. A formatação acontece só no cliente,
@@ -19,8 +25,16 @@ function ehMeta(valor: unknown): valor is SincronizacaoMeta {
  * Devolve `null` enquanto carrega ou se o arquivo ainda não existe (a primeira
  * sincronização é quem o cria).
  */
-export function useSincronizacao(): { data: string | null; versoes: Record<string, string> | null } {
-  const [dados, setDados] = useState<{ data: string | null; versoes: Record<string, string> | null }>({ data: null, versoes: null });
+interface EstadoSincronizacao {
+  /** Última conferência bem-sucedida, já formatada em pt-BR. */
+  data: string | null;
+  /** Última vez que os dados de fato mudaram; igual a `data` quando mudaram hoje. */
+  alteradoEm: string | null;
+  versoes: Record<string, string> | null;
+}
+
+export function useSincronizacao(): EstadoSincronizacao {
+  const [dados, setDados] = useState<EstadoSincronizacao>({ data: null, alteradoEm: null, versoes: null });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -33,15 +47,20 @@ export function useSincronizacao(): { data: string | null; versoes: Record<strin
         const corpo: unknown = await resposta.json();
         if (!ehMeta(corpo)) return;
 
-        const quando = new Date(corpo.atualizado_em);
+        const quando = new Date(corpo.verificado_em ?? corpo.atualizado_em);
         if (Number.isNaN(quando.getTime())) return;
+        const mudou = new Date(corpo.atualizado_em);
 
-        setDados({
-          data: new Intl.DateTimeFormat("pt-BR", {
+        const formatar = (d: Date) =>
+          new Intl.DateTimeFormat("pt-BR", {
             timeZone: "America/Sao_Paulo",
             dateStyle: "short",
             timeStyle: "short",
-          }).format(quando),
+          }).format(d);
+
+        setDados({
+          data: formatar(quando),
+          alteradoEm: Number.isNaN(mudou.getTime()) ? null : formatar(mudou),
           versoes: corpo.versoes ?? null,
         });
       } catch {

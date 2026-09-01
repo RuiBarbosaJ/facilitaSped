@@ -23,7 +23,7 @@ const PAGINA = 50;
 
 export default function Home() {
   const { registros, carregando, erro } = useRegistrosSped();
-  const { data: atualizadoEm, versoes } = useSincronizacao();
+  const { data: atualizadoEm, alteradoEm, versoes } = useSincronizacao();
   
   const [cst, setCst] = useEstadoMemoria("consulta_cst", CST_PADRAO);
   const [consulta, setConsulta] = useEstadoMemoria("consulta_texto", "");
@@ -100,7 +100,13 @@ export default function Home() {
                   {restantes > 0 ? ` — exibindo as primeiras ${exibidos.length}` : ""}
                 </p>
                 {atualizadoEm && (
-                  <p className="text-xs text-text-tertiary flex items-center gap-1.5">
+                  <p
+                    className="text-xs text-text-tertiary flex items-center gap-1.5"
+                    // A data é a da conferência diária com o portal do SPED; a
+                    // da última mudança de conteúdo fica aqui, para quem
+                    // precisa saber quando a Receita mexeu de fato.
+                    title={alteradoEm ? `Última alteração publicada pela Receita: ${alteradoEm}. Conferido automaticamente todos os dias.` : undefined}
+                  >
                     <RefreshCw size={12} aria-hidden />
                     Dados da Receita Federal atualizados em {atualizadoEm}
                     {versaoAtual && tabelaAtual && <> <span className="mx-1">•</span> Tabela {tabelaAtual} (Versão {versaoAtual})</>}
