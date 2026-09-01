@@ -2,11 +2,18 @@ name: Sync Sped Data
 
 on:
   schedule:
-    # 09:00 UTC = 06:00 em Brasília. O Brasil não tem mais horário de verão
+    # 09:13 UTC = 06:13 em Brasília. O Brasil não tem mais horário de verão
     # (Decreto 9.772/2019), então o fuso é UTC-3 o ano inteiro e não há data em
-    # que este horário escorregue. O agendamento do GitHub é best-effort: pode
-    # atrasar alguns minutos em horário de pico.
-    - cron: '0 9 * * *'
+    # que este horário escorregue.
+    #
+    # O minuto quebrado não é enfeite: o agendamento do GitHub é best-effort e a
+    # fila entope na hora cheia, onde todo mundo agenda. Com o cron anterior em
+    # ':00' as execuções deste repositório saíam de 5 a 7 horas atrasadas
+    # (06:00 UTC pedido, 11:16 / 12:59 / 11:28 UTC realizados). Fora do pico o
+    # atraso costuma cair para minutos — mas o GitHub não promete horário, e
+    # quem garante que o dado chegou ao usuário é o passo de verificação lá
+    # embaixo, não o relógio.
+    - cron: '13 9 * * *'
   workflow_dispatch:
 
 # Necessário para que o GITHUB_TOKEN possa fazer push do JSON atualizado.
