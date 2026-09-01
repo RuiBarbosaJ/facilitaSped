@@ -159,6 +159,12 @@ function CelulaNatureza({
   const naTela = new Set([natureza, naturezaCorrigida].filter(Boolean));
   const aIndicar = sugeridas.filter((n) => n && !naTela.has(n));
 
+  // O critério teve de ESCOLHER entre naturezas vigentes diferentes porque a
+  // planilha não informou nenhuma delas. O número aplicado é um palpite
+  // razoável, não um fato — e quem assina a escrituração precisa saber disso.
+  const escolhaIncerta =
+    status === "corrigida" && sugeridas.length > 1 && !sugeridas.includes(natureza);
+
   return (
     <div className="flex flex-col gap-0.5">
       <div className="flex items-center gap-1 flex-wrap">
@@ -178,8 +184,9 @@ function CelulaNatureza({
       </div>
 
       {aIndicar.length > 0 && (
-        <div className="text-[11px] text-text-tertiary">
+        <div className={`text-[11px] ${escolhaIncerta ? "text-warning" : "text-text-tertiary"}`}>
           SPED: <span className="font-mono">{aIndicar.join(" / ")}</span>
+          {escolhaIncerta && " — confira"}
         </div>
       )}
 
@@ -256,7 +263,8 @@ export function TabelaAuditoria({
                     Nenhuma linha neste filtro.
                   </p>
                   <p className="text-sm text-text-tertiary mt-1">
-                    Remova um filtro na barra acima para ver os resultados.
+                    Revise o cartão de resumo selecionado, a busca, o CFOP ou os
+                    filtros das colunas para ver os resultados.
                   </p>
                 </td>
               </tr>
@@ -330,6 +338,15 @@ export function TabelaAuditoria({
                     {/* Quando o critério está ativo e a linha tem um CST corrigido
                         (seja para o benefício ou para tributado), o status final
                         é "Coerente com o critério" — a decisão já foi tomada. */}
+                    {/* Linha preservada: o critério não a tocou porque o NCM tem
+                        regime próprio vigente que admite o CST informado. */}
+                    {criterioCorrecaoAtivo &&
+                      l.cstCorrigido === undefined &&
+                      l.situacao !== "invalido" && (
+                        <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-badge-ncm-bg px-1.5 py-0.5 text-[10px] font-medium text-badge-ncm-text">
+                          Fora do critério — mantida
+                        </div>
+                      )}
                     {criterioCorrecaoAtivo &&
                       l.cstCorrigido !== undefined &&
                       l.situacao !== "invalido" && (

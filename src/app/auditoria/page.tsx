@@ -16,6 +16,7 @@ import { useRegistrosSped } from "@/hooks/useRegistrosSped";
 import { useTabelaNcm } from "@/hooks/useTabelaNcm";
 import { useEstadoMemoria } from "@/hooks/useEstadoMemoria";
 import { useFiltrosColuna } from "@/hooks/useFiltrosColuna";
+import { useSincronizacao } from "@/hooks/useSincronizacao";
 import { COLUNAS_AUDITORIA } from "@/lib/colunasAuditoria";
 import {
   ERRO_LAYOUT,
@@ -48,6 +49,9 @@ interface Resultado {
 export default function Auditoria() {
   const { registros, carregando: carregandoSped, erro: erroSped } = useRegistrosSped();
   const ncm = useTabelaNcm();
+  // Quem vai exportar uma planilha corrigida precisa saber de quando é a base
+  // do SPED que sustentou a correção.
+  const { data: sincronizadoEm, alteradoEm, versoes: versoesSped } = useSincronizacao();
 
   const [processando, setProcessando] = useState(false);
   const [erro, setErro] = useEstadoMemoria<string | null>("auditoria_erro", null);
@@ -149,27 +153,40 @@ export default function Auditoria() {
     return corrigirLinhas(resultado.linhas, criterioCorrecao, "01");
   }, [resultado, criterioCorrecao]);
 
-  /**
-   * Resumo calculado sobre as linhas já corrigidas: quando o critério está
-   * ativo, as diverGências resolvidas pela correção saem do card "Divergências"
-   * e entram no card "Coerente com o SPED", igual ao comportamento do Alterdata.
-   */
-  const resumo = useMemo(() => (linhasComCorrecao.length > 0 ? resumir(linhasComCorrecao) : null), [linhasComCorrecao]);
-
   const correcaoAtiva = criterioCorrecao !== SEM_CORRECAO;
 
   /**
-   * Quantas linhas divergiam do SPED na planilha como ela chegou.
-   *
-   * `resumo` conta sobre as linhas já corrigidas, onde o critério zerou os
-   * destaques — por isso "Divergências" cai a zero assim que a correção liga.
-   * Sem este número o aviso de tudo certo diria "nenhuma divergência" para uma
-   * planilha cheia delas, só porque já foram resolvidas na tela.
+   * As linhas que divergiam do SPED na planilha como ela chegou, pelo número da
+   * linha. `corrigirLinhas` apaga o destaque de tudo que corrige, então depois
+   * dela não há mais como saber o que estava errado — e é justamente isso que o
+   * contador precisa conferir antes de exportar.
    */
-  const divergenciasOriginais = useMemo(
-    () => (resultado ? resultado.linhas.filter((l) => l.destaque === "amarelo").length : 0),
+  const linhasQueDivergiam = useMemo(
+    () => new Set((resultado?.linhas ?? []).filter((l) => l.destaque === "amarelo").map((l) => l.linha)),
     [resultado]
   );
+
+  /**
+   * Resumo contado sobre as linhas já corrigidas — é o que a tabela mostra.
+   *
+   * Só que "Divergências" e "Coerente" são cartões de CONFERÊNCIA: eles
+   * respondem "o que veio errado no arquivo?". Sobre as linhas corrigidas os
+   * dois mentem juntos (0 divergências, tudo coerente), porque a correção já
+   * limpou o destaque de todas elas. Com o critério ligado, então, esses dois
+   * passam a contar a planilha original — e continuam somando o total.
+   */
+  const resumo = useMemo(() => {
+    if (linhasComCorrecao.length === 0) return null;
+    const contado = resumir(linhasComCorrecao);
+    if (!correcaoAtiva) return contado;
+    return {
+      ...contado,
+      divergencias: linhasQueDivergiam.size,
+      coerente: linhasComCorrecao.filter(
+        (l) => !linhasQueDivergiam.has(l.linha) && l.situacao !== "invalido"
+      ).length,
+    };
+  }, [linhasComCorrecao, correcaoAtiva, linhasQueDivergiam]);
 
   const filtradas = useMemo(() => {
     switch (filtro) {
@@ -179,13 +196,21 @@ export default function Auditoria() {
       case "invalido":
         return linhasComCorrecao.filter((l) => l.situacao === filtro);
       case "divergencias":
-        return linhasComCorrecao.filter((l) => l.destaque === "amarelo");
+        // Com o critério ligado, as linhas listadas são as que divergiam —
+        // exibidas já corrigidas, que é a lista do que a correção mexeu.
+        return linhasComCorrecao.filter((l) =>
+          correcaoAtiva ? linhasQueDivergiam.has(l.linha) : l.destaque === "amarelo"
+        );
       case "coerente":
-        return linhasComCorrecao.filter((l) => l.destaque === "nenhum" && l.situacao !== "invalido");
+        return linhasComCorrecao.filter(
+          (l) =>
+            l.situacao !== "invalido" &&
+            (correcaoAtiva ? !linhasQueDivergiam.has(l.linha) : l.destaque === "nenhum")
+        );
       default:
         return linhasComCorrecao;
     }
-  }, [linhasComCorrecao, filtro]);
+  }, [linhasComCorrecao, filtro, correcaoAtiva, linhasQueDivergiam]);
 
   const filtradasEBusca = useMemo(() => {
     return filtradas.filter((l) => {
@@ -221,11 +246,16 @@ export default function Auditoria() {
 
   // Resumo da correção: contado sobre as próprias linhas corrigidas. Repetir aqui
   // o critério de corrigirLinhas já fez os números divergirem da tabela uma vez.
-  const { totalBeneficio, totalTributado } = useMemo(() => {
-    if (criterioCorrecao === SEM_CORRECAO) return { totalBeneficio: 0, totalTributado: 0 };
+  const { totalBeneficio, totalTributado, totalMantidas } = useMemo(() => {
+    if (criterioCorrecao === SEM_CORRECAO) return { totalBeneficio: 0, totalTributado: 0, totalMantidas: 0 };
     const beneficio = linhasComCorrecao.filter((l) => l.cstCorrigido === criterioCorrecao).length;
     const tributado = linhasComCorrecao.filter((l) => l.cstCorrigido === "01").length;
-    return { totalBeneficio: beneficio, totalTributado: tributado };
+    // Sem cstCorrigido e com NCM válido: o critério deixou a linha intacta
+    // porque ela já está amparada por outro regime vigente do próprio NCM.
+    const mantidas = linhasComCorrecao.filter(
+      (l) => l.cstCorrigido === undefined && l.situacao !== "invalido"
+    ).length;
+    return { totalBeneficio: beneficio, totalTributado: tributado, totalMantidas: mantidas };
   }, [criterioCorrecao, linhasComCorrecao]);
 
   function aoFiltrar(novo: FiltroAuditoria) {
@@ -301,7 +331,12 @@ export default function Auditoria() {
         l.regra?.rotulo ?? "",
         l.regra?.tabela ?? "",
         correcaoAtiva && l.cstCorrigido ? l.cstCorrigido : (l.regra?.cstsAceitos.join(" ou ") ?? ""),
-        l.regra?.naturezas.join(" ou ") ?? "",
+        // Com a correção ligada vale a natureza aplicada — é ela que foi gravada
+        // na coluna do cliente, e quando a planilha não tem coluna de natureza
+        // esta é a única via de a correção chegar ao ERP.
+        correcaoAtiva && l.naturezaCorrigida !== undefined && l.cstCorrigido
+          ? l.naturezaCorrigida
+          : (l.regra?.naturezas.join(" ou ") ?? ""),
         l.regra?.descricao ?? "",
         l.regra ? `${l.regra.inicio ?? ""}${l.regra.fim ? ` a ${l.regra.fim}` : l.regra.inicio ? " (vigente)" : ""}` : "",
         l.descricaoNcm ?? "",
@@ -326,6 +361,14 @@ export default function Auditoria() {
     setFiltro("todos");
     setVisiveis(PAGINA);
     setCriterioCorrecao(SEM_CORRECAO);
+    setConsulta("");
+    setCfopFiltro("todos");
+    // Os menus de coluna guardam o TEXTO do valor e sobrevivem à troca de
+    // arquivo: um NCM presente nas duas planilhas fazia a auditoria nova abrir
+    // filtrada pela anterior — cartão dizendo 519 linhas, tabela mostrando 1.
+    // A zona de upload só aparece sem resultado, então toda planilha nova
+    // passa por aqui.
+    limparFiltrosColuna();
     requestAnimationFrame(() => zonaRef.current?.focus());
   }
 
@@ -402,6 +445,15 @@ export default function Auditoria() {
                       {` · aba "${resultado.aba}"`}
                       {ncm.tabela ? ` · NCM conferido pela ${ncm.tabela.fonte}` : ""}
                     </p>
+                    {sincronizadoEm && (
+                      <p
+                        className="text-xs text-text-tertiary"
+                        title={alteradoEm ? `Última alteração publicada pela Receita: ${alteradoEm}. Conferido automaticamente todos os dias.` : undefined}
+                      >
+                        Dados da Receita Federal atualizados em {sincronizadoEm}
+                        {versoesSped?.["4.3.13"] ? ` • Tabela 4.3.13 (Versão ${versoesSped["4.3.13"]})` : ""}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2">
@@ -425,7 +477,7 @@ export default function Auditoria() {
                 </div>
               </div>
 
-              <ResumoAuditoria resumo={resumo} filtro={filtro} onFiltrar={aoFiltrar} />
+              <ResumoAuditoria resumo={resumo} filtro={filtro} onFiltrar={aoFiltrar} correcaoAtiva={correcaoAtiva} />
 
               {/* Critério de Correção — principal novidade */}
               <CriterioCorrecao
@@ -441,6 +493,7 @@ export default function Auditoria() {
                 totalLinhas={resumo.total}
                 totalBeneficio={totalBeneficio}
                 totalTributado={totalTributado}
+                totalMantidas={totalMantidas}
               />
 
               {/* Barra de busca e filtro de CFOP */}
@@ -469,7 +522,7 @@ export default function Auditoria() {
                 <Banner
                   tom="ok"
                   titulo={
-                    correcaoAtiva && divergenciasOriginais > 0
+                    correcaoAtiva && linhasQueDivergiam.size > 0
                       ? "As divergências já foram corrigidas pelo critério."
                       : "Nenhuma divergência encontrada."
                   }
@@ -480,9 +533,9 @@ export default function Auditoria() {
                       arquivo que ele ainda não exportou corrigido. */}
                   {correcaoAtiva ? (
                     <>
-                      {divergenciasOriginais > 0
-                        ? `${divergenciasOriginais.toLocaleString("pt-BR")} ${
-                            divergenciasOriginais === 1 ? "linha divergia" : "linhas divergiam"
+                      {linhasQueDivergiam.size > 0
+                        ? `${linhasQueDivergiam.size.toLocaleString("pt-BR")} ${
+                            linhasQueDivergiam.size === 1 ? "linha divergia" : "linhas divergiam"
                           } do SPED e já aparecem com o CST e a natureza corrigidos. `
                         : "Os CSTs e naturezas da planilha já batiam com o SPED. "}
                       {`O que está na tela é o resultado do critério CST ${criterioCorrecao} — não o que veio no arquivo; escolha “Sem correção — exibir planilha original” para vê-lo como chegou.`}

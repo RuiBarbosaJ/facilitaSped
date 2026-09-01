@@ -16,32 +16,37 @@ export interface OpcaoCorrecao {
  * - O usuário escolhe o CST do benefício-alvo (ex: 06 — Alíquota Zero)
  * - O sistema corrige: NCMs com essa regra no SPED → CST escolhido
  * - Os demais → CST 01 (tributação plena)
+ *
+ * Com uma exceção que o Alterdata não faz e um contador cobraria: a linha cujo
+ * NCM tem OUTRO regime vigente aceitando o CST informado é mantida como veio.
+ * Sem isso, escolher "alíquota zero" tributava a plena todos os medicamentos
+ * monofásicos e a soja em suspensão da mesma planilha.
  */
 export const OPCOES_CORRECAO: OpcaoCorrecao[] = [
   {
     cst: "06",
     rotulo: "CST 06 — Alíquota Zero",
-    descricao: "NCMs com regra de alíquota zero no SPED recebem CST 06. Os demais recebem CST 01 (tributado).",
+    descricao: "NCMs com regra de alíquota zero no SPED recebem CST 06. Os demais recebem CST 01 (tributado) — quem já tem outro benefício vigente é mantido.",
   },
   {
     cst: "07",
     rotulo: "CST 07 — Isenção",
-    descricao: "NCMs com regra de isenção no SPED recebem CST 07. Os demais recebem CST 01 (tributado).",
+    descricao: "NCMs com regra de isenção no SPED recebem CST 07. Os demais recebem CST 01 (tributado) — quem já tem outro benefício vigente é mantido.",
   },
   {
     cst: "05",
     rotulo: "CST 05 — Substituição Tributária",
-    descricao: "NCMs com substituição tributária no SPED recebem CST 05. Os demais recebem CST 01 (tributado).",
+    descricao: "NCMs com substituição tributária no SPED recebem CST 05. Os demais recebem CST 01 (tributado) — quem já tem outro benefício vigente é mantido.",
   },
   {
     cst: "02",
     rotulo: "CST 02 — Monofásico (alíquota diferenciada)",
-    descricao: "NCMs com tributação monofásica no SPED recebem CST 02. Os demais recebem CST 01 (tributado).",
+    descricao: "NCMs com tributação monofásica no SPED recebem CST 02. Os demais recebem CST 01 (tributado) — quem já tem outro benefício vigente é mantido.",
   },
   {
     cst: "04",
     rotulo: "CST 04 — Monofásico (revenda)",
-    descricao: "NCMs monofásicos na revenda recebem CST 04. Os demais recebem CST 01 (tributado).",
+    descricao: "NCMs monofásicos na revenda recebem CST 04. Os demais recebem CST 01 (tributado) — quem já tem outro benefício vigente é mantido.",
   },
 ];
 
@@ -52,6 +57,8 @@ interface CriterioCorrecaoProps {
   totalLinhas?: number;
   totalBeneficio?: number;
   totalTributado?: number;
+  /** Linhas que o critério não tocou por terem benefício próprio vigente. */
+  totalMantidas?: number;
 }
 
 /** Seletor de critério de correção estilo Alterdata, com descrição contextual. */
@@ -61,6 +68,7 @@ export function CriterioCorrecao({
   totalLinhas = 0,
   totalBeneficio = 0,
   totalTributado = 0,
+  totalMantidas = 0,
 }: CriterioCorrecaoProps) {
   const opcaoAtiva = OPCOES_CORRECAO.find((o) => o.cst === valor);
   const ativo = valor !== SEM_CORRECAO;
@@ -134,6 +142,16 @@ export function CriterioCorrecao({
                 {totalTributado.toLocaleString("pt-BR")} linha
                 {totalTributado !== 1 ? "s" : ""} → CST 01
               </span>
+              {/* O critério não rebaixa quem já tem benefício próprio vigente:
+                  o medicamento monofásico não vira tributado só porque o
+                  critério do dia é alíquota zero. */}
+              {totalMantidas > 0 && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-badge-ncm-bg px-2.5 py-1 font-medium text-badge-ncm-text">
+                  <span className="size-1.5 rounded-full bg-text-tertiary" />
+                  {totalMantidas.toLocaleString("pt-BR")} mantida
+                  {totalMantidas !== 1 ? "s" : ""} (benefício próprio)
+                </span>
+              )}
             </div>
           )}
         </div>

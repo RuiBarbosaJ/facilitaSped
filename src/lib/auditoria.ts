@@ -154,6 +154,15 @@ const BENEFICIOS: Record<string, { rotulo: string; csts: string[] }> = {
   "4.3.16": { rotulo: "Suspensão", csts: ["09"] },
 };
 
+/**
+ * A ressalva que acompanha todo "o NCM não consta nas tabelas". Uma parte
+ * grande das regras do SPED identifica o produto por descrição, não por NCM;
+ * para essas, a única pista que a planilha traz é a natureza da receita.
+ */
+export const AVISO_REGRA_SEM_NCM =
+  "Cerca de 28% das regras do SPED descrevem o produto por texto, sem citar NCM (livros, queijos, " +
+  "autopeças, revendas). Confira a descrição do produto antes de tratar como tributado.";
+
 /** CSTs que só fazem sentido para NCM listado numa tabela de benefício. */
 const CSTS_DE_BENEFICIO = new Set(["04", "05", "06", "07", "08", "09"]);
 
@@ -609,10 +618,17 @@ export function auditarLinha(l: LinhaPlanilha, ctx: ContextoAuditoria): LinhaAud
     };
   }
 
+  // Não consta NAS TABELAS não é o mesmo que não ter benefício: cerca de 28%
+  // das regras (251 de 872) descrevem o produto só por texto, sem citar NCM —
+  // livro, queijo mozarela, autopeças, revenda de combustíveis. Afirmar que o
+  // produto é tributado levaria o contador a tributar uma alíquota zero.
+  const declarouBeneficio =
+    (cstPis !== "" && CSTS_DE_BENEFICIO.has(cstPis)) || (cstCofins !== "" && CSTS_DE_BENEFICIO.has(cstCofins));
   if (cstPis && CSTS_DE_BENEFICIO.has(cstPis))
-    observacoes.push(`CST PIS ${cstPis} informado, mas o NCM não consta nas tabelas de benefício do SPED.`);
+    observacoes.push(`CST PIS ${cstPis} informado e o NCM não consta nas tabelas de benefício do SPED.`);
   if (cstCofins && CSTS_DE_BENEFICIO.has(cstCofins))
-    observacoes.push(`CST COFINS ${cstCofins} informado, mas o NCM não consta nas tabelas de benefício do SPED.`);
+    observacoes.push(`CST COFINS ${cstCofins} informado e o NCM não consta nas tabelas de benefício do SPED.`);
+  if (declarouBeneficio) observacoes.push(AVISO_REGRA_SEM_NCM);
   if (natureza) observacoes.push(`Natureza da receita ${natureza} informada para NCM sem benefício no SPED.`);
 
   return {
@@ -701,9 +717,8 @@ export function corrigirLinhas(
     // auditoria escolheu exibir não decide: o NCM 22030000 casa com a posição
     // 2203 da tabela 4.3.13 (alíquota zero, natureza 918) mesmo tendo regra
     // própria de 8 dígitos na 4.3.11.
-    const regraDoCriterio = (l.regrasAplicaveis ?? [l.regra])
-      .filter((r): r is RegraSugerida => Boolean(r))
-      .find((r) => r.cstsAceitos.includes(cstBeneficio));
+    const aplicaveis = (l.regrasAplicaveis ?? [l.regra]).filter((r): r is RegraSugerida => Boolean(r));
+    const regraDoCriterio = aplicaveis.find((r) => r.cstsAceitos.includes(cstBeneficio));
 
     if (regraDoCriterio) {
       // Enquadrado no critério: o CST informado fica, a natureza é corrigida
@@ -711,7 +726,16 @@ export function corrigirLinhas(
       // Escolhe a natureza: se a atual for aceita, mantém; senão pega a primeira.
       const naturezaAceita = l.natureza && regraDoCriterio.naturezas.includes(l.natureza);
       const naturezaCorrigida = naturezaAceita ? l.natureza : (regraDoCriterio.naturezas[0] ?? "");
-      
+
+      // Um mesmo NCM pode ter mais de uma natureza vigente na mesma tabela, e
+      // elas descrevem produtos ou papéis diferentes: a água mineral 2201.10.00
+      // é 821 até 9,999 L e 822 acima de 10 L; o arroz da 4.3.16 é 204 para o
+      // cerealista e 209 para o insumo. Quando a planilha não informou nenhuma
+      // delas, o critério não tem como saber qual é — aplica a primeira e diz
+      // que escolheu, porque gravar o código de outro produto na escrituração
+      // do cliente é pior do que dar trabalho de conferência.
+      const escolheuNatureza = !naturezaAceita && regraDoCriterio.naturezas.length > 1;
+
       return {
         ...l,
         cstCorrigido: cstBeneficio,
@@ -720,15 +744,47 @@ export function corrigirLinhas(
         rotulo: regraDoCriterio.rotulo,
         regra: regraDoCriterio,
         destaque: "nenhum",
-        observacoes: [],
+        observacoes: escolheuNatureza
+          ? [
+              `O SPED admite ${listar(regraDoCriterio.naturezas)} para este NCM e a planilha não ` +
+                `informou nenhuma delas; foi aplicada a ${naturezaCorrigida}. Confira qual ` +
+                `corresponde ao produto antes de exportar.`,
+            ]
+          : [],
       };
     }
 
-    // Nenhum regime vigente aceita o CST do critério → requalificado
-    // intencionalmente como tributado. Como a decisão é explícita do usuário,
-    // não é divergência: sai o realce amarelo, saem os alertas e sai também a
-    // sugestão das outras tabelas, que o critério mandou ignorar.
+    // Fora do critério, mas com benefício PRÓPRIO vigente: algum regime do NCM
+    // aceita o CST que o cliente informou. Rebaixar para 01 aqui destruiria uma
+    // tributação correta — o medicamento monofásico (CST 02), a gasolina (04) e
+    // a soja em suspensão (09) viravam tributados só porque o critério do dia
+    // era alíquota zero, e isso ia para a planilha que volta ao ERP. A linha
+    // fica exatamente como veio, com a auditoria dela preservada; `cstCorrigido`
+    // segue indefinido, que é como o resto do sistema lê "não corrigida".
+    const regraDoInformado = aplicaveis.find(
+      (r) =>
+        (l.cstPis !== "" && r.cstsAceitos.includes(l.cstPis)) ||
+        (l.cstCofins !== "" && r.cstsAceitos.includes(l.cstCofins))
+    );
+    if (regraDoInformado) {
+      return {
+        ...l,
+        observacoes: [
+          ...l.observacoes,
+          `Fora do critério CST ${cstBeneficio}: o NCM tem regime próprio vigente (${regraDoInformado.rotulo}, ` +
+            `tabela ${regraDoInformado.tabela}) que admite o CST informado. A linha foi mantida como está.`,
+        ],
+      };
+    }
+
+    // Nenhum regime vigente aceita o CST do critério nem o informado →
+    // requalificado intencionalmente como tributado. Como a decisão é explícita
+    // do usuário, não é divergência: sai o realce amarelo, saem os alertas e sai
+    // também a sugestão das outras tabelas, que o critério mandou ignorar.
     // CST tributado (01) não tem natureza, então ela é removida ("").
+    const declarouBeneficio =
+      (l.cstPis !== "" && CSTS_DE_BENEFICIO.has(l.cstPis)) ||
+      (l.cstCofins !== "" && CSTS_DE_BENEFICIO.has(l.cstCofins));
     return {
       ...l,
       cstCorrigido: cstTributado,
@@ -739,6 +795,9 @@ export function corrigirLinhas(
       destaque: "nenhum",
       observacoes: [
         `Tratado como ${cstTributado === "01" ? "tributado (CST 01)" : `CST ${cstTributado}`} conforme o critério de correção.`,
+        // O cliente declarava um benefício e o NCM não está em tabela nenhuma:
+        // pode ser uma das regras que o SPED descreve só por texto.
+        ...(declarouBeneficio ? [AVISO_REGRA_SEM_NCM] : []),
       ],
     };
   });
