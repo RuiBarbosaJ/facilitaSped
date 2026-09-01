@@ -124,12 +124,22 @@ function CelulaNatureza({
   naturezaCorrigida?: string;
   criterioAtivo: boolean;
 }) {
-  const mudou = criterioAtivo && naturezaCorrigida !== undefined && natureza !== naturezaCorrigida;
+  // Só exibe a transição "Informado → Corrigido" quando:
+  // 1. O critério de correção está ativo E
+  // 2. Existe uma natureza corrigida definida E
+  // 3. Há divergência real entre o valor original e o corrigido
+  //    (comparação estrita, não apenas presença vs. ausência)
+  const temCorrecao = criterioAtivo && naturezaCorrigida !== undefined;
+  const diverge = temCorrecao && natureza !== naturezaCorrigida;
+
+  // Valor final a exibir: quando o critério está ativo, o corrigido prevalece;
+  // quando não há critério, exibe o original.
+  const valorFinal = temCorrecao ? (naturezaCorrigida || "") : natureza;
 
   return (
     <div className="flex flex-col gap-0.5">
       <div className="flex items-center gap-1 flex-wrap">
-        {mudou ? (
+        {diverge ? (
           <>
             <span className="font-mono line-through text-text-tertiary">
               {natureza || "—"}
@@ -140,10 +150,10 @@ function CelulaNatureza({
             </span>
           </>
         ) : (
-          <Codigo valor={natureza} />
+          <Codigo valor={valorFinal} />
         )}
       </div>
-      {mudou && (
+      {diverge && (
         <span className="mt-0.5 inline-flex w-fit items-center gap-1 rounded-full bg-success-soft px-1.5 py-0.5 text-[10px] font-medium text-success">
           ✓ corrigido
         </span>

@@ -22,10 +22,13 @@ export const COLUNAS_AUDITORIA: ColunaAuditoria[] = [
     id: "informado",
     rotulo: "Informado",
     valores: (linha) => {
-      const cst = linha.cstCorrigido !== undefined && linha.cstCorrigido !== "" ? linha.cstCorrigido : undefined;
+      // Sempre retorna os CSTs brutos/originais da planilha importada,
+      // nunca o corrigido — assim o filtro cruza com a Situação atribuída
+      // pelo SPED e permite encontrar divergências (ex.: Situação: Tributado
+      // + Informado: CST 06 mostra itens que vieram 06 mas o SPED diz tributado).
       return [
-        cst ? `CST ${cst}` : linha.cstPis && `CST ${linha.cstPis}`,
-        cst ? `CST ${cst}` : linha.cstCofins && `CST ${linha.cstCofins}`,
+        linha.cstPis && `CST ${linha.cstPis}`,
+        linha.cstCofins && `CST ${linha.cstCofins}`,
         linha.cfop && `CFOP ${linha.cfop}`,
       ].filter((valor): valor is string => Boolean(valor));
     },
@@ -33,7 +36,17 @@ export const COLUNAS_AUDITORIA: ColunaAuditoria[] = [
   {
     id: "natureza",
     rotulo: "Nat. receita",
-    valores: (linha) => [(linha.naturezaCorrigida ?? linha.natureza) || ""],
+    valores: (linha) => {
+      // Inclui tanto a natureza original quanto a corrigida para que o dropdown
+      // mostre todos os códigos e filtre em ambas as posições (ex.: 918 aparece
+      // tanto se era o valor original quanto se foi sugerido pela correção).
+      const original = linha.natureza || "";
+      const corrigida = linha.naturezaCorrigida;
+      const valores = new Set<string>();
+      if (original) valores.add(original);
+      if (corrigida !== undefined && corrigida !== "" && corrigida !== original) valores.add(corrigida);
+      return valores.size > 0 ? Array.from(valores) : [""];
+    },
   },
   { id: "situacao", rotulo: "Situação", valores: (linha) => [linha.rotulo] },
   {
