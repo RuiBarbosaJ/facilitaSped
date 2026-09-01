@@ -744,3 +744,62 @@ export function corrigirLinhas(
   });
 }
 
+
+/* -------------------------------------------------------------------------- */
+/* Status da natureza sob o critério                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Como o critério de correção deixou a natureza da receita da linha. É a mesma
+ * classificação que a tabela exibe no selo da coluna "Nat. receita" e que o
+ * menu daquela coluna oferece como opção de filtro — uma fonte só, senão o
+ * filtro promete linhas que a célula não marca (e vice-versa).
+ */
+export type StatusNatureza = "corrigida" | "coerente" | "invalida";
+
+/** O texto do selo e da opção de filtro de cada status. */
+export const ROTULO_STATUS_NATUREZA: Record<StatusNatureza, string> = {
+  corrigida: "Natureza Corrigida",
+  invalida: "Natureza Inválida",
+  coerente: "Coerente com o SPED",
+};
+
+/**
+ * A natureza que a planilha informou consta em algum regime vigente do NCM?
+ *
+ * Olha todos os regimes, não só o do critério: a cerveja informada com a
+ * natureza da regra monofásica tem uma natureza legítima mesmo quando o
+ * critério escolhido é o de alíquota zero. Sem isso, trocar de critério
+ * acusaria de errado justamente o cadastro que está certo.
+ */
+function naturezaAdmitidaPeloSped(l: LinhaAuditada): boolean {
+  if (!l.natureza) return false;
+  const regras = l.regrasAplicaveis ?? (l.regra ? [l.regra] : []);
+  return regras.some((r) => r.naturezas.includes(l.natureza));
+}
+
+/**
+ * Classifica a natureza de uma linha já passada por `corrigirLinhas`.
+ *
+ * - `coerente`: a natureza da planilha já era a que o critério escreveria.
+ * - `corrigida`: o critério trocou o valor — por outro código do SPED ou por
+ *   vazio, quando a linha foi requalificada como tributada (CST 01 não tem
+ *   natureza). Ter a natureza apagada não é erro do cadastro: era válida para o
+ *   regime que o critério mandou ignorar.
+ * - `invalida`: a planilha informou uma natureza que nenhum regime vigente do
+ *   NCM admite E o critério não tem o que colocar no lugar. É o caso que pede
+ *   conferência manual — o cadastro está errado e a correção não conserta.
+ *
+ * `null` quando não há o que dizer: sem critério ativo, com NCM inválido (a
+ * linha não é corrigida) ou quando a planilha não informou natureza e o critério
+ * também não pede nenhuma — aí a célula fica vazia e o menu oferece "(Vazio)".
+ */
+export function statusNatureza(l: LinhaAuditada): StatusNatureza | null {
+  if (l.cstCorrigido === undefined || l.naturezaCorrigida === undefined) return null;
+  if (l.cstCorrigido === "") return null;
+  if (!l.natureza && !l.naturezaCorrigida) return null;
+
+  if (l.natureza === l.naturezaCorrigida) return "coerente";
+  if (!l.naturezaCorrigida && !naturezaAdmitidaPeloSped(l)) return "invalida";
+  return "corrigida";
+}

@@ -156,6 +156,21 @@ export default function Auditoria() {
    */
   const resumo = useMemo(() => (linhasComCorrecao.length > 0 ? resumir(linhasComCorrecao) : null), [linhasComCorrecao]);
 
+  const correcaoAtiva = criterioCorrecao !== SEM_CORRECAO;
+
+  /**
+   * Quantas linhas divergiam do SPED na planilha como ela chegou.
+   *
+   * `resumo` conta sobre as linhas já corrigidas, onde o critério zerou os
+   * destaques — por isso "Divergências" cai a zero assim que a correção liga.
+   * Sem este número o aviso de tudo certo diria "nenhuma divergência" para uma
+   * planilha cheia delas, só porque já foram resolvidas na tela.
+   */
+  const divergenciasOriginais = useMemo(
+    () => (resultado ? resultado.linhas.filter((l) => l.destaque === "amarelo").length : 0),
+    [resultado]
+  );
+
   const filtradas = useMemo(() => {
     switch (filtro) {
       case "beneficio":
@@ -415,7 +430,14 @@ export default function Auditoria() {
               {/* Critério de Correção — principal novidade */}
               <CriterioCorrecao
                 valor={criterioCorrecao}
-                onChange={(v) => { setCriterioCorrecao(v); setVisiveis(PAGINA); }}
+                onChange={(v) => {
+                  setCriterioCorrecao(v);
+                  // Os selos de status da coluna Nat. receita só existem sob um
+                  // critério. Sem zerar a seleção, ela fica guardada invisível e
+                  // volta a filtrar sozinha quando a correção é religada.
+                  definirFiltroColuna("natureza", null);
+                  setVisiveis(PAGINA);
+                }}
                 totalLinhas={resumo.total}
                 totalBeneficio={totalBeneficio}
                 totalTributado={totalTributado}
@@ -444,8 +466,30 @@ export default function Auditoria() {
               <BarraFiltros filtros={filtrosAtivos} onLimparTudo={limparFiltrosColuna} />
 
               {resumo.divergencias === 0 && resumo.invalido === 0 && (
-                <Banner tom="ok" titulo="Nenhuma divergência encontrada.">
-                  Todos os CSTs e naturezas de receita batem com o que o SPED indica para cada NCM.
+                <Banner
+                  tom="ok"
+                  titulo={
+                    correcaoAtiva && divergenciasOriginais > 0
+                      ? "As divergências já foram corrigidas pelo critério."
+                      : "Nenhuma divergência encontrada."
+                  }
+                >
+                  {/* Com o critério ligado a tela não mostra mais a planilha do
+                      cliente, e sim o resultado da correção. Dizer "está tudo
+                      certo" aqui faria o contador entregar como conferido um
+                      arquivo que ele ainda não exportou corrigido. */}
+                  {correcaoAtiva ? (
+                    <>
+                      {divergenciasOriginais > 0
+                        ? `${divergenciasOriginais.toLocaleString("pt-BR")} ${
+                            divergenciasOriginais === 1 ? "linha divergia" : "linhas divergiam"
+                          } do SPED e já aparecem com o CST e a natureza corrigidos. `
+                        : "Os CSTs e naturezas da planilha já batiam com o SPED. "}
+                      {`O que está na tela é o resultado do critério CST ${criterioCorrecao} — não o que veio no arquivo; escolha “Sem correção — exibir planilha original” para vê-lo como chegou.`}
+                    </>
+                  ) : (
+                    "Todos os CSTs e naturezas de receita batem com o que o SPED indica para cada NCM."
+                  )}
                   {resumo.possivel > 0 ? ` ${resumo.possivel} linha(s) com possível benefício pedem conferência manual.` : ""}
                 </Banner>
               )}

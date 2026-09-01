@@ -1,4 +1,4 @@
-import type { LinhaAuditada } from "./auditoria";
+import { ROTULO_STATUS_NATUREZA, statusNatureza, type LinhaAuditada } from "./auditoria";
 import type { ColunaFiltravel } from "./filtrosColuna";
 
 export type ColunaAuditoria = ColunaFiltravel<LinhaAuditada>;
@@ -37,15 +37,24 @@ export const COLUNAS_AUDITORIA: ColunaAuditoria[] = [
     id: "natureza",
     rotulo: "Nat. receita",
     valores: (linha) => {
-      // Inclui tanto a natureza original quanto a corrigida para que o dropdown
-      // mostre todos os códigos e filtre em ambas as posições (ex.: 918 aparece
-      // tanto se era o valor original quanto se foi sugerido pela correção).
-      const original = linha.natureza || "";
-      const corrigida = linha.naturezaCorrigida;
-      const valores = new Set<string>();
-      if (original) valores.add(original);
-      if (corrigida !== undefined && corrigida !== "" && corrigida !== original) valores.add(corrigida);
-      return valores.size > 0 ? Array.from(valores) : [""];
+      const status = statusNatureza(linha);
+
+      // O menu é o índice da planilha: os códigos que o cliente informou, e
+      // "(Vazio)" para as linhas em que ele não informou nenhum. A natureza que
+      // o SPED indica aparece na célula como dica e tem coluna própria — aqui
+      // ela colidiria com o código informado e a mesma opção passaria a
+      // significar duas coisas ("informei 121" e "o SPED pede 121").
+      if (!status) return [linha.natureza];
+
+      // Com o critério ligado entram o código corrigido — o que vai para a
+      // planilha exportada — e o selo do status: "Natureza Corrigida",
+      // "Coerente com o SPED" ou "Natureza Inválida", os mesmos três para
+      // qualquer CST escolhido como critério.
+      return [
+        linha.natureza,
+        linha.naturezaCorrigida ?? "",
+        ROTULO_STATUS_NATUREZA[status],
+      ];
     },
   },
   { id: "situacao", rotulo: "Situação", valores: (linha) => [linha.rotulo] },

@@ -1,6 +1,11 @@
 "use client";
 
-import type { LinhaAuditada } from "@/lib/auditoria";
+import {
+  ROTULO_STATUS_NATUREZA,
+  statusNatureza,
+  type LinhaAuditada,
+  type StatusNatureza,
+} from "@/lib/auditoria";
 import type { ColunaAuditoria } from "@/lib/colunasAuditoria";
 import type { FiltrosColuna } from "@/lib/filtrosColuna";
 import { DescricaoExpandivel } from "../DescricaoExpandivel";
@@ -25,6 +30,14 @@ const ESTILO_LINHA: Record<LinhaAuditada["destaque"], string> = {
   nenhum: "border-l-4 border-l-transparent",
   amarelo: "bg-warning-soft border-l-4 border-l-warning",
   vermelho: "bg-danger-soft border-l-4 border-l-danger",
+};
+
+/** O selo da natureza repete o texto da opção de filtro — verde quando o
+ *  critério resolveu a linha, vermelho quando invalidou a natureza informada. */
+const ESTILO_STATUS_NATUREZA: Record<StatusNatureza, string> = {
+  corrigida: "bg-success-soft text-success",
+  coerente: "bg-success-soft text-success",
+  invalida: "bg-danger-soft text-danger",
 };
 
 const ESTILO_SELO: Record<LinhaAuditada["situacao"], string> = {
@@ -115,31 +128,41 @@ function CelulaCst({
   );
 }
 
+/**
+ * A natureza da receita como a planilha trouxe, o que o SPED indica para o NCM
+ * e, com o critério de correção ligado, o que ele fez com ela.
+ *
+ * A natureza sugerida vem junto porque é aqui que ela se compara com a
+ * informada — na coluna "Sugestão do SPED" ela fica longe do número do cliente.
+ * O selo usa o mesmo texto que o menu da coluna oferece como filtro, então
+ * marcar "Natureza Corrigida" devolve exatamente as linhas que mostram o selo.
+ */
 function CelulaNatureza({
   natureza,
   naturezaCorrigida,
-  criterioAtivo,
+  sugeridas,
+  status,
 }: {
   natureza: string;
   naturezaCorrigida?: string;
-  criterioAtivo: boolean;
+  /** Naturezas que o SPED admite para o NCM — as mesmas da regra sugerida. */
+  sugeridas: string[];
+  status: StatusNatureza | null;
 }) {
-  // Só exibe a transição "Informado → Corrigido" quando:
-  // 1. O critério de correção está ativo E
-  // 2. Existe uma natureza corrigida definida E
-  // 3. Há divergência real entre o valor original e o corrigido
-  //    (comparação estrita, não apenas presença vs. ausência)
-  const temCorrecao = criterioAtivo && naturezaCorrigida !== undefined;
-  const diverge = temCorrecao && natureza !== naturezaCorrigida;
+  // Só há transição a mostrar quando o valor mudou: "corrigida" troca o código,
+  // "invalida" apaga o que a planilha trazia. "coerente" repetiria o mesmo
+  // número dos dois lados da seta.
+  const mudou = status === "corrigida" || status === "invalida";
 
-  // Valor final a exibir: quando o critério está ativo, o corrigido prevalece;
-  // quando não há critério, exibe o original.
-  const valorFinal = temCorrecao ? (naturezaCorrigida || "") : natureza;
+  // Só o que a célula ainda não mostra: numa linha já coerente o SPED indica
+  // justamente o número que está ali, e repeti-lo embaixo não diz nada.
+  const naTela = new Set([natureza, naturezaCorrigida].filter(Boolean));
+  const aIndicar = sugeridas.filter((n) => n && !naTela.has(n));
 
   return (
     <div className="flex flex-col gap-0.5">
       <div className="flex items-center gap-1 flex-wrap">
-        {diverge ? (
+        {mudou ? (
           <>
             <span className="font-mono line-through text-text-tertiary">
               {natureza || "—"}
@@ -150,12 +173,21 @@ function CelulaNatureza({
             </span>
           </>
         ) : (
-          <Codigo valor={valorFinal} />
+          <Codigo valor={natureza} />
         )}
       </div>
-      {diverge && (
-        <span className="mt-0.5 inline-flex w-fit items-center gap-1 rounded-full bg-success-soft px-1.5 py-0.5 text-[10px] font-medium text-success">
-          ✓ corrigido
+
+      {aIndicar.length > 0 && (
+        <div className="text-[11px] text-text-tertiary">
+          SPED: <span className="font-mono">{aIndicar.join(" / ")}</span>
+        </div>
+      )}
+
+      {status && (
+        <span
+          className={`mt-0.5 inline-flex w-fit items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${ESTILO_STATUS_NATUREZA[status]}`}
+        >
+          {ROTULO_STATUS_NATUREZA[status]}
         </span>
       )}
     </div>
@@ -284,7 +316,8 @@ export function TabelaAuditoria({
                     <CelulaNatureza
                       natureza={l.natureza}
                       naturezaCorrigida={l.naturezaCorrigida}
-                      criterioAtivo={criterioCorrecaoAtivo}
+                      sugeridas={l.regra?.naturezas ?? []}
+                      status={statusNatureza(l)}
                     />
                   </td>
 
