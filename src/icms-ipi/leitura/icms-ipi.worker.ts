@@ -6,6 +6,7 @@ import { COLUNA_REGISTRO, definicaoDoRegistro } from "../leiaute/acesso";
 import { LEIAUTE_CONFERIDO } from "../leiaute/versao";
 import { LIMITES } from "../limites";
 import { rodarMotor } from "../auditoria/motor";
+import { aplicarCorrecoes } from "../regravacao/correcoes";
 import { recalcularTotalizadores } from "../regravacao/totalizadores";
 import { serializar } from "../regravacao/serializador";
 import { encodeCP1252 } from "./encoder";
@@ -388,7 +389,17 @@ async function gerarTxt(
   estrutura: EstruturaSped,
   msg: Extract<ParaWorker, { tipo: "GERAR_TXT" }>
 ): Promise<void> {
-  const linhas = recalcularTotalizadores(estrutura.linhas);
+  /*
+   * ORDEM DO PIPELINE, e ela importa:
+   *   1. correções aprovadas  — trocam campos e inserem linhas, numa cópia;
+   *   2. totalizadores        — contam o arquivo JÁ corrigido: uma linha
+   *                             inserida muda o QTD_LIN e o bloco 9;
+   *   3. finalidade (COD_FIN) — no 0000 da cópia;
+   *   4. serialização e hash  — do que vai ser entregue.
+   * Inverter 1 e 2 entregaria totais do arquivo antigo num arquivo novo.
+   */
+  const aplicacao = aplicarCorrecoes(estrutura.linhas, msg.correcoes);
+  const linhas = recalcularTotalizadores(aplicacao.linhas);
 
   // A finalidade é aplicada na CÓPIA. Escrever no registro 0000 em memória
   // adulterava o arquivo auditado: a grade e os achados passavam a mostrar algo
@@ -422,6 +433,8 @@ async function gerarTxt(
     blob: new Blob([bytes as BlobPart], { type: "text/plain" }),
     nomeSugerido: `SPED-ICMS_${mesDeReferencia(estrutura)}_${sufixo}.txt`,
     hash: hasher.digest("hex"),
+    aplicadas: [...aplicacao.aplicadas],
+    recusadas: [...aplicacao.recusadas],
   });
 }
 

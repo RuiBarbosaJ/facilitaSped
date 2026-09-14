@@ -206,7 +206,9 @@ export function useAbaIcmsIpi() {
       setAviso(null);
       setGerando(true);
       requisicaoRef.current += 1;
-      enviar({ tipo: "GERAR_TXT", requisicao: requisicaoRef.current, codFin });
+      // Por enquanto nenhuma correção é enviada: a UI de revisão vem a seguir.
+      // Lista vazia = o comportamento de sempre, protegido pelo teste de fidelidade.
+      enviar({ tipo: "GERAR_TXT", requisicao: requisicaoRef.current, codFin, correcoes: [] });
     },
     [enviar, setAviso, setGerando]
   );

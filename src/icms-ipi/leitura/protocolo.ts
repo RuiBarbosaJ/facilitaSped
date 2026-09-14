@@ -1,4 +1,5 @@
 import type { Achado } from "@/regras/nucleo/contrato";
+import type { Correcao } from "../regravacao/correcoes";
 
 /** Seleção do menu de cada coluna da grade, indexada pelo nome da coluna. */
 export type FiltrosGrade = Record<string, string[]>;
@@ -44,7 +45,17 @@ export type ParaWorker =
   | { tipo: "LIMPAR" }
   | { tipo: "JANELA"; requisicao: number; offset: number; limite: number; filtros?: FiltrosGrade }
   | { tipo: "VALORES_TABELA"; requisicao: number; filtros?: FiltrosGrade; colunas: string[] }
-  | { tipo: "GERAR_TXT"; requisicao: number; codFin: CodFin };
+  | {
+      tipo: "GERAR_TXT";
+      requisicao: number;
+      codFin: CodFin;
+      /**
+       * As correções que o contador APROVOU. Lista vazia = regravação fiel,
+       * só com os totalizadores e a finalidade — que é o comportamento de
+       * sempre e o que o teste de fidelidade protege.
+       */
+      correcoes: Correcao[];
+    };
 
 /**
  * Códigos de erro devolvidos ao usuário.
@@ -73,7 +84,17 @@ export type DoWorker =
       /** Colunas cuja lista foi cortada no teto: o menu precisa avisar. */
       truncadas: string[];
     }
-  | { tipo: "TXT_OK"; requisicao: number; blob: Blob; nomeSugerido: string; hash: string }
+  | {
+      tipo: "TXT_OK";
+      requisicao: number;
+      blob: Blob;
+      nomeSugerido: string;
+      hash: string;
+      /** O que de fato entrou no arquivo — o relatório que acompanha a entrega. */
+      aplicadas: Correcao[];
+      /** O que foi pedido e não pôde entrar, com o motivo. Nunca some em silêncio. */
+      recusadas: { correcao: Correcao; motivo: string }[];
+    }
   | { tipo: "ERRO"; execucao: number; codigo: CodigoErro; mensagem: string; linha?: number };
 
 /**
