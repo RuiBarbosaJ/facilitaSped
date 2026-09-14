@@ -11,6 +11,7 @@ import { COLUNA_REGISTRO, valorDaColuna } from "../leiaute/acesso";
 import { larguraPadraoDe, type ColunaGrade } from "../leiaute/colunas";
 import { descreverValor, temDominio } from "../leiaute/dominios";
 import { LIMITES } from "../limites";
+import { SeletorColunas } from "./SeletorColunas";
 import { useGradeRegistro } from "./useGradeRegistro";
 
 export interface GradeRegistroProps {
@@ -52,7 +53,16 @@ export function GradeRegistro({ worker, contagens }: GradeRegistroProps) {
     linhas,
     total,
     carregando,
-    colunas,
+    // A grade desenha as VISÍVEIS; o seletor precisa do universo inteiro.
+    colunas: todasAsColunas,
+    colunasVisiveis: colunas,
+    estadoColunas,
+    cheiasOcultas,
+    revelarTudo,
+    escolhaDeColunas,
+    alternarColuna,
+    restaurarColunas,
+    mostrarTodasAsColunas,
     filtros,
     filtrosAtivos,
     opcoes,
@@ -147,6 +157,22 @@ export function GradeRegistro({ worker, contagens }: GradeRegistroProps) {
     [colunas.length, foco, totalDeLinhas, virtualizador]
   );
 
+  /*
+   * Traz o foco de volta para dentro da grade quando ela encolhe.
+   *
+   * O conjunto de colunas mudou de fixo para variável: esconder as vazias, ou
+   * filtrar por um registro, reduz a grade em tempo de execução. Sem este
+   * ajuste, quem estava com o foco na coluna 60 e viu a grade cair para 12
+   * ficava com o teclado morto — `ArrowLeft` andava uma casa por vez a partir
+   * de 60, e nenhuma delas existia para receber foco, então nada acontecia na
+   * tela por dezenas de teclas.
+   */
+  useEffect(() => {
+    setFoco((atual) =>
+      atual.coluna > colunas.length ? { ...atual, coluna: colunas.length } : atual
+    );
+  }, [colunas.length]);
+
   // Devolve o foco do DOM à célula ativa — inclusive depois de a rolagem
   // finalmente montar a linha para onde o teclado apontou.
   useEffect(() => {
@@ -199,9 +225,30 @@ export function GradeRegistro({ worker, contagens }: GradeRegistroProps) {
     [colunas, filtros, filtrar, larguraDa, opcoes, redimensionar]
   );
 
+  /** Colunas com filtro ativo: o seletor as trava visíveis. */
+  const colunasFiltradas = useMemo(
+    () => new Set(Object.keys(filtros).filter((nome) => filtros[nome]?.length)),
+    [filtros]
+  );
+
   return (
     <div className="flex flex-col gap-3">
-      <BarraFiltros filtros={filtrosAtivos} onLimparTudo={limparFiltros} />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <BarraFiltros filtros={filtrosAtivos} onLimparTudo={limparFiltros} />
+        <SeletorColunas
+          colunas={todasAsColunas}
+          visiveis={colunas}
+          estado={estadoColunas}
+          escolha={escolhaDeColunas}
+          onAlternar={alternarColuna}
+          onRestaurar={restaurarColunas}
+          onMostrarTodas={mostrarTodasAsColunas}
+          fixa={COLUNA_REGISTRO}
+          filtradas={colunasFiltradas}
+          cheiasOcultas={cheiasOcultas}
+          revelarTudo={revelarTudo}
+        />
+      </div>
 
       {truncadas.length > 0 && (
         <p className="text-xs text-text-tertiary">
@@ -345,7 +392,15 @@ export function GradeRegistro({ worker, contagens }: GradeRegistroProps) {
           ? "Carregando…"
           : `${total.toLocaleString("pt-BR")} ${total === 1 ? "linha" : "linhas"}${
               filtrosAtivos.length > 0 ? " com os filtros aplicados" : ""
-            } · ${colunas.length} colunas.`}
+            } · ${colunas.length} de ${todasAsColunas.length} colunas${
+              todasAsColunas.length > colunas.length
+                ? ` (${todasAsColunas.length - colunas.length} ocultas: ${
+                    estadoColunas.ausentes.size
+                  } não se aplicam ao recorte${
+                    Object.keys(escolhaDeColunas).length > 0 ? ", o resto por sua escolha" : ""
+                  })`
+                : ""
+            }.`}
       </p>
 
       <p className="sr-only" role="status" aria-live="polite">
@@ -396,7 +451,16 @@ function Celulas({
   ];
 
   colunas.forEach((coluna, indice) => {
-    const valor = valorDaColuna(campos, coluna.nome) ?? "";
+    const bruto = valorDaColuna(campos, coluna.nome);
+    /*
+     * `null` e `""` são fatos diferentes e a célula mostra os dois de jeitos
+     * diferentes. `null` = o registro desta linha nem possui o campo: não se
+     * aplica, traço esmaecido. `""` = o campo existe e veio vazio: se era
+     * obrigatório, é o erro que o contador está procurando, e não pode ter a
+     * mesma cara do "não se aplica".
+     */
+    const naoSeAplica = bruto === null;
+    const valor = bruto ?? "";
     const id = `${indiceDaLinha}-${indice + 1}`;
     const ativa = foco.linha === indiceDaLinha && foco.coluna === indice + 1;
     const numerica = TIPOS_NUMERICOS.has(coluna.tipo);
@@ -436,8 +500,13 @@ function Celulas({
             {valor}
           </span>
         ) : (
-          <span aria-hidden className="text-text-tertiary">
-            —
+          <span
+            aria-hidden={naoSeAplica}
+            aria-label={naoSeAplica ? undefined : "campo em branco"}
+            title={naoSeAplica ? undefined : "Campo em branco: o registro possui o campo e ele não foi preenchido"}
+            className={naoSeAplica ? "text-text-tertiary/60" : "font-medium text-warning/80"}
+          >
+            {naoSeAplica ? "—" : "∅"}
           </span>
         )}
 

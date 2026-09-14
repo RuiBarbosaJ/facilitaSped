@@ -3,13 +3,30 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useEstadoMemoria } from "@/ganchos/useEstadoMemoria";
+import { usePreferencia } from "@/ganchos/usePreferencia";
 import type { FiltroAtivo } from "@/componentes/BarraFiltros";
 import { COLUNA_REGISTRO } from "../leiaute/acesso";
-import { montarColunas, type ColunaGrade } from "../leiaute/colunas";
+import {
+  colunasVisiveisDe,
+  estadoDasColunas,
+  montarColunas,
+  type ColunaGrade,
+} from "../leiaute/colunas";
 import { LIMITES } from "../limites";
 import type { DoWorker, FiltrosGrade, LinhaJanela, ParaWorker } from "../leitura/protocolo";
 
 export type { ColunaGrade };
+
+/**
+ * Referência estável para "nenhuma decisão tomada ainda".
+ *
+ * Precisa ser constante de módulo, e não `{}` escrito na chamada:
+ * `usePreferencia` devolve este mesmo objeto enquanto não há nada salvo, e um
+ * literal novo a cada render faria o `useSyncExternalStore` enxergar um
+ * snapshot diferente toda vez — que é como se entra num laço de re-render.
+ */
+const SEM_ESCOLHA: Readonly<Record<string, boolean>> = {};
+const EMPTY_OPCOES: Readonly<Record<string, string[]>> = {};
 
 interface UseGradeRegistroProps {
   worker: Worker | null;
@@ -38,7 +55,16 @@ export function useGradeRegistro({ worker, contagens }: UseGradeRegistroProps) {
     {}
   );
 
-  const [opcoes, setOpcoes] = useState<Record<string, string[]>>({});
+  /*
+   * As opções ficam atreladas à chave do filtro que as produziu, como a janela.
+   * Sem o carimbo, entre a troca de filtro e a resposta do worker, a grade
+   * desenhava as linhas do filtro novo com as colunas do filtro velho — e as
+   * colunas "pulavam" duas vezes por clique.
+   */
+  const [opcoesBrutas, setOpcoes] = useState<{ chave: string; valores: Record<string, string[]> }>({
+    chave: "",
+    valores: {},
+  });
   const [truncadas, setTruncadas] = useState<string[]>([]);
 
   const chave = useMemo(() => JSON.stringify(filtros), [filtros]);
@@ -56,6 +82,116 @@ export function useGradeRegistro({ worker, contagens }: UseGradeRegistroProps) {
    * colunas —, que é o comportamento da tela de Consulta.
    */
   const colunas = useMemo(() => montarColunas(contagens), [contagens]);
+
+  /**
+   * Decisão EXPLÍCITA do usuário por coluna. Ausente = automático.
+   *
+   * Guardar só o que ele decidiu, e não a lista inteira do que está visível, é
+   * o que faz a escolha envelhecer bem: um arquivo novo traz outras colunas, e
+   * uma lista fechada ou esconderia as novas ou ressuscitaria as antigas. Aqui
+   * o que ele não tocou continua seguindo a regra automática.
+   *
+   * Vai para o `localStorage` porque são nomes de campo do leiaute — dado
+   * público, não conteúdo do arquivo. Os filtros, que guardam valores lidos da
+   * escrituração, continuam em memória.
+   */
+  const [escolhaDeColunas, setEscolhaDeColunas] = usePreferencia<Record<string, boolean>>(
+    "icms_ipi_colunas",
+    SEM_ESCOLHA
+  );
+
+  /**
+   * Colunas em que nenhuma linha do recorte atual tem valor.
+   *
+   * Sai de graça do que o worker já calcula para os menus de filtro: se a
+   * coluna não oferece nenhum valor — ou oferece só o vazio —, não há o que ler
+   * ali. Como as opções respeitam os filtros ativos, a conta acompanha o
+   * recorte: filtrar por C170 esconde as colunas que só o bloco E preenche.
+   *
+   * Enquanto a primeira resposta não chega, `opcoes` está vazio e NADA é
+   * considerado vazio — senão a grade abriria com uma coluna só e piscaria
+   * inteira quando os valores chegassem.
+   */
+  // Opções de um filtro que já mudou não valem: `{}` tem semântica segura
+  // ("ainda não sei") e mantém a grade inteira até a resposta certa chegar.
+  const opcoes = opcoesBrutas.chave === chave ? opcoesBrutas.valores : EMPTY_OPCOES;
+  const estadoColunas = useMemo(() => estadoDasColunas(colunas, opcoes), [colunas, opcoes]);
+
+  /**
+   * "Mostrar todas" é estado de SESSÃO, não preferência.
+   *
+   * A versão anterior gravava no localStorage uma decisão por coluna ausente —
+   * na prática o mapa de quais blocos a escrituração do cliente tem, que
+   * sobrevivia ao "Encerrar análise". É informação estrutural, não fiscal, mas
+   * é rastro do arquivo e não precisa persistir: quem quer ver tudo quer ver
+   * tudo agora, neste arquivo.
+   */
+  const [revelarTudo, setRevelarTudo] = useEstadoMemoria("icms_ipi_grade_revelar", false);
+
+  /**
+   * O que de fato vai para a grade.
+   *
+   * A coluna do registro nunca some: é a referência que diz de onde a linha
+   * veio, e sem ela a grade fica ilegível. Uma coluna com filtro ativo também
+   * não some, mesmo que o filtro a tenha esvaziado — sumir com a coluna que o
+   * usuário está usando esconde o próprio controle de desfazer.
+   */
+  const comFiltro = useMemo(
+    () => new Set(Object.keys(filtros).filter((nome) => filtros[nome]?.length)),
+    [filtros]
+  );
+
+  const colunasVisiveis = useMemo(
+    () =>
+      revelarTudo
+        ? colunas
+        : colunasVisiveisDe(colunas, estadoColunas, escolhaDeColunas, comFiltro),
+    [colunas, estadoColunas, escolhaDeColunas, comFiltro, revelarTudo]
+  );
+
+  /**
+   * Colunas COM DADOS que estão escondidas por escolha do usuário.
+   *
+   * É o número que merece destaque: uma coluna "não se aplica" escondida não
+   * esconde nada; uma coluna cheia escondida esconde informação fiscal — e a
+   * escolha atravessa arquivos, então quem escondeu CFOP em janeiro abre
+   * fevereiro sem CFOP e sem lembrar por quê.
+   */
+  const cheiasOcultas = useMemo(() => {
+    const visiveis = new Set(colunasVisiveis.map((c) => c.nome));
+    return colunas.filter(
+      (c) => !visiveis.has(c.nome) && !estadoColunas.ausentes.has(c.nome)
+    ).length;
+  }, [colunas, colunasVisiveis, estadoColunas]);
+
+  const alternarColuna = useCallback(
+    (nome: string, visivel: boolean) => {
+      /*
+       * Quando a escolha coincide com o que o automático já faria, a chave é
+       * APAGADA em vez de gravada.
+       *
+       * Sem isso a preferência só cresce: marcar e desmarcar uma coluna deixava
+       * uma decisão fixa para sempre, e ela passava a valer no arquivo seguinte
+       * mesmo quando o automático teria acertado sozinho. Guardar só a
+       * divergência é o que faz a escolha envelhecer bem.
+       */
+      const automatico = !estadoColunas.ausentes.has(nome);
+      const proximo = { ...escolhaDeColunas };
+      if (visivel === automatico) delete proximo[nome];
+      else proximo[nome] = visivel;
+      setEscolhaDeColunas(proximo);
+    },
+    [escolhaDeColunas, setEscolhaDeColunas, estadoColunas]
+  );
+
+  /** Volta todas as colunas ao automático: preenchidas aparecem, vazias não. */
+  const restaurarColunas = useCallback(() => {
+    setEscolhaDeColunas({});
+    setRevelarTudo(false);
+  }, [setEscolhaDeColunas, setRevelarTudo]);
+
+  /** Mostra tudo nesta sessão, inclusive o que não se aplica ao recorte. */
+  const mostrarTodasAsColunas = useCallback(() => setRevelarTudo(true), [setRevelarTudo]);
 
   /** Registro único escolhido no filtro, só para rotular o cabeçalho. */
   const registroSelecionado = useMemo(() => {
@@ -87,7 +223,7 @@ export function useGradeRegistro({ worker, contagens }: UseGradeRegistroProps) {
 
       if (msg.tipo === "VALORES_TABELA_OK") {
         if (msg.requisicao !== requisicaoRef.current) return;
-        setOpcoes(msg.valores);
+        setOpcoes({ chave, valores: msg.valores });
         setTruncadas(msg.truncadas);
       }
     };
@@ -194,7 +330,17 @@ export function useGradeRegistro({ worker, contagens }: UseGradeRegistroProps) {
     linhas: atual.linhas,
     total: atual.total,
     carregando: atual.total === null,
+    /** Todas as colunas do arquivo — é o universo que o seletor lista. */
     colunas,
+    /** As que a grade desenha agora. */
+    colunasVisiveis,
+    estadoColunas,
+    cheiasOcultas,
+    revelarTudo,
+    escolhaDeColunas,
+    alternarColuna,
+    restaurarColunas,
+    mostrarTodasAsColunas,
     filtros,
     filtrosAtivos,
     opcoes,
