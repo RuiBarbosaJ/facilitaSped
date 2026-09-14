@@ -2,18 +2,33 @@ name: Sync Sped Data
 
 on:
   schedule:
-    # 09:13 UTC = 06:13 em Brasília. O Brasil não tem mais horário de verão
+    # 03:17 UTC = 00:17 em Brasília. O Brasil não tem mais horário de verão
     # (Decreto 9.772/2019), então o fuso é UTC-3 o ano inteiro e não há data em
     # que este horário escorregue.
     #
-    # O minuto quebrado não é enfeite: o agendamento do GitHub é best-effort e a
-    # fila entope na hora cheia, onde todo mundo agenda. Com o cron anterior em
-    # ':00' as execuções deste repositório saíam de 5 a 7 horas atrasadas
-    # (06:00 UTC pedido, 11:16 / 12:59 / 11:28 UTC realizados). Fora do pico o
-    # atraso costuma cair para minutos — mas o GitHub não promete horário, e
-    # quem garante que o dado chegou ao usuário é o passo de verificação lá
-    # embaixo, não o relógio.
-    - cron: '13 9 * * *'
+    # POR QUE A MADRUGADA, E NÃO O AMANHECER
+    #
+    # O agendamento do GitHub é best-effort: ele enfileira o job e roda quando
+    # há capacidade. O que decide o atraso é a hora, não o minuto — e 09:13 UTC
+    # cai em cheio no pico europeu, com os runners hospedados disputados.
+    #
+    # Medido neste repositório, com o cron em 09:13 UTC (13 execuções, 02 a
+    # 14/09/2026): atraso mínimo 3h26, mediano ~4h20, máximo 6h39. Ou seja, o
+    # robô pedido para 06:13 de Brasília entregava entre 09:40 e 12:50 — depois
+    # de o expediente já ter começado, que é exatamente o que ele existe para
+    # evitar.
+    #
+    # 03:17 UTC é madrugada na Europa e noite nas Américas, a janela de menor
+    # disputa. Mesmo repetindo o pior atraso já observado (6h39), a entrega sai
+    # às 09:56 UTC — 06:56 de Brasília. Com o atraso mediano, por volta das
+    # 04:40 de Brasília.
+    #
+    # O minuto quebrado continua valendo: a fila entope nas horas cheias, onde
+    # todo mundo agenda.
+    #
+    # E o relógio não é garantia de nada: quem assegura que o dado chegou ao
+    # usuário é o passo de verificação lá embaixo, que confere o carimbo no ar.
+    - cron: '17 3 * * *'
   workflow_dispatch:
 
 # Necessário para que o GITHUB_TOKEN possa fazer push do JSON atualizado.
