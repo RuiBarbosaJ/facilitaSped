@@ -18,7 +18,7 @@ import puppeteer, { type Browser, type Page } from 'puppeteer';
 import AdmZip from 'adm-zip';
 import WordExtractor from 'word-extractor';
 
-import type { NcmOficial, RegistroSped, SincronizacaoMeta, TabelaNcm } from '../src/types/sped';
+import type { NcmOficial, RegraTabelaSped, SincronizacaoMeta, TabelaNcm } from '../src/tipos/tabelas-receita';
 
 const PAGE_URL =
   'https://www.gov.br/sped/pt-br/assuntos/escrituracoes-digitais/efd-contribuicoes/tabelas-de-codigos/';
@@ -369,7 +369,7 @@ async function converter(
   // .xls é OLE como o .doc, mas o stream interno é uma planilha do Excel. O nome
   // do stream fica no diretório OLE, que costuma estar no fim do arquivo — daí a
   // varredura do buffer inteiro. Essas tabelas (CFOP, correlação Dacon,
-  // 5.1.1 previdenciária) não têm colunas de NCM/CST e ficam fora do RegistroSped.
+  // 5.1.1 previdenciária) não têm colunas de NCM/CST e ficam fora do RegraTabelaSped.
   if (ehOle && /W\x00o\x00r\x00k\x00b\x00o\x00o\x00k/.test(buffer.toString('latin1'))) {
     throw new FormatoNaoSuportado('planilha .xls sem colunas de NCM/CST');
   }
@@ -416,7 +416,7 @@ async function converter(
 }
 
 /* -------------------------------------------------------------------------- */
-/* 4. Mapeamento para RegistroSped                                            */
+/* 4. Mapeamento para RegraTabelaSped                                            */
 /* -------------------------------------------------------------------------- */
 
 /**
@@ -621,7 +621,7 @@ function lerCampos(linha: string[]): CamposLinha {
  *  - as demais     -> linhas de produto, em que o Código é a Natureza da Receita
  *                     e o CST vem do título da tabela.
  */
-function mapearRegistros(tabela: TabelaBruta): RegistroSped[] {
+function mapearRegistros(tabela: TabelaBruta): RegraTabelaSped[] {
   const { titulo, cabecalho, linhas } = tabela;
   const cstTabela = cstDoTitulo(titulo);
   const numero = numeroDaTabela(titulo);
@@ -632,7 +632,7 @@ function mapearRegistros(tabela: TabelaBruta): RegistroSped[] {
   const aliquotaPercentual =
     cabecalho.some((c) => /al[íi]quota/i.test(c)) && !cabecalho.some((c) => /reais|r\$/i.test(c));
 
-  const registros: RegistroSped[] = [];
+  const registros: RegraTabelaSped[] = [];
   // Na 4.3.11 os subitens de um código herdam a descrição da linha de grupo ou,
   // na falta dela, o título da seção em que estão ("Tabela III - Águas e
   // Refrigerantes...") acrescido do número do grupo.
@@ -749,7 +749,7 @@ function mapearRegistros(tabela: TabelaBruta): RegistroSped[] {
  * têm NCM, alíquota nem vigência. A ordem fixa também mantém o `git diff` diário
  * do GitHub Actions legível: só aparece o que a Receita realmente mudou.
  */
-function ordenarRegistros(a: RegistroSped, b: RegistroSped): number {
+function ordenarRegistros(a: RegraTabelaSped, b: RegraTabelaSped): number {
   if (!a.ncm !== !b.ncm) return a.ncm ? -1 : 1;
   return (
     a.ncm.localeCompare(b.ncm) ||
@@ -959,7 +959,7 @@ async function syncTabelas(): Promise<void> {
     await browser.close();
     browser = null;
 
-    const registros = new Map<string, RegistroSped>();
+    const registros = new Map<string, RegraTabelaSped>();
     const ignorados: string[] = [];
     const versoes: Record<string, string> = {};
 
@@ -1001,7 +1001,7 @@ async function syncTabelas(): Promise<void> {
         } else {
           // Tabelas auxiliares de 2 colunas (código + descrição) não têm NCM,
           // CST nem vigência, então não geram registros consultáveis.
-          ignorados.push(`${nome} — nenhum registro no formato RegistroSped`);
+          ignorados.push(`${nome} — nenhum registro no formato RegraTabelaSped`);
         }
       } catch (erro) {
         // Um arquivo problemático não pode derrubar a sincronização inteira.
