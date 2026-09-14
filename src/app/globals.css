@@ -151,3 +151,47 @@ body {
     transition: background-color 150ms ease, color 150ms ease;
   }
 }
+
+/*
+ * Barra de rolagem discreta para as áreas de dados densos (o planilhão do SPED
+ * e a lista de apontamentos). A barra nativa do sistema, com 17 px, come uma
+ * fatia visível de uma grade que já disputa cada pixel.
+ */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+  border: 2px solid var(--surface-card);
+  border-radius: 9999px;
+}
+
+/*
+ * Quem pede menos movimento no sistema recebe menos movimento aqui — inclusive
+ * os utilitários de animação do Tailwind (`animate-spin`, `animate-pulse`) e as
+ * transições longas. A leitura de um SPED grande deixa um spinner girando por
+ * minutos; para quem tem sensibilidade vestibular isso não é um detalhe. O
+ * estado de progresso continua legível pelo texto e pelo `role="progressbar"`,
+ * que não dependem de animação.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
