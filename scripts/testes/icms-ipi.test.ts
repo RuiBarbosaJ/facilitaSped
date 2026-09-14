@@ -39,6 +39,15 @@ const CRLF = "\r\n";
  * Registros distintos fora do bloco 9: 16 → 19 registros 9900
  * Bloco 9: 9001 + 19×9900 + 9990 + 9999 = 22 · Arquivo: 37 linhas
  */
+/*
+ * Escrituração 100% sintética — nenhum dado de contribuinte real.
+ *
+ * Os CNPJs têm dígito verificador PROPOSITALMENTE inválido (12345678/0001
+ * fecha em 95, não em 99), então não existe empresa por trás deles. Se um dia
+ * for preciso um caso novo, invente outro CNPJ inválido: NUNCA cole aqui um
+ * trecho de arquivo de cliente, nem "só para reproduzir o bug". O fixture é
+ * público, vai para o git e fica na história para sempre.
+ */
 const LINHAS_VALIDAS = [
   "|0000|017|0|01012024|31012024|COMÉRCIO DE ALIMENTAÇÃO LTDA|12345678000199||MA|123456789|2111300|||A|1|",
   "|0001|0|",

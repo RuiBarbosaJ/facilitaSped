@@ -42,3 +42,13 @@ next-env.d.ts
 
 # rascunhos e material de apoio que não fazem parte do produto
 /Arquivo.gitignore/
+
+# Escrituração e planilha de cliente — nunca versionar, esteja onde estiver.
+# A regra acima protege uma pasta pelo nome; o vazamento real costuma ser o
+# arquivo largado na raiz para "testar uma coisa rápida". Nenhum .txt/.xls/.csv
+# faz parte do produto: os dados públicos ficam em public/data/*.json e os
+# fixtures de teste são código .ts.
+*.txt
+*.xls
+*.xlsx
+*.csv
