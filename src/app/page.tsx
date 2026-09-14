@@ -3,26 +3,26 @@
 import { useMemo } from "react";
 import { RefreshCw } from "lucide-react";
 
-import { agruparRegras } from "@/lib/agrupar";
-import { useRegistrosSped } from "@/hooks/useRegistrosSped";
-import { useFiltroCst, CST_PADRAO, TODOS_CST } from "@/hooks/useFiltroCst";
-import { useBuscaSped } from "@/hooks/useBuscaSped";
-import { useSincronizacao } from "@/hooks/useSincronizacao";
-import { useEstadoMemoria } from "@/hooks/useEstadoMemoria";
-import { useFiltrosColuna } from "@/hooks/useFiltrosColuna";
-import { COLUNAS_CONSULTA } from "@/lib/colunasConsulta";
-import { Cabecalho } from "@/components/Cabecalho";
-import { CampoBusca } from "@/components/CampoBusca";
-import { SeletorCst } from "@/components/SeletorCst";
-import { TabelaRegistros } from "@/components/TabelaRegistros";
-import { Carregando, MensagemErro } from "@/components/EstadoConsulta";
-import { Rodape } from "@/components/Rodape";
-import { BarraFiltros } from "@/components/BarraFiltros";
+import { agruparRegras } from "@/consulta/agrupar";
+import { useTabelasReceita } from "@/ganchos/useTabelasReceita";
+import { useFiltroCst, CST_PADRAO, TODOS_CST } from "@/consulta/ui/useFiltroCst";
+import { useBuscaRegras } from "@/consulta/ui/useBuscaRegras";
+import { useSincronizacao } from "@/ganchos/useSincronizacao";
+import { useEstadoMemoria } from "@/ganchos/useEstadoMemoria";
+import { useFiltrosColuna } from "@/ganchos/useFiltrosColuna";
+import { COLUNAS_CONSULTA } from "@/consulta/colunas";
+import { Cabecalho } from "@/componentes/Cabecalho";
+import { CampoBusca } from "@/componentes/CampoBusca";
+import { SeletorCst } from "@/consulta/ui/SeletorCst";
+import { TabelaRegistros } from "@/consulta/ui/TabelaRegistros";
+import { Carregando, MensagemErro } from "@/consulta/ui/EstadoConsulta";
+import { Rodape } from "@/componentes/Rodape";
+import { BarraFiltros } from "@/componentes/BarraFiltros";
 
 const PAGINA = 50;
 
 export default function Home() {
-  const { registros, carregando, erro } = useRegistrosSped();
+  const { registros, carregando, erro } = useTabelasReceita();
   const { data: atualizadoEm, alteradoEm, versoes } = useSincronizacao();
   
   const [cst, setCst] = useEstadoMemoria("consulta_cst", CST_PADRAO);
@@ -30,7 +30,7 @@ export default function Home() {
   const [visiveis, setVisiveis] = useEstadoMemoria("consulta_visiveis", PAGINA);
   
   const { opcoes, regras } = useFiltroCst(registros, cst);
-  const encontrados = useBuscaSped(regras, consulta);
+  const encontrados = useBuscaRegras(regras, consulta);
   const resultadosAgrupados = useMemo(() => agruparRegras(encontrados), [encontrados]);
 
   const {
