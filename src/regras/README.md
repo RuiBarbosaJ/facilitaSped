@@ -161,11 +161,11 @@ travados por teste.
   e escrever regras contra o contrato estreito obrigaria a reescrever todas elas
   depois. Enquanto o parser não montar, regra de inventário, produção, CIAP ou
   CT-e não tem dado para rodar.
-- **`features/icms-ipi/auditoria/` ainda existe**, com o motor antigo e as 4 regras.
-  Migrá-las para `rules/` depende do adaptador `EstruturaSped → ContextoValidacao`,
+- **`src/icms-ipi/auditoria/` ainda existe**, com o motor antigo e as 4 regras.
+  Migrá-las para `src/regras/` depende do adaptador `EstruturaSped → ContextoValidacao`,
   que foi verificado como não-trivial: `NotaC100` não satisfaz `Documento` (falta
   `reg` e `filhos` é lista, não `Map`).
-- **`rules/` não está ligado ao app.** `MotorSped` não é instanciado em lugar nenhum;
+- **`src/regras/` não está ligado ao app.** `MotorSped` não é instanciado em lugar nenhum;
   quem roda é `rodarMotor` com as 4 regras antigas. Ligar só faz sentido depois do
   adaptador e junto da migração das regras — sozinho, com a lista vazia, não muda
   nada na tela.

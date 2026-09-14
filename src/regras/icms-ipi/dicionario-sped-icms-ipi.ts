@@ -18,9 +18,9 @@ import type { DicionarioSped, RegistroSped, ValorValido } from "../nucleo/tipos"
  * Guia (que chama o REG de campo 01), mas por construção — e deixam de
  * coincidir no instante em que alguém "corrige" o dicionário para base 0.
  *
- * Os índices aqui foram conferidos um a um contra `features/icms-ipi/layout/`, que
+ * Os índices aqui foram conferidos um a um contra `src/icms-ipi/leiaute/`, que
  * é o dicionário que o parser usa, e contra a escrituração de referência de
- * `scripts/testes/sped.test.ts`. O teste em `scripts/testes/dicionario.test.ts`
+ * `scripts/testes/icms-ipi.test.ts`. O teste em `scripts/testes/dicionario.test.ts`
  * trava o build se as duas fontes divergirem.
  *
  * ────────────────────────────────────────────────────────────────────────────
@@ -44,7 +44,7 @@ import type { DicionarioSped, RegistroSped, ValorValido } from "../nucleo/tipos"
  *    o documento em geral não traz filhos nem valores. Regra de totalizador ou
  *    de presença de filho que não os exclua acusa erro em massa no varejo.
  *
- * Manutenção: ver `features/icms-ipi/layout/versao.ts`. O Ato COTEPE publica
+ * Manutenção: ver `src/icms-ipi/leiaute/versao.ts`. O Ato COTEPE publica
  * leiaute novo quase todo ano.
  */
 
@@ -113,7 +113,7 @@ export const SITUACOES_SEM_MOVIMENTO: readonly string[] = ["02", "03", "04", "05
 /**
  * Tributação do ICMS — os DOIS ÚLTIMOS dígitos do CST (Tabela B).
  *
- * Copiado de `features/icms-ipi/layout/dominios.ts`, que já o mantém para descrever
+ * Copiado de `src/icms-ipi/leiaute/dominios.ts`, que já o mantém para descrever
  * o valor na grade. Aqui ele serve a outro fim: decidir quais campos de valor
  * são exigidos e quais têm de ser zero.
  */
@@ -165,7 +165,7 @@ const REGISTRO_0000: RegistroSped = {
       obrigatorio: "O",
       procedencia: "guia-pratico",
       observacao:
-        "Domínio fechado mas crescente — sai versão nova quase todo ano —, e o PVA valida o COD_VER contra a DT_FIN da escrituração. Por isso a lista de versões NÃO é afirmada aqui: um dicionário defasado passaria a reprovar arquivo de versão nova, que é exatamente o contrário do que deve fazer. A versão conferida vive em features/icms-ipi/layout/versao.ts.",
+        "Domínio fechado mas crescente — sai versão nova quase todo ano —, e o PVA valida o COD_VER contra a DT_FIN da escrituração. Por isso a lista de versões NÃO é afirmada aqui: um dicionário defasado passaria a reprovar arquivo de versão nova, que é exatamente o contrário do que deve fazer. A versão conferida vive em src/icms-ipi/leiaute/versao.ts.",
     },
     {
       posicao: 3,
@@ -637,7 +637,7 @@ const REGISTRO_0200: RegistroSped = {
       ],
       procedencia: "guia-pratico",
       observacao:
-        "Domínio FECHADO, conferido contra features/icms-ipi/layout/dominios.ts. COMO COMPARAR: o campo é N de 2 posições com zero à esquerda significativo, mas há gerador que o trata como número e grava |0|. Normalize com padStart(2, '0') antes do teste de domínio — e, se o valor só casar DEPOIS do padStart, aponte alerta de formatação, não erro de domínio. Campo vazio não deve ser avaliado aqui: isso é assunto da regra de obrigatoriedade, e avaliar nos dois lugares gera dois achados para uma única falha.",
+        "Domínio FECHADO, conferido contra src/icms-ipi/leiaute/dominios.ts. COMO COMPARAR: o campo é N de 2 posições com zero à esquerda significativo, mas há gerador que o trata como número e grava |0|. Normalize com padStart(2, '0') antes do teste de domínio — e, se o valor só casar DEPOIS do padStart, aponte alerta de formatação, não erro de domínio. Campo vazio não deve ser avaliado aqui: isso é assunto da regra de obrigatoriedade, e avaliar nos dois lugares gera dois achados para uma única falha.",
     },
     {
       posicao: 8,
@@ -1900,7 +1900,7 @@ const REGISTRO_C170: RegistroSped = {
       severidade: "erro",
       procedencia: "tabela-oficial",
       camposEnvolvidos: ["CFOP"],
-      observacao: "Já implementada como FIS-014 em features/icms-ipi/auditoria/regras/.",
+      observacao: "Já implementada como FIS-014 em src/icms-ipi/auditoria/regras/.",
     },
     {
       id: "FIS-C170-022",
@@ -2139,7 +2139,7 @@ const REGISTRO_C190: RegistroSped = {
       vazioEquivaleAZero: true,
       procedencia: "guia-pratico",
       observacao:
-        "Prova viva de que `O` em campo de valor não significa conteúdo não-vazio: a escrituração válida de referência do repositório (scripts/testes/sped.test.ts) traz este campo VAZIO. Um motor que trate `O` como 'não pode estar vazio' reprova o arquivo de teste do próprio projeto — e toda escrituração de contribuinte que não destaca IPI.",
+        "Prova viva de que `O` em campo de valor não significa conteúdo não-vazio: a escrituração válida de referência do repositório (scripts/testes/icms-ipi.test.ts) traz este campo VAZIO. Um motor que trate `O` como 'não pode estar vazio' reprova o arquivo de teste do próprio projeto — e toda escrituração de contribuinte que não destaca IPI.",
     },
     {
       posicao: 12,

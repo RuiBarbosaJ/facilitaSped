@@ -37,17 +37,26 @@ const CSP = [
 
 const nextConfig: NextConfig = {
   /**
-   * As rotas passaram a dizer o tributo: /sped virou /icms-ipi e /auditoria
-   * virou /pis-cofins. Os nomes antigos não diziam qual escrituração era qual
-   * — as duas abas são SPED.
+   * As rotas passaram a dizer o tributo: /auditoria virou /pis-cofins e a aba
+   * nova atende em /icms-ipi. Os nomes antigos não diziam qual escrituração
+   * era qual — as duas abas são SPED.
    *
-   * O redirect é permanente (308) porque a mudança é definitiva, e existe
-   * porque a equipe já tem os links antigos salvos e compartilhados. 308
+   * Os dois redirects NÃO são iguais, e a diferença importa:
+   *
+   * /auditoria → /pis-cofins é PERMANENTE (308). Essa rota esteve no ar, a
+   * equipe tem o link salvo e compartilhado, e a mudança é definitiva. 308
    * preserva o método da requisição, diferente do 301.
+   *
+   * /sped → /icms-ipi é TEMPORÁRIO (307). Essa rota nunca chegou à produção:
+   * a aba existia só na branch de trabalho, e quem a acessou foi o
+   * desenvolvedor em localhost. O redirect fica pela conveniência de quem tem
+   * o caminho na memória, mas como 307 — um 308 mandaria o navegador gravar
+   * para sempre o desvio de uma rota que nunca existiu, e prenderia o nome
+   * /sped caso ele venha a ser útil um dia.
    */
   async redirects() {
     return [
-      { source: "/sped", destination: "/icms-ipi", permanent: true },
+      { source: "/sped", destination: "/icms-ipi", permanent: false },
       { source: "/auditoria", destination: "/pis-cofins", permanent: true },
     ];
   },

@@ -55,8 +55,17 @@ export function useAbaIcmsIpi() {
    * setState dentro de um efeito só para publicar o worker provocava um render
    * em cascata a cada montagem. No servidor não há `window`, e nesse render
    * ninguém precisa do worker.
+   *
+   * O SETTER é obrigatório, e a falta dele custou caro: "Encerrar análise"
+   * chama `encerrarWorker()`, que termina o worker e zera a variável de módulo
+   * — mas o componente continuava segurando a instância JÁ TERMINADA, porque
+   * ela fora capturada uma única vez aqui. O próximo arquivo importado era
+   * postado num worker morto: nenhum erro, nenhuma resposta, a barra parada em
+   * 0% para sempre. A aba inteira ficava inutilizável até alguém recarregar a
+   * página, e nada na tela dizia por quê — logo depois de apertar justamente o
+   * botão que a tela anuncia como garantia de privacidade.
    */
-  const [worker] = useState<Worker | null>(() =>
+  const [worker, setWorker] = useState<Worker | null>(() =>
     typeof window === "undefined" ? null : obterWorker()
   );
 
@@ -174,6 +183,15 @@ export function useAbaIcmsIpi() {
   const encerrar = useCallback(() => {
     enviar({ tipo: "LIMPAR" });
     encerrarWorker();
+    /*
+     * Um worker novo, limpo, no lugar do que acabou de ser terminado.
+     *
+     * Sem isto a aba fica muda: o componente seguraria a instância morta e todo
+     * arquivo importado depois seria postado nela. Recriar aqui devolve a aba
+     * ao mesmo estado em que ela abre — e o worker novo não conhece nada da
+     * escrituração anterior, que é exatamente o ponto deste botão.
+     */
+    setWorker(obterWorker());
     esquecerEstadoMemoria(PREFIXO_ESTADO);
     setResumo(null);
     setAchados([]);

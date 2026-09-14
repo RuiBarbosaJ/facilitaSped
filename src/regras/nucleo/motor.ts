@@ -42,7 +42,7 @@ export interface OpcoesDoMotor {
 }
 
 export const OPCOES_PADRAO: OpcoesDoMotor = {
-  // Mesmo teto já praticado pelo leitor (features/icms-ipi/limites.ts). Mudar estes
+  // Mesmo teto já praticado pelo leitor (src/icms-ipi/limites.ts). Mudar estes
   // números é decisão de produto — quanto o navegador do contador aguenta.
   tetoPorCodigo: 500,
   tetoGlobal: 5_000,

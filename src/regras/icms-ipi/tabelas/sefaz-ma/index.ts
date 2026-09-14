@@ -143,7 +143,7 @@ export const REGRAS_ESTRUTURAIS_DE_AJUSTE: readonly RegraValidacaoCustomizada[] 
  * ANTES DISSO, DUAS COISAS PRECISAM MUDAR NO LEITOR — e elas bloqueiam
  * qualquer regra de bloco E, com ou sem tabela:
  *
- * a) `features/icms-ipi/layout/registros.ts` conhece o E110 e mais nenhum registro
+ * a) `src/icms-ipi/leiaute/registros.ts` conhece o E110 e mais nenhum registro
  *    de apuração. E111, E112, E113, E115, E116 e todo o bloco E2 caem em
  *    "registro fora do escopo" — são lidos e preservados, mas nenhum campo
  *    deles é acessível por nome.

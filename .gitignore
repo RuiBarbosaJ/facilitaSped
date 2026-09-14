@@ -52,3 +52,9 @@ next-env.d.ts
 *.xls
 *.xlsx
 *.csv
+
+# public/ é conteúdo servido ao usuário, não material de cliente: robots.txt,
+# ads.txt e afins têm de continuar versionáveis. A proteção contra o arquivo
+# largado na raiz "só para testar" segue de pé.
+!/public/**/*.txt
+!/public/**/*.csv

@@ -249,10 +249,13 @@ function rotear(item: LinhaSped, estrutura: EstruturaSped): void {
    * Apuração — bloco E inteiro, não só o E1.
    *
    * A condição era `startsWith("E1")`, e com ela o E200/E210/E220 (apuração do
-   * ICMS-ST), o E300 (FCP) e o E500 (apuração do IPI) nunca chegavam aqui:
-   * caíam em lugar nenhum, e nenhuma regra conseguia alcançá-los. Uma
-   * escrituração de substituto tributário ou de indústria tinha a apuração
-   * inteira invisível para a auditoria.
+   * ICMS-ST), o E300 (FCP) e o E500 (apuração do IPI) caíam em lugar nenhum.
+   *
+   * RESSALVA HONESTA: hoje isto NÃO corrige nenhum achado, porque `apuracao`
+   * ainda não é lido por regra nenhuma — só é escrito aqui. O roteamento
+   * prepara o terreno para a primeira regra de apuração (fechar o E110 contra
+   * os débitos e créditos dos filhos é o caso óbvio, e o E110 já está no
+   * leiaute); enquanto ela não existir, o ganho é potencial, não real.
    *
    * Abertura e fechamento ficam de fora: são estrutura do bloco, não apuração.
    */

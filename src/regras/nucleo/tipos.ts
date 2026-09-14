@@ -18,7 +18,7 @@
  * Tipo do dado conforme o Guia Prático: `C` (alfanumérico) ou `N` (numérico).
  *
  * É a classificação NORMATIVA, e é de propósito mais grosseira do que a do
- * layout de exibição (`features/icms-ipi/layout/tipos.ts`, que distingue valor de
+ * layout de exibição (`src/icms-ipi/leiaute/tipos.ts`, que distingue valor de
  * alíquota de quantidade para formatar a grade). Aqui interessa o que o PVA
  * cobra: um campo `N` que chega com letra é rejeição de arquivo.
  */
@@ -264,7 +264,7 @@ export interface CampoSped {
    * Existe porque `O` no Guia Prático significa "o delimitador tem de estar
    * presente", e NÃO "o conteúdo tem de ser não-vazio". Um campo de valor
    * obrigatório aceita vir vazio, e o PVA lê isso como zero — o próprio fixture
-   * de escrituração válida do repo (`scripts/testes/sped.test.ts`) traz um C190
+   * de escrituração válida do repo (`scripts/testes/icms-ipi.test.ts`) traz um C190
    * com `VL_IPI` vazio. Sem esta marca, a regra genérica de obrigatoriedade
    * reprova o arquivo de teste do próprio projeto e toda escrituração de
    * contribuinte que não destaca IPI.
@@ -290,7 +290,7 @@ export interface RegistroSped {
    * Quantidade de campos de DADOS, sem contar o REG.
    *
    * O nome é longo de propósito. O layout do leitor
-   * (`features/icms-ipi/layout/registros.ts`) tem uma chave chamada `totalCampos`
+   * (`src/icms-ipi/leiaute/registros.ts`) tem uma chave chamada `totalCampos`
    * que conta OUTRA COISA: REG + campos de dados, porque é o número que
    * `conferirQuantidadeDeCampos` compara contra `campos.length - 2`. As duas
    * contagens diferem exatamente em 1, e um dicionário que reusasse o nome

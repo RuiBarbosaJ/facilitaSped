@@ -19,7 +19,7 @@ function ehMeta(valor: unknown): valor is SincronizacaoMeta {
  * serve de reserva.
  *
  * O carimbo é gravado em UTC e formatado aqui no horário de Brasília — o cron
- * roda 06:00 UTC, que é 03:00 no Brasil. A formatação acontece só no cliente,
+ * roda 03:17 UTC, que é 00:17 no Brasil. A formatação acontece só no cliente,
  * depois do fetch, então não há divergência com o HTML pré-renderizado.
  *
  * Devolve `null` enquanto carrega ou se o arquivo ainda não existe (a primeira

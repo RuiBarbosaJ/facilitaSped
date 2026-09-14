@@ -69,10 +69,10 @@ Quando a coluna NCM da tabela está vazia, o robô lê os códigos citados na pr
 
 O script lista, a cada execução, cada arquivo que ficou de fora e o motivo.
 
-Cada registro segue a interface [`RegistroSped`](src/types/sped.ts):
+Cada registro segue a interface [`RegraTabelaSped`](src/tipos/tabelas-receita.ts):
 
 ```ts
-interface RegistroSped {
+interface RegraTabelaSped {
   ncm: string;              // "27101259" — ou vazio quando a regra não cita NCM
   descricao: string;
   cst: string;              // "06"
@@ -164,24 +164,42 @@ npx tsc --noEmit
 
 ## Estrutura
 
+Cada área de produto é uma pasta de primeiro nível em `src/`, com a interface
+dentro de `ui/`. `src/regras/` guarda a norma — o que a legislação exige —,
+separada de `src/<área>/`, que é como a ferramenta lê e mostra.
+
 ```text
 .github/workflows/sync-sped.yml   cron diário: sync → diff → commit → push
 scripts/sync-tabelas.ts           robô de coleta e parsing
-public/data/tabelas-sped.json     base de dados (gerada; commitada)
-src/types/sped.ts                 interface RegistroSped
-src/app/page.tsx                  tela principal
-src/hooks/useRegistrosSped.ts     carrega e valida o JSON
-src/hooks/useBuscaSped.ts         índice Fuse.js e consulta
-src/components/                   busca, seletor de CST, tema, tabela, linha, selos de NCM, vigência
-src/lib/agrupar.ts                junta numa linha os registros que são a mesma regra
-src/app/auditoria/page.tsx        auditoria de planilhas do Alterdata
-src/lib/auditoria.ts              leitura do leiaute, normalização e cruzamento com o SPED
-src/lib/planilha.ts               SheetJS sob demanda: ler .xls/.xlsx, gerar .xlsx
-src/components/auditoria/         instruções, zona de upload, resumo, tabela auditada
+scripts/testes/                   suíte do Node (npm run teste)
+
+public/data/tabelas-sped.json     tabelas 4.3.x da Receita (gerado; commitado)
 public/data/ncm.json              nomenclatura NCM do Siscomex (gerado)
-src/hooks/useTema.ts              preferência de tema (claro/escuro/sistema)
-src/hooks/useSincronizacao.ts     lê e formata o carimbo de atualização
-public/data/sync-meta.json        quando os dados mudaram pela última vez (gerado)
+public/data/sync-meta.json        carimbo da última conferência (gerado)
+
+src/app/page.tsx                  consulta de NCM/CST
+src/app/pis-cofins/               auditoria de planilhas do Alterdata
+src/app/icms-ipi/                 auditoria do arquivo SPED .txt
+
+src/consulta/                     busca nas tabelas: Fuse.js, agrupamento, colunas, ui/
+src/pis-cofins/                   leiaute da planilha, cruzamento com o SPED, correção, ui/
+  planilha.ts                     SheetJS sob demanda: ler .xls/.xlsx, gerar .xlsx
+src/icms-ipi/                     leitura do SPED dentro do navegador
+  leitura/                        Web Worker: streaming, encoding, hash, parser
+  leiaute/                        índices e domínios dos registros
+  regravacao/                     devolve o arquivo byte a byte
+  auditoria/                      motor e regras em produção hoje
+  ui/
+
+src/regras/                       a norma, separada do mecanismo
+  nucleo/                         contratos, acesso e motor (ainda não ligado)
+  icms-ipi/                       dicionário EFD ICMS/IPI, validações, tabelas
+  pis-cofins/                     esqueleto
+
+src/componentes/                  compartilhados pelas três áreas
+src/ganchos/                      hooks compartilhados
+src/comum/                        datas, filtros de coluna
+src/tipos/tabelas-receita.ts      interface RegraTabelaSped
 ```
 
 ## A automação em detalhe
