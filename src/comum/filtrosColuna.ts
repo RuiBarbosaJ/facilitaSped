@@ -184,6 +184,67 @@ export function sanearFiltros<T>(
   return mudou ? saneados : filtros;
 }
 
+/**
+ * O que a seleção vira quando o usuário clica na caixa de um valor.
+ *
+ * A regra de dado não mudou — `filtros[coluna]` continua sendo a lista de
+ * valores que PASSAM, e lista ausente continua significando "todos passam".
+ * O que mudou foi o que o clique quer dizer, e é uma diferença que muda o uso
+ * inteiro do menu:
+ *
+ * Antes, sem filtro nenhum as caixas apareciam VAZIAS, então o primeiro clique
+ * INCLUÍA — marcar "5102" queria dizer "quero ver só o 5102". Para tirar um
+ * CFOP da vista, que é o que o contador faz o tempo todo ("quero tudo menos
+ * transferência"), ele precisava marcar todos os outros um a um.
+ *
+ * Agora, sem filtro as caixas aparecem MARCADAS — que é a verdade: todos os
+ * valores estão passando. O clique então EXCLUI, como em qualquer planilha.
+ * Para isolar um único valor existe o atalho "só este", que é o outro caso de
+ * uso e continua a um clique de distância.
+ *
+ * Dois estados são normalizados de volta para "sem filtro" (`null`), porque
+ * guardar a lista inteira seria a mesma coisa com pior consequência: ela
+ * congelaria os valores de agora e passaria a esconder qualquer valor novo que
+ * aparecesse depois, sem o usuário ter excluído nada.
+ *  - marcar de volta o último valor que faltava;
+ *  - desmarcar todos, que deixaria a tabela em branco sem o usuário ter pedido.
+ */
+export function alternarValor(
+  opcoes: readonly string[],
+  selecao: readonly string[],
+  valor: string
+): string[] | null {
+  // Sem filtro, todo valor está passando — então a base do clique é tudo.
+  const base = selecao.length === 0 ? opcoes : selecao;
+  const marcado = base.includes(valor);
+  const novo = marcado ? base.filter((v) => v !== valor) : [...base, valor];
+
+  if (novo.length === 0) return null;
+  // Todas as opções marcadas é o mesmo que nenhum filtro — e envelhece melhor.
+  if (novo.length >= opcoes.length && opcoes.every((o) => novo.includes(o))) return null;
+  return novo;
+}
+
+/**
+ * A seleção que isola um único valor: o atalho "só este".
+ *
+ * Existe porque, com o clique da caixa passando a excluir, ver um valor
+ * sozinho deixaria de caber num gesto — e é metade do uso do menu.
+ */
+export function somenteValor(opcoes: readonly string[], valor: string): string[] | null {
+  // Coluna de um valor só já está isolada; filtrar não muda nada.
+  return opcoes.length === 1 ? null : [valor];
+}
+
+/**
+ * Se a caixa daquele valor deve aparecer marcada.
+ *
+ * Sem filtro, TODAS aparecem marcadas: é o que de fato acontece com os dados.
+ */
+export function estaMarcado(selecao: readonly string[], valor: string): boolean {
+  return selecao.length === 0 || selecao.includes(valor);
+}
+
 /** Quantas colunas estão filtrando agora — para o contador da barra de filtros. */
 export function contarFiltrosAtivos(filtros: FiltrosColuna): number {
   return Object.values(filtros).filter((valores) => valores.length > 0).length;
