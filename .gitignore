@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# rascunhos e material de apoio que não fazem parte do produto
+/Arquivo.gitignore/

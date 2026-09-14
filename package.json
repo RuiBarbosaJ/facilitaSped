@@ -10,11 +10,14 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "sync": "tsx scripts/sync-tabelas.ts"
+    "sync": "tsx scripts/sync-tabelas.ts",
+    "teste": "tsx --test scripts/testes/*.test.ts"
   },
   "dependencies": {
+    "@tanstack/react-virtual": "^3.14.10",
     "adm-zip": "^0.6.0",
     "fuse.js": "^7.5.0",
+    "hash-wasm": "^4.12.0",
     "lucide-react": "^1.35.0",
     "next": "16.3.3",
     "react": "19.2.8",
