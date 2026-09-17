@@ -5,15 +5,18 @@ import { RefreshCw } from "lucide-react";
 
 import { agruparRegras } from "@/consulta/agrupar";
 import { useTabelasReceita } from "@/ganchos/useTabelasReceita";
-import { useFiltroCst, CST_PADRAO, TODOS_CST } from "@/consulta/ui/useFiltroCst";
+import {
+  useFiltroCst,
+  CST_PADRAO,
+  TODOS_CST,
+} from "@/consulta/ui/useFiltroCst";
 import { useBuscaRegras } from "@/consulta/ui/useBuscaRegras";
 import { useSincronizacao } from "@/ganchos/useSincronizacao";
 import { useEstadoMemoria } from "@/ganchos/useEstadoMemoria";
 import { useFiltrosColuna } from "@/ganchos/useFiltrosColuna";
 import { COLUNAS_CONSULTA } from "@/consulta/colunas";
 import { Cabecalho } from "@/componentes/Cabecalho";
-import { CampoBusca } from "@/componentes/CampoBusca";
-import { SeletorCst } from "@/consulta/ui/SeletorCst";
+import { ControlesConsulta } from "@/consulta/ui/ControlesConsulta";
 import { TabelaRegistros } from "@/consulta/ui/TabelaRegistros";
 import { Carregando, MensagemErro } from "@/consulta/ui/EstadoConsulta";
 import { Rodape } from "@/componentes/Rodape";
@@ -24,14 +27,17 @@ const PAGINA = 50;
 export default function Home() {
   const { registros, carregando, erro } = useTabelasReceita();
   const { data: atualizadoEm, alteradoEm, versoes } = useSincronizacao();
-  
+
   const [cst, setCst] = useEstadoMemoria("consulta_cst", CST_PADRAO);
   const [consulta, setConsulta] = useEstadoMemoria("consulta_texto", "");
   const [visiveis, setVisiveis] = useEstadoMemoria("consulta_visiveis", PAGINA);
-  
+
   const { opcoes, regras } = useFiltroCst(registros, cst);
   const encontrados = useBuscaRegras(regras, consulta);
-  const resultadosAgrupados = useMemo(() => agruparRegras(encontrados), [encontrados]);
+  const resultadosAgrupados = useMemo(
+    () => agruparRegras(encontrados),
+    [encontrados],
+  );
 
   const {
     filtros,
@@ -43,7 +49,7 @@ export default function Home() {
     resultadosAgrupados,
     COLUNAS_CONSULTA,
     "consulta_filtrosColuna",
-    () => setVisiveis(PAGINA)
+    () => setVisiveis(PAGINA),
   );
 
   // Descobre a versão da tabela sendo exibida agora
@@ -54,7 +60,7 @@ export default function Home() {
     setConsulta(valor);
     setVisiveis(PAGINA);
   }
-  
+
   function aoTrocarCst(valor: string) {
     setCst(valor);
     setVisiveis(PAGINA);
@@ -74,15 +80,23 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col bg-surface-page text-text-primary font-sans">
       <Cabecalho>
-        <div className="flex flex-col md:flex-row md:items-center gap-3">
-          <SeletorCst valor={cst} opcoes={opcoes} onChange={aoTrocarCst} />
-          <CampoBusca valor={consulta} onChange={aoBuscar} />
-        </div>
+        <ControlesConsulta
+          cst={cst}
+          opcoesCst={opcoes}
+          onCstChange={aoTrocarCst}
+          busca={consulta}
+          onBuscaChange={aoBuscar}
+        />
       </Cabecalho>
 
-      <main id="conteudo-principal" className="flex-1 w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col gap-4">
-        <h1 className="sr-only">Consulta das tabelas de códigos do SPED EFD-Contribuições</h1>
-        
+      <main
+        id="conteudo-principal"
+        className="flex-1 w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col gap-4"
+      >
+        <h1 className="sr-only">
+          Consulta das tabelas de códigos do SPED EFD-Contribuições
+        </h1>
+
         {carregando ? (
           <Carregando />
         ) : erro ? (
@@ -95,9 +109,12 @@ export default function Home() {
                   <strong className="font-semibold text-text-primary">
                     {resultados.length.toLocaleString("pt-BR")}
                   </strong>{" "}
-                  {resultados.length === 1 ? "regra" : "regras"} · {rotuloCst} · vigência mais recente
+                  {resultados.length === 1 ? "regra" : "regras"} · {rotuloCst} ·
+                  vigência mais recente
                   {consulta ? ` · busca por “${consulta}”` : ""}
-                  {restantes > 0 ? ` — exibindo as primeiras ${exibidos.length}` : ""}
+                  {restantes > 0
+                    ? ` — exibindo as primeiras ${exibidos.length}`
+                    : ""}
                 </p>
                 {atualizadoEm && (
                   <p
@@ -105,25 +122,38 @@ export default function Home() {
                     // A data é a da conferência diária com o portal do SPED; a
                     // da última mudança de conteúdo fica aqui, para quem
                     // precisa saber quando a Receita mexeu de fato.
-                    title={alteradoEm ? `Última alteração publicada pela Receita: ${alteradoEm}. Conferido automaticamente todos os dias.` : undefined}
+                    title={
+                      alteradoEm
+                        ? `Última alteração publicada pela Receita: ${alteradoEm}. Conferido automaticamente todos os dias.`
+                        : undefined
+                    }
                   >
                     <RefreshCw size={12} aria-hidden />
                     Dados da Receita Federal atualizados em {atualizadoEm}
-                    {versaoAtual && tabelaAtual && <> <span className="mx-1">•</span> Tabela {tabelaAtual} (Versão {versaoAtual})</>}
+                    {versaoAtual && tabelaAtual && (
+                      <>
+                        {" "}
+                        <span className="mx-1">•</span> Tabela {tabelaAtual}{" "}
+                        (Versão {versaoAtual})
+                      </>
+                    )}
                   </p>
                 )}
               </div>
-              
-              <BarraFiltros filtros={filtrosAtivos} onLimparTudo={limparFiltros} />
+
+              <BarraFiltros
+                filtros={filtrosAtivos}
+                onLimparTudo={limparFiltros}
+              />
             </div>
 
-            <TabelaRegistros 
-              regras={exibidos} 
+            <TabelaRegistros
+              regras={exibidos}
               colunas={COLUNAS_CONSULTA}
               filtros={filtros}
               opcoesDe={opcoesDe}
               onFiltrar={definirFiltro}
-              consulta={consulta} 
+              consulta={consulta}
             />
 
             {restantes > 0 && (
@@ -133,7 +163,8 @@ export default function Home() {
                   onClick={() => setVisiveis((atual) => atual + PAGINA)}
                   className="px-5 py-2.5 text-sm font-medium text-accent bg-surface-card border border-border-subtle rounded-xl shadow-(--shadow-card) hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-colors"
                 >
-                  Mostrar mais {Math.min(PAGINA, restantes)} de {restantes.toLocaleString("pt-BR")}
+                  Mostrar mais {Math.min(PAGINA, restantes)} de{" "}
+                  {restantes.toLocaleString("pt-BR")}
                 </button>
               </div>
             )}

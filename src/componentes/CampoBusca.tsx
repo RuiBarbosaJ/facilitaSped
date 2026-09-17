@@ -1,6 +1,6 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { GooeyInput } from "@/components/ui/gooey-input";
 
 interface CampoBuscaProps {
   valor: string;
@@ -8,6 +8,7 @@ interface CampoBuscaProps {
   /** Textos próprios de quem reaproveita o campo; o padrão é a busca do SPED. */
   placeholder?: string;
   rotulo?: string;
+  className?: string;
 }
 
 /** Campo de busca padrão do sistema. */
@@ -16,20 +17,27 @@ export function CampoBusca({
   onChange,
   placeholder = "Busque por NCM ou descrição...",
   rotulo = "Buscar por NCM ou descrição nas tabelas do SPED",
+  className,
 }: CampoBuscaProps) {
   return (
-    <div className="relative group flex-1">
-      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-text-tertiary group-focus-within:text-accent transition-colors">
-        <Search size={16} aria-hidden />
-      </div>
-      <input
-        type="search"
-        value={valor}
-        onChange={(evento) => onChange(evento.target.value)}
-        placeholder={placeholder}
-        aria-label={rotulo}
-        className="block w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-border-strong bg-surface-card text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
-      />
-    </div>
+    <GooeyInput
+      value={valor}
+      onValueChange={onChange}
+      placeholder={placeholder}
+      aria-label={rotulo}
+      clearOnClose={false}
+      collapsedWidth={48}
+      expandedWidth={360}
+      className={`w-full justify-start ${className ?? ""}`}
+      classNames={{
+        filterWrap: "w-fit sm:w-full",
+        buttonRow: "w-fit sm:w-full",
+        trigger:
+          "justify-start bg-surface-card text-text-primary ring-1 ring-border-strong hover:bg-surface-page",
+        input: "text-text-primary placeholder:text-text-tertiary",
+        bubbleSurface:
+          "bg-surface-card text-text-primary ring-1 ring-border-strong",
+      }}
+    />
   );
 }
