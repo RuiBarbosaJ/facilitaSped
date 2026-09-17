@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface NavegacaoLateralProps {
@@ -20,6 +20,30 @@ interface NavegacaoLateralProps {
 const SOBREPOSICAO = 80;
 const PASSO_MINIMO = 240;
 
+/** Folga para não acender a seta por um pixel de arredondamento. */
+const MARGEM = 4;
+
+/**
+ * Acende ou apaga cada seta, escrevendo direto no DOM.
+ *
+ * A visibilidade da seta é estado do DOM, não do React: ela depende de
+ * `scrollLeft` e `scrollWidth`, muda a cada quadro de rolagem e não entra em
+ * nenhuma decisão de renderização. Guardá-la em `useState` obrigava a chamar
+ * `setState` dentro de um efeito a cada render — que é o encadeamento de
+ * renders que o compilador do React recusa, e com razão.
+ */
+function medir(
+  area: HTMLElement | null,
+  esquerda: HTMLButtonElement | null,
+  direita: HTMLButtonElement | null
+): void {
+  if (!area) return;
+  if (esquerda) esquerda.hidden = area.scrollLeft <= MARGEM;
+  if (direita) {
+    direita.hidden = area.scrollLeft + area.clientWidth >= area.scrollWidth - MARGEM;
+  }
+}
+
 /**
  * Setas para percorrer uma tabela larga.
  *
@@ -38,32 +62,43 @@ export function NavegacaoLateral({
   recuoEsquerda = 0,
   substantivo = "colunas",
 }: NavegacaoLateralProps) {
-  const [rolagem, setRolagem] = useState({ esquerda: false, direita: false });
+  const esquerdaRef = useRef<HTMLButtonElement>(null);
+  const direitaRef = useRef<HTMLButtonElement>(null);
+
+  /*
+   * MEDE A CADA RENDER, e não só quando a área muda de tamanho.
+   *
+   * O ResizeObserver abaixo não enxerga o caso mais comum desta grade. A área
+   * tem tamanho fixo e a tabela dentro dela é `width: 100%`: quando o conjunto
+   * de colunas muda — esconder tudo e revelar de novo, ligar um recorte,
+   * limpá-lo — quem cresce é o `scrollWidth` da ÁREA, enquanto a caixa dos dois
+   * elementos observados continua exatamente do mesmo tamanho. O observador não
+   * dispara, a medição não refaz, e a seta fica escondida para sempre: o
+   * usuário volta às 111 colunas e perde o único controle de navegação
+   * horizontal da tela.
+   *
+   * Três leituras de DOM por render é barato; o efeito não guarda estado, então
+   * não encadeia render nenhum.
+   */
+  useEffect(() => {
+    medir(area.current, esquerdaRef.current, direitaRef.current);
+  });
 
   useEffect(() => {
     const elemento = area.current;
     if (!elemento) return;
 
-    const atualizar = () =>
-      setRolagem({
-        esquerda: elemento.scrollLeft > 4,
-        direita: elemento.scrollLeft + elemento.clientWidth < elemento.scrollWidth - 4,
-      });
+    const aoMudar = () => medir(elemento, esquerdaRef.current, direitaRef.current);
+    elemento.addEventListener("scroll", aoMudar, { passive: true });
 
-    elemento.addEventListener("scroll", atualizar, { passive: true });
-
-    /*
-     * Observa a área E o conteúdo dentro dela: a área pode manter o tamanho
-     * enquanto a tabela ganha ou perde colunas, e é a largura do conteúdo que
-     * decide se ainda há para onde rolar. O próprio observador dispara a
-     * primeira medição, então nada de setState síncrono no corpo do efeito.
-     */
-    const observador = new ResizeObserver(atualizar);
+    // O observador cobre o que o efeito acima não pega de graça: a área mudar
+    // de tamanho sem que nada re-renderize — a janela redimensionada, o painel
+    // lateral aberto, o zoom do navegador.
+    const observador = new ResizeObserver(aoMudar);
     observador.observe(elemento);
-    if (elemento.firstElementChild) observador.observe(elemento.firstElementChild);
 
     return () => {
-      elemento.removeEventListener("scroll", atualizar);
+      elemento.removeEventListener("scroll", aoMudar);
       observador.disconnect();
     };
   }, [area]);
@@ -82,40 +117,41 @@ export function NavegacaoLateral({
   return (
     <>
       <Seta
+        ref={esquerdaRef}
         lado="esquerda"
-        visivel={rolagem.esquerda}
         substantivo={substantivo}
         deslocamento={recuoEsquerda}
         onClick={() => rolar(-1)}
       />
-      <Seta
-        lado="direita"
-        visivel={rolagem.direita}
-        substantivo={substantivo}
-        onClick={() => rolar(1)}
-      />
+      <Seta ref={direitaRef} lado="direita" substantivo={substantivo} onClick={() => rolar(1)} />
     </>
   );
 }
 
 interface SetaProps {
+  ref: RefObject<HTMLButtonElement | null>;
   lado: "esquerda" | "direita";
-  visivel: boolean;
   substantivo: string;
   deslocamento?: number;
   onClick: () => void;
 }
 
-function Seta({ lado, visivel, substantivo, deslocamento = 0, onClick }: SetaProps) {
+function Seta({ ref, lado, substantivo, deslocamento = 0, onClick }: SetaProps) {
   const Icone = lado === "esquerda" ? ChevronLeft : ChevronRight;
 
   return (
     <button
+      ref={ref}
       type="button"
       onClick={onClick}
-      hidden={!visivel}
+      /*
+       * Nasce escondida e quem a acende é `medir`, no primeiro efeito.
+       * O atributo NÃO é controlado pelo React de propósito: se ele fosse, cada
+       * quadro de rolagem viraria um render da grade inteira.
+       */
+      hidden
       aria-label={`Ver ${substantivo} à ${lado}`}
-      className="absolute top-1/2 z-20 grid size-9 -translate-y-1/2 place-items-center rounded-full border border-border-strong bg-surface-card text-text-secondary shadow-(--shadow-card) transition-colors hover:bg-accent-soft hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      className="absolute top-1/2 z-20 grid size-9 -translate-y-1/2 place-items-center rounded-md border border-border-strong bg-surface-card text-text-secondary shadow-(--shadow-card) transition-colors hover:bg-accent-soft hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       style={lado === "esquerda" ? { left: deslocamento + 8 } : { right: 8 }}
     >
       <Icone size={18} aria-hidden />

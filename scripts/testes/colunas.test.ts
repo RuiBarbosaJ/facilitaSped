@@ -14,8 +14,10 @@ import test from "node:test";
 
 import { COLUNA_REGISTRO } from "../../src/icms-ipi/leiaute/acesso";
 import {
+  colunasCorrigidas,
   colunasVisiveisDe,
   estadoDasColunas,
+  recortarPorCampos,
   type ColunaGrade,
   type EstadoDasColunas,
 } from "../../src/icms-ipi/leiaute/colunas";
@@ -146,4 +148,76 @@ test("a ordem das colunas é preservada", () => {
   // colunas a cada filtro tornaria a leitura impossível.
   const visiveis = colunasVisiveisDe(COLUNAS, estado(), {}, new Set());
   assert.deepEqual(nomes(visiveis), nomes(COLUNAS));
+});
+
+test("o recorte por correções esconde toda coluna que a regravação não mexe", () => {
+  const recortado = recortarPorCampos(estado(), COLUNAS, new Set(["CFOP"]));
+
+  assert.deepEqual(nomes(colunasVisiveisDe(COLUNAS, recortado, {}, new Set())), [
+    COLUNA_REGISTRO,
+    "CFOP",
+  ]);
+});
+
+test("o recorte por correções não apaga o que já era ausente nem o que está em branco", () => {
+  const base = estado(["SUFRAMA"], ["COD_LST"]);
+  const recortado = recortarPorCampos(base, COLUNAS, new Set(["CFOP"]));
+
+  assert.ok(recortado.ausentes.has("SUFRAMA"), "o ausente anterior continua ausente");
+  assert.ok(recortado.ausentes.has("COD_LST"), "em branco e não corrigida sai da grade");
+  assert.deepEqual([...recortado.emBranco], ["COD_LST"], "o selo de em branco sobrevive");
+});
+
+test("sem nenhuma coluna corrigida o recorte não se aplica — e a grade não esvazia", () => {
+  /*
+   * Caso real, não teórico: a correção de delimitador final conserta a FORMA da
+   * linha e campo nenhum. Sem esta guarda, um arquivo em que só isso foi
+   * corrigido abriria com a coluna do registro sozinha e sem explicação.
+   */
+  const base = estado(["SUFRAMA"]);
+  const recortado = recortarPorCampos(base, COLUNAS, new Set());
+
+  assert.equal(recortado, base, "o estado volta intacto, sem cópia");
+});
+
+test("a coluna do registro sobrevive ao recorte por correções", () => {
+  const recortado = recortarPorCampos(estado(), COLUNAS, new Set(["CFOP"]));
+  assert.equal(recortado.ausentes.has(COLUNA_REGISTRO), false);
+});
+
+test("a caixa do seletor revela uma coluna que o recorte por correções escondeu", () => {
+  /*
+   * O recorte reaproveita `ausentes` justamente para que a saída continue
+   * existindo: quem precisa do contexto de uma correção marca a coluna e ela
+   * volta, sem desligar o modo.
+   */
+  const recortado = recortarPorCampos(estado(), COLUNAS, new Set(["CFOP"]));
+
+  assert.deepEqual(
+    nomes(colunasVisiveisDe(COLUNAS, recortado, { CST_ICMS: true }, new Set())),
+    [COLUNA_REGISTRO, "CFOP", "CST_ICMS"]
+  );
+});
+
+test("campo corrigido que não é coluna do leiaute não recorta coluna nenhuma", () => {
+  /*
+   * A correção de delimitador final conserta a FORMA da linha e vem rotulada
+   * "(delimitador final)". Sem esta guarda o recorte esconderia as noventa e
+   * quatro colunas do arquivo e deixaria a grade com o registro sozinho — que
+   * o contador lê como tela quebrada, não como recorte.
+   */
+  const base = estado(["SUFRAMA"]);
+  const recortado = recortarPorCampos(base, COLUNAS, new Set(["(delimitador final)"]));
+
+  assert.equal(recortado, base, "nada a recortar: o estado volta intacto");
+});
+
+test("a contagem de colunas corrigidas ignora campo que não vira coluna", () => {
+  assert.equal(colunasCorrigidas(COLUNAS, new Set(["(delimitador final)"])).length, 0);
+  assert.equal(colunasCorrigidas(COLUNAS, new Set(["CFOP", "(delimitador final)"])).length, 1);
+  assert.equal(
+    colunasCorrigidas(COLUNAS, new Set([COLUNA_REGISTRO])).length,
+    0,
+    "a coluna do registro não é corrigível: ela é sintética"
+  );
 });

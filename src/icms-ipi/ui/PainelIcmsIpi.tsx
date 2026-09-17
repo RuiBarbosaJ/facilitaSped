@@ -9,6 +9,7 @@ const CONFERENCIAS = [
   "Cadastro: item do C170 sem 0200 e unidade de medida sem 0190.",
   "CFOP incompatível com o tipo de operação declarado na nota.",
   "Totalizadores de fechamento de bloco divergentes da contagem real.",
+  "Correções para o PVA: as que se deduzem do próprio arquivo entram no TXT gerado depois da sua revisão, com o relatório do que mudou. O que exige decisão fiscal é apontado, nunca alterado.",
 ];
 
 /**
@@ -20,7 +21,7 @@ export function PainelIcmsIpi() {
   return (
     <div className="flex flex-col gap-4 text-sm text-text-secondary">
       <div className="flex items-start gap-3">
-        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-accent-soft text-accent">
+        <span className="grid size-8 shrink-0 place-items-center rounded-md bg-accent-soft text-accent">
           <Info size={16} aria-hidden />
         </span>
         <div className="min-w-0">
@@ -43,7 +44,7 @@ export function PainelIcmsIpi() {
       </div>
 
       <div className="flex items-start gap-3 rounded-xl border border-border-subtle bg-surface-card p-3">
-        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-success-soft text-success">
+        <span className="grid size-8 shrink-0 place-items-center rounded-md bg-success-soft text-success">
           <Lock size={16} aria-hidden />
         </span>
         <p className="text-xs text-text-tertiary">

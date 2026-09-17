@@ -162,3 +162,53 @@ export function colunasVisiveisDe(
     return !estado.ausentes.has(coluna.nome);
   });
 }
+
+/**
+ * Restringe o universo de colunas ao que a regravação de fato reescreve.
+ *
+ * O recorte NÃO inventa um terceiro estado: ele reaproveita `ausentes`, que já
+ * quer dizer "não se aplica a este recorte" — e é exatamente o que uma coluna
+ * intocada é, quando o recorte é "o que foi corrigido". A consequência é o que
+ * importa: o seletor continua listando a coluna com o selo de sempre, a caixa
+ * continua revelando-a e "Todas" continua trazendo tudo de volta. Um estado
+ * novo exigiria regra nova em cada um desses três lugares, e tiraria do
+ * contador a saída para conferir o contexto de uma correção.
+ *
+ * A GUARDA vale mais do que a regra, e o teste dela é a INTERSEÇÃO com as
+ * colunas — não o tamanho de `campos`. Nem todo campo corrigido é uma coluna:
+ * a correção de delimitador final conserta a FORMA da linha e vem rotulada
+ * `(delimitador final)`, que não corresponde a campo nenhum do leiaute. Contar
+ * só o tamanho faria esse caso passar pela guarda e esconder as noventa e
+ * quatro colunas, deixando a grade com o registro sozinho e sem nada na tela
+ * que explicasse por quê. Quando nada da interseção sobra, o recorte de colunas
+ * não se aplica — o de LINHAS continua valendo, que é o que interessa ali.
+ */
+export function recortarPorCampos(
+  base: EstadoDasColunas,
+  colunas: readonly ColunaGrade[],
+  campos: ReadonlySet<string>
+): EstadoDasColunas {
+  if (colunasCorrigidas(colunas, campos).length === 0) return base;
+
+  const ausentes = new Set(base.ausentes);
+  for (const coluna of colunas) {
+    if (coluna.nome === COLUNA_REGISTRO) continue;
+    if (!campos.has(coluna.nome)) ausentes.add(coluna.nome);
+  }
+  return { ausentes, emBranco: base.emBranco };
+}
+
+/**
+ * As colunas da grade que algum campo corrigido de fato alcança.
+ *
+ * É a mesma conta que a guarda de `recortarPorCampos` faz, exposta porque a UI
+ * precisa dela para contar: dizer "1 coluna corrigida" quando o único campo
+ * corrigido é `(delimitador final)` seria anunciar um recorte que não existe.
+ */
+export function colunasCorrigidas(
+  colunas: readonly ColunaGrade[],
+  campos: ReadonlySet<string>
+): ColunaGrade[] {
+  if (campos.size === 0) return [];
+  return colunas.filter((c) => c.nome !== COLUNA_REGISTRO && campos.has(c.nome));
+}

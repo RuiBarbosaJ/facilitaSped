@@ -12,7 +12,8 @@ import type { CodFin } from "../leitura/protocolo";
 
 export function AbaIcmsIpi() {
   const { worker, estado, temArquivoOriginal, acoes, limites } = useAbaIcmsIpi();
-  const { progresso, resumo, achados, erro, aviso, gerando } = estado;
+  const { progresso, resumo, achados, propostas, aprovadas, correcoesAprovadas, erro, aviso, gerando } =
+    estado;
 
   const zonaRef = useRef<HTMLDivElement>(null);
   const etapaRef = useRef<HTMLHeadingElement>(null);
@@ -129,10 +130,10 @@ export function AbaIcmsIpi() {
             aria-valuemax={100}
             aria-valuenow={percentual}
             aria-valuetext={`${percentual}% — ${progresso.linhas.toLocaleString("pt-BR")} linhas lidas`}
-            className="h-2.5 w-full overflow-hidden rounded-full bg-surface-head"
+            className="h-2.5 w-full overflow-hidden rounded-sm bg-surface-head"
           >
             <div
-              className="h-full rounded-full bg-accent transition-all duration-300"
+              className="h-full rounded-sm bg-accent transition-all duration-300"
               style={{ width: `${Math.max(2, percentual)}%` }}
             />
           </div>
@@ -279,43 +280,83 @@ export function AbaIcmsIpi() {
               </p>
             )}
 
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => acoes.gerarTxt(finalidade)}
-                disabled={gerando}
-                aria-busy={gerando}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-contrast hover:bg-accent-hover disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 transition-colors"
-              >
-                {gerando ? (
-                  <Loader2 size={16} className="animate-spin" aria-hidden />
-                ) : (
-                  <Download size={16} aria-hidden />
-                )}
-                {gerando
-                  ? "Gerando…"
-                  : `Gerar TXT ${finalidade === "1" ? "retificador" : "original"}`}
-              </button>
+            {/*
+              OS DOIS BOTÕES BAIXAM ARQUIVOS DIFERENTES, e a confusão entre eles
+              é a mais cara que esta tela pode causar: quem aprova correções e
+              baixa a cópia fiel leva o arquivo SEM elas — e transmite achando
+              que corrigiu. Cada um passou a dizer, embaixo, o que faz.
+            */}
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => acoes.gerarTxt(finalidade)}
+                  disabled={gerando}
+                  aria-busy={gerando}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-contrast hover:bg-accent-hover disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 transition-colors"
+                >
+                  {gerando ? (
+                    <Loader2 size={16} className="animate-spin" aria-hidden />
+                  ) : (
+                    <Download size={16} aria-hidden />
+                  )}
+                  {/*
+                    A palavra "corrigido" só aparece quando há correção aprovada.
+                    Fixa no rótulo, ela prometeria conserto num arquivo em que
+                    nada foi marcado — e o contador transmitiria achando que a
+                    ferramenta tinha resolvido algo.
+                  */}
+                  {gerando
+                    ? "Gerando…"
+                    : `Gerar TXT ${finalidade === "1" ? "retificador" : "original"}${
+                        correcoesAprovadas.length > 0 ? " corrigido" : ""
+                      }`}
+                </button>
+                <p className="max-w-64 text-xs text-text-tertiary">
+                  {correcoesAprovadas.length > 0 ? (
+                    <>
+                      É <strong className="font-semibold text-success">este</strong> que leva as{" "}
+                      {correcoesAprovadas.length.toLocaleString("pt-BR")}{" "}
+                      {correcoesAprovadas.length === 1 ? "correção aprovada" : "correções aprovadas"}.
+                    </>
+                  ) : (
+                    "Nenhuma correção aprovada ainda: sai igual ao importado, só com os totais de bloco refeitos."
+                  )}
+                </p>
+              </div>
 
-              <button
-                type="button"
-                onClick={acoes.baixarCopiaFiel}
-                disabled={!temArquivoOriginal}
-                title={
-                  temArquivoOriginal
-                    ? undefined
-                    : "Disponível apenas na mesma visita em que o arquivo foi importado."
-                }
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-border-strong px-4 py-2 text-sm font-medium text-text-secondary hover:bg-surface-hover disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-colors"
-              >
-                Baixar cópia fiel do importado
-              </button>
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <button
+                  type="button"
+                  onClick={acoes.baixarCopiaFiel}
+                  disabled={!temArquivoOriginal}
+                  title={
+                    temArquivoOriginal
+                      ? "O arquivo exatamente como veio do disco, byte por byte."
+                      : "Disponível apenas na mesma visita em que o arquivo foi importado."
+                  }
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-border-strong px-4 py-2 text-sm font-medium text-text-secondary hover:bg-surface-hover disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-colors"
+                >
+                  Baixar cópia fiel do importado
+                </button>
+                <p className="max-w-64 text-xs text-text-tertiary">
+                  O arquivo como entrou, byte por byte.{" "}
+                  {correcoesAprovadas.length > 0 ? (
+                    <strong className="font-semibold text-warning">
+                      Não leva as correções aprovadas.
+                    </strong>
+                  ) : (
+                    "Serve para guardar o original."
+                  )}
+                </p>
+              </div>
             </div>
 
             <p className="text-xs text-text-tertiary">
               O TXT gerado sai no mesmo charset, com a mesma quebra de linha e a mesma estrutura do
-              arquivo importado — só os fechamentos de bloco, o bloco 9 e a finalidade mudam. Nenhum
-              outro campo é reescrito. Valide no PVA antes de transmitir.
+              arquivo importado. Mudam os fechamentos de bloco, o bloco 9, a finalidade — e os campos
+              das correções que você aprovou, um a um, listados no relatório que acompanha o
+              download. Nenhum outro campo é reescrito. Valide no PVA antes de transmitir.
             </p>
           </section>
 
@@ -323,7 +364,14 @@ export function AbaIcmsIpi() {
             <h2 id="titulo-grade" className="text-base font-semibold">
               Registros do arquivo
             </h2>
-            <GradeRegistro worker={worker} contagens={resumo.contagemPorRegistro} />
+            <GradeRegistro
+              worker={worker}
+              contagens={resumo.contagemPorRegistro}
+              achados={achados}
+              propostas={propostas}
+              aprovadas={aprovadas}
+              onAlternarLinhas={acoes.alternarCorrecoesDeLinhas}
+            />
           </section>
 
           <section aria-labelledby="titulo-achados" className="flex flex-col gap-3">

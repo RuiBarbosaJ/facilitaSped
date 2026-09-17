@@ -9,10 +9,23 @@ import { COLUNA_REGISTRO } from "../leiaute/acesso";
 import {
   colunasVisiveisDe,
   estadoDasColunas,
+  colunasCorrigidas,
   montarColunas,
+  recortarPorCampos,
   type ColunaGrade,
 } from "../leiaute/colunas";
 import { LIMITES } from "../limites";
+import type { Achado, Severidade } from "@/regras/nucleo/contrato";
+import {
+  alternarSeveridade,
+  camposDoRecorte,
+  linhasDoRecorte,
+  recorteAtivo,
+  resumirRecorte,
+  RECORTE_ABERTO,
+  type RecorteDaGrade,
+} from "../auditoria/recorte";
+import type { Correcao } from "../regravacao/correcoes";
 import type { DoWorker, FiltrosGrade, LinhaJanela, ParaWorker } from "../leitura/protocolo";
 
 export type { ColunaGrade };
@@ -28,9 +41,25 @@ export type { ColunaGrade };
 const SEM_ESCOLHA: Readonly<Record<string, boolean>> = {};
 const EMPTY_OPCOES: Readonly<Record<string, string[]>> = {};
 
+/** Listas vazias estáveis — mesmo motivo de SEM_ESCOLHA. */
+const SEM_CORRECOES: readonly Correcao[] = [];
+const SEM_ACHADOS: readonly Achado[] = [];
+
 interface UseGradeRegistroProps {
   worker: Worker | null;
   contagens: Record<string, number>;
+  /**
+   * Apontamentos e correções do arquivo — a matéria-prima do recorte.
+   *
+   * Entram aqui para que a grade possa responder "onde estão os erros?" e "o
+   * que eu já mandei corrigir?" — perguntas que nenhum filtro de coluna alcança,
+   * porque a resposta não está em campo nenhum do arquivo.
+   */
+  achados?: readonly Achado[];
+  /** TUDO que a regravação pode corrigir — é o que o recorte alcança. */
+  propostas?: readonly Correcao[];
+  /** O subconjunto aprovado, só para a contagem que a tela mostra. */
+  correcoes?: readonly Correcao[];
 }
 
 /**
@@ -48,7 +77,13 @@ interface Janela {
   total: number | null;
 }
 
-export function useGradeRegistro({ worker, contagens }: UseGradeRegistroProps) {
+export function useGradeRegistro({
+  worker,
+  contagens,
+  achados = SEM_ACHADOS,
+  propostas = SEM_CORRECOES,
+  correcoes = SEM_CORRECOES,
+}: UseGradeRegistroProps) {
   const [filtros, setFiltros] = useEstadoMemoria<FiltrosGrade>("icms_ipi_grade_filtros", {});
   const [larguras, setLarguras] = useEstadoMemoria<Record<string, number>>(
     "icms_ipi_grade_larguras",
@@ -67,7 +102,56 @@ export function useGradeRegistro({ worker, contagens }: UseGradeRegistroProps) {
   });
   const [truncadas, setTruncadas] = useState<string[]>([]);
 
-  const chave = useMemo(() => JSON.stringify(filtros), [filtros]);
+  /**
+   * O recorte é estado de SESSÃO, como "Mostrar todas".
+   *
+   * Depende dos apontamentos e das correções DESTE arquivo, e os dois morrem
+   * com ele. Uma preferência persistida abriria o arquivo seguinte já recortado
+   * por erros que não existem mais — grade vazia, sem explicação à vista.
+   */
+  const [recorte, setRecorte] = useEstadoMemoria<RecorteDaGrade>(
+    "icms_ipi_grade_recorte",
+    RECORTE_ABERTO
+  );
+
+  /** Quantas LINHAS cada marcação traria. É o que o selo de cada uma promete. */
+  const resumoDoRecorte = useMemo(
+    () => resumirRecorte(achados, propostas, correcoes),
+    [achados, propostas, correcoes]
+  );
+
+  /**
+   * As linhas do recorte. `undefined` significa "sem recorte".
+   *
+   * A distinção entre `undefined` e `[]` é o ponto: com uma severidade marcada e
+   * nenhuma linha nela, o recorte é uma lista VAZIA e a grade fica vazia — que é
+   * a resposta certa. Mandar `undefined` ali mostraria o arquivo inteiro
+   * justamente quando não há nada para ver.
+   */
+  const linhasRecortadas = useMemo(
+    () => linhasDoRecorte(achados, propostas, recorte),
+    [achados, propostas, recorte]
+  );
+
+  /** Os campos que o recorte destaca — o recorte de colunas. */
+  const camposRecortados = useMemo(
+    () => camposDoRecorte(achados, propostas, recorte),
+    [achados, propostas, recorte]
+  );
+
+  const recorte_ativo = recorteAtivo(recorte);
+
+  /*
+   * A chave carrega o recorte junto dos filtros.
+   *
+   * Sem isso, ligar e desligar uma marcação reaproveitaria a janela do estado
+   * anterior: a grade mostraria as linhas do arquivo inteiro dizendo que são as
+   * recortadas, ou o contrário.
+   */
+  const chave = useMemo(
+    () => JSON.stringify([filtros, linhasRecortadas]),
+    [filtros, linhasRecortadas]
+  );
   const [janela, setJanela] = useState<Janela>({ chave, linhas: [], total: null });
 
   // A janela de um filtro que já mudou não vale mais nada.
@@ -115,7 +199,18 @@ export function useGradeRegistro({ worker, contagens }: UseGradeRegistroProps) {
   // Opções de um filtro que já mudou não valem: `{}` tem semântica segura
   // ("ainda não sei") e mantém a grade inteira até a resposta certa chegar.
   const opcoes = opcoesBrutas.chave === chave ? opcoesBrutas.valores : EMPTY_OPCOES;
-  const estadoColunas = useMemo(() => estadoDasColunas(colunas, opcoes), [colunas, opcoes]);
+
+  /**
+   * Com o modo ligado, coluna que a auditoria não mexeu vira "não se aplica".
+   *
+   * A regra e a guarda estão em `recortarPorCampos`, com teste próprio: é
+   * lógica pura sobre conjuntos e não tem por que morar dentro de um hook.
+   */
+  const estadoColunas = useMemo(() => {
+    const base = estadoDasColunas(colunas, opcoes);
+    if (!recorte_ativo) return base;
+    return recortarPorCampos(base, colunas, camposRecortados);
+  }, [colunas, opcoes, recorte_ativo, camposRecortados]);
 
   /**
    * "Mostrar todas" é estado de SESSÃO, não preferência.
@@ -193,6 +288,51 @@ export function useGradeRegistro({ worker, contagens }: UseGradeRegistroProps) {
   /** Mostra tudo nesta sessão, inclusive o que não se aplica ao recorte. */
   const mostrarTodasAsColunas = useCallback(() => setRevelarTudo(true), [setRevelarTudo]);
 
+  /**
+   * Esvazia a grade para montá-la do zero, coluna a coluna.
+   *
+   * É o caminho oposto ao automático, e existe porque em um planilhão de cem
+   * colunas desmarcar noventa e cinco é inviável: quem sabe quais três colunas
+   * quer ver chega mais rápido começando do vazio.
+   *
+   * Grava um `false` explícito por coluna, e não um sinalizador de "tudo
+   * escondido". A diferença aparece no arquivo seguinte: com `false` por
+   * coluna, uma coluna que só existe no arquivo novo continua seguindo o
+   * automático em vez de nascer escondida por uma decisão que ninguém tomou
+   * sobre ela.
+   *
+   * A coluna do registro fica de fora — é a referência da linha — e as colunas
+   * com filtro ativo continuam visíveis por conta de `colunasVisiveisDe`:
+   * esconder o controle que o usuário está usando esconderia o desfazer junto.
+   */
+  const ocultarTodasAsColunas = useCallback(() => {
+    const proximo: Record<string, boolean> = {};
+    for (const coluna of colunas) {
+      if (coluna.nome === COLUNA_REGISTRO) continue;
+      // O que o automático já esconde não precisa de decisão gravada.
+      if (estadoColunas.ausentes.has(coluna.nome)) continue;
+      proximo[coluna.nome] = false;
+    }
+    setEscolhaDeColunas(proximo);
+    setRevelarTudo(false);
+  }, [colunas, estadoColunas, setEscolhaDeColunas, setRevelarTudo]);
+
+  /** Liga e desliga uma severidade do recorte. */
+  const alternarSeveridadeDoRecorte = useCallback(
+    (severidade: Severidade, marcada: boolean) =>
+      setRecorte((atual) => alternarSeveridade(atual, severidade, marcada)),
+    [setRecorte]
+  );
+
+  /** Liga e desliga as linhas que a regravação vai reescrever. */
+  const alternarCorrigidasDoRecorte = useCallback(
+    (marcada: boolean) => setRecorte((atual) => ({ ...atual, corrigidas: marcada })),
+    [setRecorte]
+  );
+
+  /** Volta a grade ao arquivo inteiro. */
+  const limparRecorte = useCallback(() => setRecorte(RECORTE_ABERTO), [setRecorte]);
+
   /** Registro único escolhido no filtro, só para rotular o cabeçalho. */
   const registroSelecionado = useMemo(() => {
     const escolhidos = filtros[COLUNA_REGISTRO];
@@ -244,9 +384,10 @@ export function useGradeRegistro({ worker, contagens }: UseGradeRegistroProps) {
         offset: alinhado,
         limite: LIMITES.LINHAS_POR_JANELA,
         filtros,
+        linhas: linhasRecortadas,
       } satisfies ParaWorker);
     },
-    [worker, filtros]
+    [worker, filtros, linhasRecortadas]
   );
 
   /*
@@ -268,6 +409,7 @@ export function useGradeRegistro({ worker, contagens }: UseGradeRegistroProps) {
       offset: 0,
       limite: LIMITES.LINHAS_POR_JANELA,
       filtros,
+      linhas: linhasRecortadas,
     } satisfies ParaWorker);
 
     worker.postMessage({
@@ -275,8 +417,9 @@ export function useGradeRegistro({ worker, contagens }: UseGradeRegistroProps) {
       requisicao: requisicaoRef.current,
       filtros,
       colunas: colunas.map((c) => c.nome),
+      linhas: linhasRecortadas,
     } satisfies ParaWorker);
-  }, [worker, filtros, colunas]);
+  }, [worker, filtros, colunas, linhasRecortadas]);
 
   /** Pede as janelas que faltam para cobrir o intervalo visível. */
   const garantirIntervalo = useCallback(
@@ -341,6 +484,24 @@ export function useGradeRegistro({ worker, contagens }: UseGradeRegistroProps) {
     alternarColuna,
     restaurarColunas,
     mostrarTodasAsColunas,
+    ocultarTodasAsColunas,
+    /** O recorte por apontamento e por correção, e como mexer nele. */
+    recorte,
+    recorteAtivo: recorte_ativo,
+    resumoDoRecorte,
+    alternarSeveridadeDoRecorte,
+    alternarCorrigidasDoRecorte,
+    limparRecorte,
+    /** As linhas do recorte — é sobre elas que a seleção em massa age. */
+    linhasRecortadas,
+    /**
+     * Quantas COLUNAS DA GRADE o recorte destaca.
+     *
+     * Não é o tamanho do conjunto de campos: nem todo campo apontado é coluna —
+     * o `(delimitador final)` fala da forma da linha. Anunciar "1 coluna" ali
+     * prometeria um recorte de colunas que não vai acontecer.
+     */
+    colunasRecortadas: colunasCorrigidas(colunas, camposRecortados).length,
     filtros,
     filtrosAtivos,
     opcoes,

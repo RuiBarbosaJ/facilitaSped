@@ -4,6 +4,21 @@ import type { Correcao } from "../regravacao/correcoes";
 /** Seleção do menu de cada coluna da grade, indexada pelo nome da coluna. */
 export type FiltrosGrade = Record<string, string[]>;
 
+/**
+ * Recorte por NÚMERO DE LINHA, além dos filtros de coluna.
+ *
+ * Os filtros de coluna respondem "quais linhas têm este valor?". Há uma
+ * pergunta que eles não alcançam: "quais linhas a auditoria mexeu?". A resposta
+ * não está em nenhum campo do arquivo — ela vem das correções, que a UI conhece
+ * e o worker não. Por isso o recorte chega pronto, como lista de `nl`, em vez
+ * de virar mais um filtro.
+ *
+ * Ausente significa "sem recorte", e NÃO "nenhuma linha": uma lista vazia
+ * legítima (nada foi corrigido) precisa poder zerar a grade, e confundir os
+ * dois casos mostraria o arquivo inteiro justamente quando não há o que ver.
+ */
+export type RecorteDeLinhas = number[];
+
 /** Finalidade da escrituração (campo COD_FIN do registro 0000). */
 export type CodFin = "0" | "1";
 
@@ -43,8 +58,29 @@ export type ParaWorker =
   | { tipo: "INICIAR"; arquivo: File }
   | { tipo: "CANCELAR" }
   | { tipo: "LIMPAR" }
-  | { tipo: "JANELA"; requisicao: number; offset: number; limite: number; filtros?: FiltrosGrade }
-  | { tipo: "VALORES_TABELA"; requisicao: number; filtros?: FiltrosGrade; colunas: string[] }
+  | {
+      tipo: "JANELA";
+      requisicao: number;
+      offset: number;
+      limite: number;
+      filtros?: FiltrosGrade;
+      linhas?: RecorteDeLinhas;
+    }
+  | {
+      tipo: "VALORES_TABELA";
+      requisicao: number;
+      filtros?: FiltrosGrade;
+      colunas: string[];
+      /**
+       * O MESMO recorte da JANELA, e não um parâmetro independente.
+       *
+       * As opções de filtro e a classificação de colunas vazias saem daqui.
+       * Mandar o recorte numa mensagem e não na outra faria o menu oferecer
+       * valores que a grade não mostra — e faria uma coluna sem dado nenhum
+       * no recorte continuar ocupando espaço.
+       */
+      linhas?: RecorteDeLinhas;
+    }
   | {
       tipo: "GERAR_TXT";
       requisicao: number;
@@ -68,7 +104,19 @@ export type CodigoErro = "FORMATO" | "LIMITE" | "ENCODING" | "INTERNO";
 
 export type DoWorker =
   | { tipo: "PROGRESSO"; execucao: number; bytesLidos: number; bytesTotal: number; linhas: number }
-  | { tipo: "PRONTO"; execucao: number; resumo: ResumoArquivo; achados: Achado[] }
+  | {
+      tipo: "PRONTO";
+      execucao: number;
+      resumo: ResumoArquivo;
+      achados: Achado[];
+      /**
+       * O que a regravação PODE corrigir, derivado dos achados. Automáticas e
+       * sugeridas; o contador aprova na revisão e só as aprovadas voltam em
+       * GERAR_TXT. Carrega valores do arquivo (de → para), como os achados —
+       * fica em memória de sessão, nunca em storage.
+       */
+      correcoes: Correcao[];
+    }
   | { tipo: "CANCELADO"; execucao: number }
   | {
       tipo: "JANELA_OK";
