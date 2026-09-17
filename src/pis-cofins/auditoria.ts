@@ -20,6 +20,17 @@ export const COLUNAS_OBRIGATORIAS = ["Nome Produto", "Classificação"] as const
 export const ERRO_LAYOUT =
   "Layout não reconhecido. Certifique-se de exportar a planilha padrão com a coluna 'Classificação' e 'Nome Produto'.";
 
+/**
+ * De que ponta da operação a planilha fala.
+ *
+ * A mesma tabela de benefício do SPED governa as duas, e é por isso que uma
+ * planilha de compras auditada como se fosse de vendas reprova TUDO: o CST 73
+ * (aquisição a alíquota zero) é a resposta certa para o mesmo NCM que, na
+ * venda, pede o 06. Sem separar as pontas, a ferramenta manda trocar o código
+ * certo pelo código da outra ponta.
+ */
+export type Sentido = "saida" | "entrada";
+
 /** Índice de cada coluna conhecida na linha de cabeçalho. */
 export interface MapaColunas {
   nome: number;
@@ -28,6 +39,13 @@ export interface MapaColunas {
   cstPis?: number;
   cstCofins?: number;
   cfop?: number;
+  /**
+   * A ponta que o PRÓPRIO cabeçalho declarou ("CST PIS Entrada").
+   *
+   * Vale mais do que qualquer inferência sobre os dados: é o ERP dizendo o que
+   * exportou, e não a ferramenta adivinhando pela maioria.
+   */
+  sentidoDeclarado?: Sentido;
 }
 
 /** Minúsculas, sem acento, sem espaços duplicados: "Classificação " → "classificacao". */
@@ -41,8 +59,11 @@ export function normalizarTexto(valor: unknown): string {
     .trim();
 }
 
+/** As chaves de `MapaColunas` que são de fato uma coluna da planilha. */
+type ColunaDaPlanilha = Exclude<keyof MapaColunas, "sentidoDeclarado">;
+
 /** Nomes que cada coluna pode ter, já normalizados. O primeiro é o oficial. */
-const APELIDOS: Record<keyof MapaColunas, string[]> = {
+const APELIDOS: Record<ColunaDaPlanilha, string[]> = {
   nome: ["nome produto", "nome do produto", "produto", "descricao do produto", "descricao produto", "descricao"],
   classificacao: ["classificacao", "classificacao fiscal", "ncm", "cod. ncm", "cod ncm", "codigo ncm", "ncm/sh"],
   natureza: [
@@ -53,8 +74,23 @@ const APELIDOS: Record<keyof MapaColunas, string[]> = {
     "nat. receita",
     "nat receita",
   ],
-  cstPis: ["cst pis", "cst pis/pasep", "cst do pis", "cst pis saida"],
-  cstCofins: ["cst cofins", "cst da cofins", "cst cofins saida"],
+  cstPis: [
+    "cst pis",
+    "cst pis/pasep",
+    "cst do pis",
+    "cst pis saida",
+    "cst pis entrada",
+    "cst pis de entrada",
+    "cst pis compra",
+  ],
+  cstCofins: [
+    "cst cofins",
+    "cst da cofins",
+    "cst cofins saida",
+    "cst cofins entrada",
+    "cst cofins de entrada",
+    "cst cofins compra",
+  ],
   cfop: ["cfop"],
 };
 
@@ -66,25 +102,41 @@ const APELIDOS: Record<keyof MapaColunas, string[]> = {
 export function localizarCabecalho(linhas: unknown[][]): { indice: number; colunas: MapaColunas } | null {
   for (let i = 0; i < linhas.length; i++) {
     const celulas = (linhas[i] ?? []).map(normalizarTexto);
-    const achar = (chave: keyof MapaColunas) => celulas.findIndex((c) => APELIDOS[chave].includes(c));
+    const achar = (chave: ColunaDaPlanilha) => celulas.findIndex((c) => APELIDOS[chave].includes(c));
 
     const nome = achar("nome");
     const classificacao = achar("classificacao");
     if (nome < 0 || classificacao < 0) continue;
 
-    const opcional = (chave: keyof MapaColunas) => {
+    const opcional = (chave: ColunaDaPlanilha) => {
       const idx = achar(chave);
       return idx >= 0 ? idx : undefined;
     };
+    const cstPis = opcional("cstPis");
+    const cstCofins = opcional("cstCofins");
+
+    // O título da coluna de CST costuma trazer a ponta por extenso. Quando
+    // traz, é a palavra final sobre o assunto.
+    const tituloDosCsts = [cstPis, cstCofins]
+      .filter((idx): idx is number => idx !== undefined)
+      .map((idx) => celulas[idx])
+      .join(" ");
+    const sentidoDeclarado: Sentido | undefined = /\bentrada|\bcompra/.test(tituloDosCsts)
+      ? "entrada"
+      : /\bsaida|\bvenda/.test(tituloDosCsts)
+        ? "saida"
+        : undefined;
+
     return {
       indice: i,
       colunas: {
         nome,
         classificacao,
         natureza: opcional("natureza"),
-        cstPis: opcional("cstPis"),
-        cstCofins: opcional("cstCofins"),
+        cstPis,
+        cstCofins,
         cfop: opcional("cfop"),
+        sentidoDeclarado,
       },
     };
   }
@@ -143,16 +195,56 @@ export function normalizarCodigo(valor: unknown, tamanho: number): string {
 /* Cruzamento com o SPED                                                      */
 /* -------------------------------------------------------------------------- */
 
-/** Que benefício cada tabela do SPED representa e quais CSTs ela admite. */
-const BENEFICIOS: Record<string, { rotulo: string; csts: string[] }> = {
-  "4.3.13": { rotulo: "Alíquota zero", csts: ["06"] },
-  "4.3.10": { rotulo: "Monofásico", csts: ["02", "04"] },
-  "4.3.11": { rotulo: "Monofásico por unidade", csts: ["03", "04"] },
-  "4.3.12": { rotulo: "Substituição tributária", csts: ["05"] },
-  "4.3.14": { rotulo: "Isenção", csts: ["07"] },
-  "4.3.15": { rotulo: "Sem incidência", csts: ["08"] },
-  "4.3.16": { rotulo: "Suspensão", csts: ["09"] },
+/**
+ * Que benefício cada tabela do SPED representa e quais CSTs ela admite — nas
+ * DUAS pontas da operação.
+ *
+ * A tabela do SPED diz qual é o regime do NCM; ela não diz o código, porque o
+ * código depende de quem está escriturando. O mesmo leite de alíquota zero sai
+ * com CST 06 na nota de venda e entra com CST 73 na nota de compra. São as
+ * tabelas 4.3.3 (PIS) e 4.3.4 (COFINS): 01 a 49 descrevem a RECEITA, 50 a 99
+ * descrevem a AQUISIÇÃO.
+ *
+ * Auditar uma planilha de compras contra a coluna de saída reprova todas as
+ * linhas e manda trocar o código certo pelo da outra ponta — que é o pior erro
+ * possível, porque ele chega pronto, com cara de correção.
+ */
+interface Beneficio {
+  rotulo: string;
+  /** CST de RECEITA (tabela 4.3.3/4.3.4, faixa 01–49). */
+  csts: string[];
+  /** CST de AQUISIÇÃO (faixa 50–99) para o mesmo regime. */
+  cstsEntrada: string[];
+  /** Por que a aquisição recebe esse código, quando não é óbvio. */
+  notaEntrada?: string;
+}
+
+const BENEFICIOS: Record<string, Beneficio> = {
+  "4.3.13": { rotulo: "Alíquota zero", csts: ["06"], cstsEntrada: ["73"] },
+  "4.3.10": {
+    rotulo: "Monofásico",
+    csts: ["02", "04"],
+    cstsEntrada: ["70"],
+    notaEntrada:
+      "Na aquisição de produto monofásico para revenda não há crédito a apropriar (Lei 10.637/02, art. 3º, § 2º, II, e Lei 10.833/03, art. 3º, § 2º, II): o código é 70 — aquisição sem direito a crédito.",
+  },
+  "4.3.11": {
+    rotulo: "Monofásico por unidade",
+    csts: ["03", "04"],
+    cstsEntrada: ["70"],
+    notaEntrada:
+      "Na aquisição de produto monofásico para revenda não há crédito a apropriar: o código é 70 — aquisição sem direito a crédito.",
+  },
+  "4.3.12": { rotulo: "Substituição tributária", csts: ["05"], cstsEntrada: ["75"] },
+  "4.3.14": { rotulo: "Isenção", csts: ["07"], cstsEntrada: ["71"] },
+  "4.3.15": { rotulo: "Sem incidência", csts: ["08"], cstsEntrada: ["74"] },
+  "4.3.16": { rotulo: "Suspensão", csts: ["09"], cstsEntrada: ["72"] },
 };
+
+/** Os CSTs que a tabela admite para a ponta pedida. */
+function cstsDoBeneficio(beneficio: Beneficio, sentido: Sentido): string[] {
+  return sentido === "entrada" ? beneficio.cstsEntrada : beneficio.csts;
+}
 
 /**
  * A ressalva que acompanha todo "o NCM não consta nas tabelas". Uma parte
@@ -164,7 +256,128 @@ export const AVISO_REGRA_SEM_NCM =
   "autopeças, revendas). Confira a descrição do produto antes de tratar como tributado.";
 
 /** CSTs que só fazem sentido para NCM listado numa tabela de benefício. */
-const CSTS_DE_BENEFICIO = new Set(["04", "05", "06", "07", "08", "09"]);
+const CSTS_DE_BENEFICIO_SAIDA = new Set(["04", "05", "06", "07", "08", "09"]);
+/** Os equivalentes na aquisição — a faixa 70 a 75 das tabelas 4.3.3 e 4.3.4. */
+const CSTS_DE_BENEFICIO_ENTRADA = new Set(["70", "71", "72", "73", "74", "75"]);
+
+function declaraBeneficio(cst: string, sentido: Sentido): boolean {
+  if (cst === "") return false;
+  return sentido === "entrada"
+    ? CSTS_DE_BENEFICIO_ENTRADA.has(cst)
+    : CSTS_DE_BENEFICIO_SAIDA.has(cst);
+}
+
+/**
+ * Regime de apuração do declarante — só importa na ENTRADA.
+ *
+ * Um NCM sem benefício, adquirido por quem apura pelo lucro real, gera crédito
+ * e recebe CST 50. O mesmo NCM, adquirido por quem apura pelo cumulativo, não
+ * gera crédito nenhum e recebe 70. A planilha não diz qual é o caso, e a
+ * diferença entre os dois códigos é crédito tomado ou crédito perdido — por
+ * isso a ferramenta pergunta em vez de escolher.
+ */
+export type RegimeDeApuracao = "nao-cumulativo" | "cumulativo";
+
+/**
+ * O CST que representa "sem benefício" na ponta pedida.
+ *
+ * Na saída é sempre 01, tributação básica. Na entrada depende do regime: 50 é
+ * "com direito a crédito, vinculada exclusivamente a receita tributada no
+ * mercado interno" — o caso comum de quem apura pelo não cumulativo — e 70 é
+ * "aquisição sem direito a crédito".
+ */
+/** Como o CST de "sem benefício" é lido na tela e no relatório. */
+export const ROTULO_TRIBUTADO: Record<string, string> = {
+  "01": "tributado (CST 01)",
+  "50": "aquisição com direito a crédito (CST 50)",
+  "70": "aquisição sem direito a crédito (CST 70)",
+};
+
+export function cstTributadoDe(sentido: Sentido, regime: RegimeDeApuracao): string {
+  if (sentido === "saida") return "01";
+  return regime === "cumulativo" ? "70" : "50";
+}
+
+/**
+ * De que ponta a planilha fala, decidido na ordem em que as pistas merecem fé.
+ *
+ * 1. O cabeçalho, quando declara ("CST PIS Entrada"): é o ERP dizendo o que
+ *    exportou, e não a ferramenta adivinhando.
+ * 2. O CFOP, quando a planilha o traz: 1, 2 e 3 entram; 5, 6 e 7 saem.
+ * 3. A faixa dos CSTs informados: 50 a 99 só existem na aquisição.
+ * 4. Nada disso — vale saída, que é o comportamento de sempre.
+ *
+ * Devolve também o MOTIVO. Uma detecção silenciosa que erre troca todos os
+ * códigos da planilha pelos da outra ponta, e o usuário não teria como
+ * desconfiar; dizendo em que se baseou, ele corrige em um clique.
+ */
+export interface SentidoDetectado {
+  readonly sentido: Sentido;
+  readonly motivo: string;
+  /** Falso quando nada no arquivo decidiu e valeu o padrão. */
+  readonly confiante: boolean;
+}
+
+export function detectarSentido(
+  linhas: readonly LinhaPlanilha[],
+  sentidoDeclarado?: Sentido
+): SentidoDetectado {
+  if (sentidoDeclarado) {
+    return {
+      sentido: sentidoDeclarado,
+      motivo: `O cabeçalho da planilha declara a coluna de CST como de ${sentidoDeclarado === "entrada" ? "entrada" : "saída"}.`,
+      confiante: true,
+    };
+  }
+
+  let entradaPorCfop = 0;
+  let saidaPorCfop = 0;
+  let entradaPorCst = 0;
+  let saidaPorCst = 0;
+
+  for (const l of linhas) {
+    const cfop = normalizarCodigo(l.cfop, 4);
+    if (cfop.length === 4) {
+      if ("123".includes(cfop[0])) entradaPorCfop++;
+      else if ("567".includes(cfop[0])) saidaPorCfop++;
+    }
+
+    for (const bruto of [l.cstPis, l.cstCofins]) {
+      const cst = normalizarCodigo(bruto, 2);
+      if (cst === "") continue;
+      const numero = Number(cst);
+      if (numero >= 50) entradaPorCst++;
+      else if (numero >= 1) saidaPorCst++;
+    }
+  }
+
+  if (entradaPorCfop + saidaPorCfop > 0) {
+    const entrada = entradaPorCfop > saidaPorCfop;
+    const quantos = entrada ? entradaPorCfop : saidaPorCfop;
+    return {
+      sentido: entrada ? "entrada" : "saida",
+      motivo: `${quantos.toLocaleString("pt-BR")} ${quantos === 1 ? "linha tem CFOP" : "linhas têm CFOP"} de ${entrada ? "entrada (1, 2 ou 3)" : "saída (5, 6 ou 7)"}.`,
+      confiante: true,
+    };
+  }
+
+  if (entradaPorCst + saidaPorCst > 0) {
+    const entrada = entradaPorCst > saidaPorCst;
+    return {
+      sentido: entrada ? "entrada" : "saida",
+      motivo: entrada
+        ? "Os CSTs informados estão na faixa 50 a 99, que só existe na aquisição."
+        : "Os CSTs informados estão na faixa 01 a 49, que descreve a receita.",
+      confiante: true,
+    };
+  }
+
+  return {
+    sentido: "saida",
+    motivo: "Nada na planilha indicou a ponta da operação; vale saída, que é o padrão.",
+    confiante: false,
+  };
+}
 
 export type Situacao = "beneficio" | "possivel" | "tributado" | "invalido";
 export type Destaque = "nenhum" | "amarelo" | "vermelho";
@@ -406,6 +619,11 @@ export interface ContextoAuditoria {
   /** null quando a tabela oficial não pôde ser carregada. */
   ncm: Map<string, NcmOficial[]> | null;
   hoje: Date;
+  /**
+   * De que ponta a planilha fala. Decide contra qual coluna da tabela do SPED
+   * cada CST é medido — e é a diferença entre auditar e reprovar tudo.
+   */
+  sentido: Sentido;
 }
 
 function formatarIso(iso: string): string {
@@ -476,7 +694,8 @@ export function auditarLinha(l: LinhaPlanilha, ctx: ContextoAuditoria): LinhaAud
   // se ele não cabe nela e cabe em outro regime vigente do mesmo NCM, foi esse o
   // regime que o cliente aplicou — cobrar o outro seria acusar quem está certo.
   const aceitaOInformado = (r: RegraTabelaSped) => {
-    const csts = BENEFICIOS[r.tabela ?? ""]?.csts ?? [];
+    const doRegime = BENEFICIOS[r.tabela ?? ""];
+    const csts = doRegime ? cstsDoBeneficio(doRegime, ctx.sentido) : [];
     return (cstPis !== "" && csts.includes(cstPis)) || (cstCofins !== "" && csts.includes(cstCofins));
   };
   const principal = (!vigentes[0] || aceitaOInformado(vigentes[0])
@@ -492,7 +711,7 @@ export function auditarLinha(l: LinhaPlanilha, ctx: ContextoAuditoria): LinhaAud
         rotulo: BENEFICIOS[r.tabela ?? ""].rotulo,
         descricao: r.descricao,
         naturezas: Array.from(new Set(irmas.map((x) => x.natureza_receita ?? "").filter(Boolean))),
-        cstsAceitos: BENEFICIOS[r.tabela ?? ""].csts,
+        cstsAceitos: cstsDoBeneficio(BENEFICIOS[r.tabela ?? ""], ctx.sentido),
         ncmRegra: r.ncm,
         inicio: r.data_inicio,
         fim: r.data_fim,
@@ -544,12 +763,19 @@ export function auditarLinha(l: LinhaPlanilha, ctx: ContextoAuditoria): LinhaAud
       };
     }
 
-    const aceitos = listar(beneficio.csts);
+    const cstsDaPonta = cstsDoBeneficio(beneficio, ctx.sentido);
+    const aceitos = listar(cstsDaPonta);
     if (!cstPis) observacoes.push(`CST PIS não informado; o SPED indica ${aceitos}.`);
-    else if (!beneficio.csts.includes(cstPis)) observacoes.push(`CST PIS ${cstPis} informado; o SPED indica ${aceitos}.`);
+    else if (!cstsDaPonta.includes(cstPis)) observacoes.push(`CST PIS ${cstPis} informado; o SPED indica ${aceitos}.`);
     if (!cstCofins) observacoes.push(`CST COFINS não informado; o SPED indica ${aceitos}.`);
-    else if (!beneficio.csts.includes(cstCofins))
+    else if (!cstsDaPonta.includes(cstCofins))
       observacoes.push(`CST COFINS ${cstCofins} informado; o SPED indica ${aceitos}.`);
+
+    // Por que a aquisição recebe justamente aquele código — o monofásico é o
+    // caso em que ninguém acerta de cabeça.
+    if (ctx.sentido === "entrada" && beneficio.notaEntrada && observacoes.some((o) => /informad/.test(o))) {
+      observacoes.push(beneficio.notaEntrada);
+    }
 
     if (naturezas.length > 0) {
       const esperadas = listar(naturezas);
@@ -595,7 +821,7 @@ export function auditarLinha(l: LinhaPlanilha, ctx: ContextoAuditoria): LinhaAud
       rotulo: beneficioTexto?.rotulo ?? "Benefício",
       descricao: regraTexto.descricao,
       naturezas: [natureza],
-      cstsAceitos: beneficioTexto?.csts ?? [],
+      cstsAceitos: beneficioTexto ? cstsDoBeneficio(beneficioTexto, ctx.sentido) : [],
       ncmRegra: "",
       inicio: regraTexto.data_inicio,
       fim: regraTexto.data_fim,
@@ -603,10 +829,11 @@ export function auditarLinha(l: LinhaPlanilha, ctx: ContextoAuditoria): LinhaAud
     observacoes.push(
       `A regra da natureza ${natureza} (tabela ${regraTexto.tabela}) não traz NCM na tabela do SPED — a Receita descreve o produto por texto. Confira pela descrição.`
     );
-    if (cstPis && !beneficioTexto?.csts.includes(cstPis))
-      observacoes.push(`CST PIS ${cstPis} informado; a regra dessa natureza admite ${listar(beneficioTexto?.csts ?? [])}.`);
-    if (cstCofins && !beneficioTexto?.csts.includes(cstCofins))
-      observacoes.push(`CST COFINS ${cstCofins} informado; a regra dessa natureza admite ${listar(beneficioTexto?.csts ?? [])}.`);
+    const cstsDoTexto = beneficioTexto ? cstsDoBeneficio(beneficioTexto, ctx.sentido) : [];
+    if (cstPis && !cstsDoTexto.includes(cstPis))
+      observacoes.push(`CST PIS ${cstPis} informado; a regra dessa natureza admite ${listar(cstsDoTexto)}.`);
+    if (cstCofins && !cstsDoTexto.includes(cstCofins))
+      observacoes.push(`CST COFINS ${cstCofins} informado; a regra dessa natureza admite ${listar(cstsDoTexto)}.`);
     return {
       ...comum,
       situacao: "possivel",
@@ -623,10 +850,10 @@ export function auditarLinha(l: LinhaPlanilha, ctx: ContextoAuditoria): LinhaAud
   // livro, queijo mozarela, autopeças, revenda de combustíveis. Afirmar que o
   // produto é tributado levaria o contador a tributar uma alíquota zero.
   const declarouBeneficio =
-    (cstPis !== "" && CSTS_DE_BENEFICIO.has(cstPis)) || (cstCofins !== "" && CSTS_DE_BENEFICIO.has(cstCofins));
-  if (cstPis && CSTS_DE_BENEFICIO.has(cstPis))
+    declaraBeneficio(cstPis, ctx.sentido) || declaraBeneficio(cstCofins, ctx.sentido);
+  if (declaraBeneficio(cstPis, ctx.sentido))
     observacoes.push(`CST PIS ${cstPis} informado e o NCM não consta nas tabelas de benefício do SPED.`);
-  if (cstCofins && CSTS_DE_BENEFICIO.has(cstCofins))
+  if (declaraBeneficio(cstCofins, ctx.sentido))
     observacoes.push(`CST COFINS ${cstCofins} informado e o NCM não consta nas tabelas de benefício do SPED.`);
   if (declarouBeneficio) observacoes.push(AVISO_REGRA_SEM_NCM);
   if (natureza) observacoes.push(`Natureza da receita ${natureza} informada para NCM sem benefício no SPED.`);
@@ -705,7 +932,8 @@ export function valorColuna(l: LinhaAuditada, coluna: string): string {
 export function corrigirLinhas(
   linhas: LinhaAuditada[],
   cstBeneficio: string,
-  cstTributado = "01"
+  cstTributado = "01",
+  sentido: Sentido = "saida"
 ): LinhaAuditada[] {
   return linhas.map((l) => {
     // NCM inválido → não há o que corrigir; mantém tudo como está
@@ -777,14 +1005,42 @@ export function corrigirLinhas(
       };
     }
 
+    /*
+     * GUARDA DA ENTRADA: nunca gravar "com direito a crédito" por eliminação.
+     *
+     * O caminho de baixo trata como "sem benefício" tudo o que o critério não
+     * alcançou. Na saída isso vira CST 01 e o pior efeito é tributar a mais. Na
+     * entrada, com regime não cumulativo, vira CST 50 — que é crédito TOMADO.
+     * E o caso que cai aqui é justamente o perigoso: o NCM TEM regime vigente
+     * no SPED, o cliente informou um código que não é o dele, e o critério do
+     * dia é outro. A gasolina monofásica comprada para revenda é o exemplo: a
+     * lei veda o crédito (Lei 10.637/02, art. 3º, § 2º, II), e gravar 50 ali
+     * põe na planilha que volta ao ERP um crédito que a fiscalização glosa.
+     *
+     * Por isso a linha fica como veio, com o problema à vista. Quem decide se
+     * aquele NCM é mesmo o produto é quem conhece a operação — a ferramenta só
+     * se recusa a inventar o crédito.
+     */
+    if (sentido === "entrada" && cstTributado === "50" && aplicaveis.length > 0) {
+      const regime = aplicaveis[0];
+      return {
+        ...l,
+        observacoes: [
+          ...l.observacoes,
+          `Fora do critério CST ${cstBeneficio}, e o NCM tem regime vigente no SPED ` +
+            `(${regime.rotulo}, tabela ${regime.tabela}). A linha foi mantida: gravar CST 50 aqui ` +
+            `daria crédito sobre uma aquisição que o regime do produto pode vedar.`,
+        ],
+      };
+    }
+
     // Nenhum regime vigente aceita o CST do critério nem o informado →
     // requalificado intencionalmente como tributado. Como a decisão é explícita
     // do usuário, não é divergência: sai o realce amarelo, saem os alertas e sai
     // também a sugestão das outras tabelas, que o critério mandou ignorar.
     // CST tributado (01) não tem natureza, então ela é removida ("").
     const declarouBeneficio =
-      (l.cstPis !== "" && CSTS_DE_BENEFICIO.has(l.cstPis)) ||
-      (l.cstCofins !== "" && CSTS_DE_BENEFICIO.has(l.cstCofins));
+      declaraBeneficio(l.cstPis, sentido) || declaraBeneficio(l.cstCofins, sentido);
     return {
       ...l,
       cstCorrigido: cstTributado,
@@ -794,7 +1050,7 @@ export function corrigirLinhas(
       regra: undefined,
       destaque: "nenhum",
       observacoes: [
-        `Tratado como ${cstTributado === "01" ? "tributado (CST 01)" : `CST ${cstTributado}`} conforme o critério de correção.`,
+        `Tratado como ${ROTULO_TRIBUTADO[cstTributado] ?? `CST ${cstTributado}`} conforme o critério de correção.`,
         // O cliente declarava um benefício e o NCM não está em tabela nenhuma:
         // pode ser uma das regras que o SPED descreve só por texto.
         ...(declarouBeneficio ? [AVISO_REGRA_SEM_NCM] : []),

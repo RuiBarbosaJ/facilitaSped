@@ -115,14 +115,14 @@ function CelulaCst({
 
       {/* Badge de correção aplicada */}
       {mudou && (
-        <span className="mt-0.5 inline-flex w-fit items-center gap-1 rounded-full bg-success-soft px-1.5 py-0.5 text-[10px] font-medium text-success">
+        <span className="mt-0.5 inline-flex w-fit items-center gap-1 rounded bg-success-soft px-1.5 py-0.5 text-[10px] font-medium text-success">
           ✓ corrigido
         </span>
       )}
 
       {/* NCM inválido não corrigido */}
       {criterioAtivo && cstCorrigido === "" && (
-        <span className="mt-0.5 inline-flex w-fit items-center gap-1 rounded-full bg-danger-soft px-1.5 py-0.5 text-[10px] font-medium text-danger">
+        <span className="mt-0.5 inline-flex w-fit items-center gap-1 rounded bg-danger-soft px-1.5 py-0.5 text-[10px] font-medium text-danger">
           NCM inválido
         </span>
       )}
@@ -194,7 +194,7 @@ function CelulaNatureza({
 
       {status && (
         <span
-          className={`mt-0.5 inline-flex w-fit items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${ESTILO_STATUS_NATUREZA[status]}`}
+          className={`mt-0.5 inline-flex w-fit items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${ESTILO_STATUS_NATUREZA[status]}`}
         >
           {ROTULO_STATUS_NATUREZA[status]}
         </span>
@@ -336,7 +336,7 @@ export function TabelaAuditoria({
 
                   <td className="px-3 py-2.5 whitespace-nowrap">
                     <span
-                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${ESTILO_SELO[l.situacao]}`}
+                      className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${ESTILO_SELO[l.situacao]}`}
                     >
                       {l.rotulo}
                     </span>
@@ -348,14 +348,14 @@ export function TabelaAuditoria({
                     {criterioCorrecaoAtivo &&
                       l.cstCorrigido === undefined &&
                       l.situacao !== "invalido" && (
-                        <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-badge-ncm-bg px-1.5 py-0.5 text-[10px] font-medium text-badge-ncm-text">
+                        <div className="mt-1 inline-flex items-center gap-1 rounded bg-badge-ncm-bg px-1.5 py-0.5 text-[10px] font-medium text-badge-ncm-text">
                           Fora do critério — mantida
                         </div>
                       )}
                     {criterioCorrecaoAtivo &&
                       l.cstCorrigido !== undefined &&
                       l.situacao !== "invalido" && (
-                        <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-success-soft px-1.5 py-0.5 text-[10px] font-medium text-success">
+                        <div className="mt-1 inline-flex items-center gap-1 rounded bg-success-soft px-1.5 py-0.5 text-[10px] font-medium text-success">
                           <span>✓</span>
                           <span>Coerente com o critério</span>
                         </div>
@@ -368,7 +368,7 @@ export function TabelaAuditoria({
                         exibir "CST 03/04" ao lado de um CST corrigido para 01 (ou 06)
                         só faz o contador duvidar da correção que ele mesmo pediu. */}
                     {criterioCorrecaoAtivo && l.cstCorrigido === "01" ? (
-                      <span className="inline-flex w-fit items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-[10px] font-medium text-success">
+                      <span className="inline-flex w-fit items-center gap-1 rounded bg-success-soft px-2 py-0.5 text-[10px] font-medium text-success">
                         Tratado como tributado (CST 01)
                       </span>
                     ) : l.regra ? (

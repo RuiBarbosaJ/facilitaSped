@@ -6,6 +6,8 @@ import {
   ERRO_LAYOUT,
   auditarLinha,
   corrigirLinhas,
+  cstTributadoDe,
+  detectarSentido,
   extrairLinhas,
   indexarBase,
   indexarNcm,
@@ -13,6 +15,9 @@ import {
   localizarCabecalho,
   resumir,
   type LinhaAuditada,
+  type RegimeDeApuracao,
+  type Sentido,
+  type SentidoDetectado,
 } from "@/pis-cofins/auditoria";
 import { TAMANHO_MAXIMO, descreverErroDeLeitura, lerAbas, tipoDeArquivo } from "@/pis-cofins/planilha";
 import { SEM_CORRECAO } from "@/pis-cofins/ui/CriterioCorrecao";
@@ -30,6 +35,8 @@ export interface ResultadoAuditoria {
   indiceCstPis?: number;
   indiceCstCofins?: number;
   indiceNatureza?: number;
+  /** A ponta da operação com que esta planilha foi lida, e por quê. */
+  deteccao: SentidoDetectado;
 }
 
 /**
@@ -48,6 +55,22 @@ export function useAuditoria(registros: RegraTabelaSped[], ncm: EstadoTabelaNcm,
   const [consulta, setConsulta] = useEstadoMemoria("auditoria_consulta", "");
   const [cfopFiltro, setCfopFiltro] = useEstadoMemoria("auditoria_cfopFiltro", "todos");
   const [criterioCorrecao, setCriterioCorrecao] = useEstadoMemoria("auditoria_criterio", SEM_CORRECAO);
+  /**
+   * A ponta escolhida À MÃO, quando o usuário discorda da detecção.
+   *
+   * Fica separada do resultado de propósito: trocar a ponta reaudita a mesma
+   * planilha em memória, sem pedir o arquivo de novo, e voltar para `null`
+   * devolve a decisão à detecção — que é o que ele espera ao abrir outra
+   * planilha.
+   */
+  const [sentidoManual, setSentidoManual] = useEstadoMemoria<Sentido | null>(
+    "auditoria_sentido",
+    null
+  );
+  const [regime, setRegime] = useEstadoMemoria<RegimeDeApuracao>(
+    "auditoria_regime",
+    "nao-cumulativo"
+  );
 
   const indiceBase = useMemo(() => indexarBase(registros), [registros]);
   const indiceSemNcm = useMemo(() => indexarRegrasSemNcm(registros), [registros]);
@@ -64,6 +87,9 @@ export function useAuditoria(registros: RegraTabelaSped[], ncm: EstadoTabelaNcm,
       setConsulta("");
       setCfopFiltro("todos");
       setCriterioCorrecao(SEM_CORRECAO);
+      // Planilha nova, detecção nova: a ponta escolhida à mão valia para a
+      // anterior, e carregá-la adiante auditaria compras como vendas em silêncio.
+      setSentidoManual(null);
 
       if (arquivo.size === 0) {
         setErro("O arquivo está vazio (0 bytes).");
@@ -94,8 +120,22 @@ export function useAuditoria(registros: RegraTabelaSped[], ncm: EstadoTabelaNcm,
           return;
         }
 
-        const contexto = { base: indiceBase, semNcm: indiceSemNcm, ncm: indiceNcm, hoje: new Date() };
-        const linhas = extrairLinhas(encontrada.aba.linhas, encontrada.cabecalho).map((l) => auditarLinha(l, contexto));
+        /*
+         * A ponta é decidida ANTES de auditar, sobre as linhas já extraídas: é
+         * ela que escolhe contra qual coluna da tabela do SPED cada CST é
+         * medido. Auditar primeiro e corrigir depois significaria reprovar a
+         * planilha inteira e desfazer.
+         */
+        const brutas = extrairLinhas(encontrada.aba.linhas, encontrada.cabecalho);
+        const deteccao = detectarSentido(brutas, encontrada.cabecalho.colunas.sentidoDeclarado);
+        const contexto = {
+          base: indiceBase,
+          semNcm: indiceSemNcm,
+          ncm: indiceNcm,
+          hoje: new Date(),
+          sentido: deteccao.sentido,
+        };
+        const linhas = brutas.map((l) => auditarLinha(l, contexto));
         
         if (linhas.length === 0) {
           setErro("A planilha tem o cabeçalho certo, mas nenhuma linha de produto abaixo dele.");
@@ -116,6 +156,7 @@ export function useAuditoria(registros: RegraTabelaSped[], ncm: EstadoTabelaNcm,
           indiceCstPis,
           indiceCstCofins,
           indiceNatureza,
+          deteccao,
         });
       } catch (excecao) {
         setErro(descreverErroDeLeitura(excecao));
@@ -123,20 +164,77 @@ export function useAuditoria(registros: RegraTabelaSped[], ncm: EstadoTabelaNcm,
         setProcessando(false);
       }
     },
-    [indiceBase, indiceSemNcm, indiceNcm, setErro, setResultado, setFiltro, setVisiveis, setConsulta, setCfopFiltro, setCriterioCorrecao]
+    [indiceBase, indiceSemNcm, indiceNcm, setErro, setResultado, setFiltro, setVisiveis, setConsulta, setCfopFiltro, setCriterioCorrecao, setSentidoManual]
+  );
+
+  /** A ponta que vale agora: a escolha do usuário vence a detecção. */
+  const sentido: Sentido = sentidoManual ?? resultado?.deteccao.sentido ?? "saida";
+
+  /**
+   * Trocar a ponta REAUDITA a planilha que já está em memória.
+   *
+   * Sem isso, a troca mudaria só o critério de correção e a lista continuaria
+   * mostrando "o SPED indica 06" ao lado de um CST 73 correto — a tela diria
+   * uma coisa e a correção faria outra.
+   */
+  const linhasDaPonta = useMemo(() => {
+    if (!resultado) return [];
+    if (sentido === resultado.deteccao.sentido) return resultado.linhas;
+    const contexto = {
+      base: indiceBase,
+      semNcm: indiceSemNcm,
+      ncm: indiceNcm,
+      hoje: new Date(),
+      sentido,
+    };
+    return resultado.linhas.map((l) =>
+      auditarLinha(
+        {
+          linha: l.linha,
+          original: l.original,
+          nome: l.nome,
+          classificacao: l.classificacaoOriginal,
+          natureza: l.natureza,
+          cstPis: l.cstPis,
+          cstCofins: l.cstCofins,
+          cfop: l.cfop,
+        },
+        contexto
+      )
+    );
+  }, [resultado, sentido, indiceBase, indiceSemNcm, indiceNcm]);
+
+  /** O CST que o critério grava nas linhas sem benefício, nesta ponta. */
+  const cstTributado = useMemo(() => cstTributadoDe(sentido, regime), [sentido, regime]);
+
+  /**
+   * Trocar a ponta ZERA o critério de correção.
+   *
+   * Os códigos não se traduzem entre as pontas: "CST 06" não existe na
+   * aquisição. Manter o critério ligado deixaria a tela oferecendo um alvo que
+   * nenhuma linha pode receber — e o resumo diria "0 linhas corrigidas" sem
+   * explicar por quê. Zerar obriga a escolher de novo, que é exatamente a
+   * decisão que mudou.
+   */
+  const escolherSentido = useCallback(
+    (novo: Sentido | null) => {
+      setSentidoManual(novo);
+      setCriterioCorrecao(SEM_CORRECAO);
+    },
+    [setSentidoManual, setCriterioCorrecao]
   );
 
   const linhasComCorrecao = useMemo(() => {
     if (!resultado) return [];
-    if (criterioCorrecao === SEM_CORRECAO) return resultado.linhas;
-    return corrigirLinhas(resultado.linhas, criterioCorrecao, "01");
-  }, [resultado, criterioCorrecao]);
+    if (criterioCorrecao === SEM_CORRECAO) return linhasDaPonta;
+    return corrigirLinhas(linhasDaPonta, criterioCorrecao, cstTributado, sentido);
+  }, [resultado, linhasDaPonta, criterioCorrecao, cstTributado, sentido]);
 
   const correcaoAtiva = criterioCorrecao !== SEM_CORRECAO;
 
   const linhasQueDivergiam = useMemo(
-    () => new Set((resultado?.linhas ?? []).filter((l) => l.destaque === "amarelo").map((l) => l.linha)),
-    [resultado]
+    () => new Set(linhasDaPonta.filter((l) => l.destaque === "amarelo").map((l) => l.linha)),
+    [linhasDaPonta]
   );
 
   const resumo = useMemo(() => {
@@ -191,11 +289,11 @@ export function useAuditoria(registros: RegraTabelaSped[], ncm: EstadoTabelaNcm,
   const opcoesCfop = useMemo(() => {
     if (!resultado) return [];
     const cfops = new Set<string>();
-    resultado.linhas.forEach((l) => {
+    linhasDaPonta.forEach((l) => {
       if (l.cfop) cfops.add(l.cfop);
     });
     return Array.from(cfops).sort();
-  }, [resultado]);
+  }, [resultado, linhasDaPonta]);
 
   const hookColunas = useFiltrosColuna(
     filtradasEBusca,
@@ -210,12 +308,14 @@ export function useAuditoria(registros: RegraTabelaSped[], ncm: EstadoTabelaNcm,
   const contagensCorrecao = useMemo(() => {
     if (criterioCorrecao === SEM_CORRECAO) return { totalBeneficio: 0, totalTributado: 0, totalMantidas: 0 };
     const beneficio = linhasComCorrecao.filter((l) => l.cstCorrigido === criterioCorrecao).length;
-    const tributado = linhasComCorrecao.filter((l) => l.cstCorrigido === "01").length;
+    // O CST de "sem benefício" não é fixo: é 01 na saída e 50 ou 70 na entrada,
+    // conforme o regime. Contar "01" aqui zerava o número na aba de compras.
+    const tributado = linhasComCorrecao.filter((l) => l.cstCorrigido === cstTributado).length;
     const mantidas = linhasComCorrecao.filter(
       (l) => l.cstCorrigido === undefined && l.situacao !== "invalido"
     ).length;
     return { totalBeneficio: beneficio, totalTributado: tributado, totalMantidas: mantidas };
-  }, [criterioCorrecao, linhasComCorrecao]);
+  }, [criterioCorrecao, linhasComCorrecao, cstTributado]);
 
   const aoFiltrar = useCallback(
     (novo: FiltroAuditoria) => {
@@ -259,7 +359,9 @@ export function useAuditoria(registros: RegraTabelaSped[], ncm: EstadoTabelaNcm,
     try {
       const colunasCliente = resultado.colunasOriginais;
       const { baixarArquivo, gerarXlsx } = await import('@/pis-cofins/planilha');
-      const linhasParaExport = correcaoAtiva ? corrigirLinhas(resultado.linhas, criterioCorrecao, "01") : resultado.linhas;
+      const linhasParaExport = correcaoAtiva
+        ? corrigirLinhas(linhasDaPonta, criterioCorrecao, cstTributado, sentido)
+        : linhasDaPonta;
 
       const COLUNAS_AUDITORIA_EXPORT = [
         "Linha",
@@ -320,9 +422,38 @@ export function useAuditoria(registros: RegraTabelaSped[], ncm: EstadoTabelaNcm,
   }
 
   return {
-    estado: { processando, exportando, erro, resultado, filtro, visiveis, consulta, cfopFiltro, criterioCorrecao, pronto },
+    estado: {
+      processando,
+      exportando,
+      erro,
+      resultado,
+      filtro,
+      visiveis,
+      consulta,
+      cfopFiltro,
+      criterioCorrecao,
+      pronto,
+      /** A ponta que vale agora — detectada ou escolhida à mão. */
+      sentido,
+      /** Verdadeiro quando a ponta veio de uma escolha do usuário. */
+      sentidoManual: sentidoManual !== null,
+      regime,
+      /** O CST que o critério grava nas linhas sem benefício, nesta ponta. */
+      cstTributado,
+    },
     dados: { resumo, linhasComCorrecao, exibidas, restantes, opcoesCfop, correcaoAtiva, linhasQueDivergiam, totalExibiveis: hookColunas.itensFiltrados.length, ...contagensCorrecao },
-    acoes: { auditar, aoFiltrar, aoBuscar, reiniciar, exportar, setCriterioCorrecao, setCfopFiltro, setVisiveis },
+    acoes: {
+      auditar,
+      aoFiltrar,
+      aoBuscar,
+      reiniciar,
+      exportar,
+      setCriterioCorrecao,
+      setCfopFiltro,
+      setVisiveis,
+      setSentido: escolherSentido,
+      setRegime,
+    },
     colunas: { ...hookColunas, filtrosAtivos }
   };
 }

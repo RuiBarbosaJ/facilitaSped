@@ -11,6 +11,7 @@ import { ZonaUpload } from "@/componentes/ZonaUpload";
 import { ResumoAuditoria } from "@/pis-cofins/ui/ResumoAuditoria";
 import { TabelaAuditoria } from "@/pis-cofins/ui/TabelaAuditoria";
 import { CriterioCorrecao, SEM_CORRECAO } from "@/pis-cofins/ui/CriterioCorrecao";
+import { SeletorSentido } from "@/pis-cofins/ui/SeletorSentido";
 import { useTabelasReceita } from "@/ganchos/useTabelasReceita";
 import { useTabelaNcm } from "@/pis-cofins/ui/useTabelaNcm";
 import { useSincronizacao } from "@/ganchos/useSincronizacao";
@@ -139,8 +140,19 @@ export default function Auditoria() {
 
               <ResumoAuditoria resumo={dados.resumo} filtro={estado.filtro} onFiltrar={acoes.aoFiltrar} correcaoAtiva={dados.correcaoAtiva} />
 
+              <SeletorSentido
+                sentido={estado.sentido}
+                deteccao={estado.resultado.deteccao}
+                manual={estado.sentidoManual}
+                onSentido={acoes.setSentido}
+                regime={estado.regime}
+                onRegime={acoes.setRegime}
+              />
+
               <CriterioCorrecao
                 valor={estado.criterioCorrecao}
+                sentido={estado.sentido}
+                cstTributado={estado.cstTributado}
                 onChange={(v) => {
                   acoes.setCriterioCorrecao(v);
                   colunas.definir("natureza", null);
@@ -204,7 +216,7 @@ export default function Auditoria() {
                 {estado.filtro !== "todos" || estado.consulta || estado.cfopFiltro !== "todos" || colunas.filtrosAtivos.length > 0 ? " neste filtro" : ""}
                 {dados.restantes > 0 ? ` — exibindo as primeiras ${dados.exibidas.length}` : ""}
                 {estado.criterioCorrecao !== SEM_CORRECAO && (
-                  <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">
+                  <span className="ml-2 inline-flex items-center gap-1 rounded bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">
                     Correção CST {estado.criterioCorrecao} ativa
                   </span>
                 )}
