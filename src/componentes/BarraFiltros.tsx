@@ -50,7 +50,7 @@ export function BarraFiltros({
       {filtros.map((filtro) => (
         <span
           key={filtro.id}
-          className="inline-flex max-w-full items-center gap-1 rounded-full bg-accent-soft py-0.5 pl-2.5 pr-1 text-xs text-accent"
+          className="inline-flex max-w-full items-center gap-1 rounded bg-accent-soft py-0.5 pl-2.5 pr-1 text-xs text-accent"
         >
           <span className="truncate" title={`${filtro.rotulo}: ${filtro.valores.join(", ")}`}>
             <span className="font-semibold">{filtro.rotulo}:</span> {resumir(filtro.valores)}
@@ -59,7 +59,7 @@ export function BarraFiltros({
             type="button"
             onClick={filtro.onRemover}
             aria-label={`Remover filtro ${filtro.rotulo}`}
-            className="shrink-0 rounded-full p-0.5 hover:bg-accent hover:text-accent-contrast focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="shrink-0 rounded-sm p-0.5 hover:bg-accent hover:text-accent-contrast focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <X size={12} aria-hidden />
           </button>

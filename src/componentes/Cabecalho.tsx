@@ -50,7 +50,7 @@ export function Cabecalho({ children }: CabecalhoProps) {
                 alt="Logo SPED" 
                 width={48} 
                 height={48}
-                className="w-full h-full object-contain drop-shadow-md"
+                className="w-full h-full object-contain"
               />
             </Link>
             <div className="min-w-0">

@@ -105,21 +105,21 @@ export function ZonaUpload({
         onDragLeave={aoSairArrastando}
         onDrop={aoSoltar}
         className={`group relative flex min-h-[320px] flex-col items-center justify-center gap-5 rounded-2xl border-2 border-dashed p-8 text-center transition-all duration-300 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 overflow-hidden ${
+          /*
+             Sem halo colorido nem salto de escala. Uma sombra tingida com a cor
+             de destaque é luz falsa — sombra é ausência de luz e não tem cor de
+             marca. Quem responde ao arrasto é a borda e o fundo, que já mudam.
+          */
           arrastando
-            ? "border-accent bg-accent-soft scale-[1.02] shadow-2xl shadow-accent/10"
-            : "border-border-strong bg-surface-card hover:border-accent hover:bg-accent-soft/30 hover:shadow-lg"
+            ? "border-accent bg-accent-soft shadow-(--shadow-card)"
+            : "border-border-strong bg-surface-card hover:border-accent hover:bg-accent-soft/30"
         } ${bloqueada ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
       >
-        {/* Efeito de pulso animado quando o arquivo está sobre a área */}
-        {arrastando && (
-          <div className="absolute inset-0 bg-linear-to-b from-transparent to-accent/5 animate-pulse rounded-2xl pointer-events-none"></div>
-        )}
-
         <span
-          className={`relative z-10 grid place-items-center size-20 rounded-full transition-all duration-500 ease-out ${
-            arrastando 
-              ? "bg-accent text-accent-contrast scale-125 shadow-lg shadow-accent/40" 
-              : "bg-accent-soft text-accent group-hover:bg-accent group-hover:text-accent-contrast group-hover:scale-110 group-hover:shadow-md"
+          className={`relative z-10 grid place-items-center size-20 rounded-md transition-all duration-500 ease-out ${
+            arrastando
+              ? "bg-accent text-accent-contrast"
+              : "bg-accent-soft text-accent group-hover:bg-accent group-hover:text-accent-contrast"
           }`}
         >
           {processando ? (

@@ -26,7 +26,7 @@ function destacarTexto(texto: string) {
       // 1. Códigos NCM/TIPI ou Siglas (Renderiza como Badge de Código)
       if (/^\d{2,4}\.\d{1,2}(?:\.\d{2})?$/.test(parte) || p === "ncm" || p === "tipi" || p === "cst" || p === "pis/pasep" || p === "cofins" || /^cap[íi]tulos? \d{1,2}$/.test(p)) {
         return (
-          <span key={i} className="font-mono bg-badge-ncm-bg text-badge-ncm-text px-1 py-0.5 mx-0.5 rounded text-[0.9em] font-medium shadow-sm border border-border-subtle/50">
+          <span key={i} className="font-mono bg-badge-ncm-bg text-badge-ncm-text px-1 py-0.5 mx-0.5 rounded text-[0.9em] font-medium shadow-(--shadow-card) border border-border-subtle/50">
             {parte}
           </span>
         );

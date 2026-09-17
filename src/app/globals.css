@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
 /*
  * Tema claro/escuro por atributo, não por prefers-color-scheme.
@@ -64,6 +66,46 @@
   /* sombras discretas, coerentes com o tema claro */
   --shadow-card: 0 1px 2px rgb(16 21 28 / 0.04), 0 1px 3px rgb(16 21 28 / 0.06);
   --shadow-header: 0 1px 3px rgb(16 21 28 / 0.06);
+  --background: var(--surface-page);
+  --foreground: var(--text-primary);
+  --card: var(--surface-card);
+  --card-foreground: var(--text-primary);
+  --popover: var(--surface-card);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--accent);
+  --primary-foreground: var(--accent-contrast);
+  --secondary: var(--surface-head);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--surface-head);
+  --muted-foreground: var(--text-secondary);
+  --accent-foreground: var(--accent-contrast);
+  --destructive: var(--danger);
+  --border: var(--border-subtle);
+  --input: var(--border-strong);
+  --ring: var(--accent);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  /*
+   * O raio da casa: 6px.
+   *
+   * A escala é CONTIDA e tem TETO — nada no projeto passa de 8px. Raio grande e
+   * igual em tudo (cartão, botão, selo, painel) apaga a hierarquia: o olho
+   * deixa de distinguir o que é superfície do que é controle, e a tela toda
+   * vira uma coleção de pastilhas. Aqui o arredondamento é só o suficiente para
+   * a borda não cortar — o peso visual vem da borda, da sombra e do espaço.
+   */
+  --radius: 0.375rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
 }
 
 [data-theme="dark"] {
@@ -136,6 +178,52 @@
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  /*
+   * Valores fixos, e não múltiplos do raio base.
+   *
+   * A escala multiplicativa anterior crescia sem limite: `rounded-3xl` dava
+   * 22px e `rounded-4xl`, 26px. Cada degrau agora é declarado, e os três do
+   * topo colapsam no mesmo teto de 8px — quem escrever `rounded-2xl` numa tela
+   * nova recebe o raio da casa, não uma exceção.
+   */
+  --radius-sm: 0.125rem; /* 2px — selos, caixas de marcação */
+  --radius-md: 0.25rem;  /* 4px — controles: botão, campo, seletor */
+  --radius-lg: 0.375rem; /* 6px — cartões e blocos de conteúdo */
+  --radius-xl: 0.5rem;   /* 8px — painéis e contêineres de tabela */
+  --radius-2xl: 0.5rem;  /* o teto: daqui não passa */
+  --radius-3xl: 0.5rem;
+  --radius-4xl: 0.5rem;
 }
 
 body {
@@ -148,7 +236,9 @@ body {
 /* A troca de tema não deve animar cada elemento da tabela — só as superfícies. */
 @media (prefers-reduced-motion: no-preference) {
   body {
-    transition: background-color 150ms ease, color 150ms ease;
+    transition:
+      background-color 150ms ease,
+      color 150ms ease;
   }
 }
 
@@ -193,5 +283,55 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+/*
+ ---break---
+ */
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+/*
+ ---break---
+ */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
   }
 }

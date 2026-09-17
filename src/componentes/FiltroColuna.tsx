@@ -1,9 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Filter, X } from "lucide-react";
+import { GooeyInput } from "@/components/ui/gooey-input";
 
-import { alternarValor, estaMarcado, somenteValor, SEM_VALOR } from "@/comum/filtrosColuna";
+import {
+  alternarValor,
+  estaMarcado,
+  somenteValor,
+  SEM_VALOR,
+} from "@/comum/filtrosColuna";
 
 interface FiltroColunaProps {
   rotulo: string;
@@ -66,7 +79,9 @@ export function FiltroColuna({
 }: FiltroColunaProps) {
   const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState("");
-  const [posicao, setPosicao] = useState<{ top: number; left: number } | null>(null);
+  const [posicao, setPosicao] = useState<{ top: number; left: number } | null>(
+    null,
+  );
   const botaoRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -82,14 +97,16 @@ export function FiltroColuna({
       const significado = descreverValor?.(valor);
       return significado ? `${rotulo} — ${significado}` : rotulo;
     },
-    [descreverValor]
+    [descreverValor],
   );
 
   const visiveis = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     if (!termo) return opcoes;
     // A busca casa também com o significado: procurar "entrada" acha o "0".
-    return opcoes.filter((valor) => textoDaOpcao(valor).toLowerCase().includes(termo));
+    return opcoes.filter((valor) =>
+      textoDaOpcao(valor).toLowerCase().includes(termo),
+    );
   }, [opcoes, busca, textoDaOpcao]);
 
   // A busca é do momento em que o menu estava aberto; reabrir começa limpo.
@@ -106,7 +123,10 @@ export function FiltroColuna({
       if (!alvo) return;
       const bruto = alinharDireita ? alvo.right - LARGURA : alvo.left;
       const limite = window.innerWidth - LARGURA - MARGEM;
-      setPosicao({ top: alvo.bottom + 4, left: Math.max(MARGEM, Math.min(bruto, limite)) });
+      setPosicao({
+        top: alvo.bottom + 4,
+        left: Math.max(MARGEM, Math.min(bruto, limite)),
+      });
     }
 
     reposicionar();
@@ -124,7 +144,8 @@ export function FiltroColuna({
 
     function aoClicarFora(evento: MouseEvent) {
       const alvo = evento.target as Node;
-      if (menuRef.current?.contains(alvo) || botaoRef.current?.contains(alvo)) return;
+      if (menuRef.current?.contains(alvo) || botaoRef.current?.contains(alvo))
+        return;
       fechar();
     }
     function aoTeclar(evento: KeyboardEvent) {
@@ -200,10 +221,12 @@ export function FiltroColuna({
           role="group"
           aria-label={`Filtro da coluna ${rotulo}`}
           style={{ top: posicao.top, left: posicao.left, width: LARGURA }}
-          className="fixed z-50 rounded-xl border border-border-strong bg-surface-card p-3 text-left font-sans font-normal normal-case tracking-normal shadow-lg"
+          className="fixed z-50 rounded-xl border border-border-strong bg-surface-card p-3 text-left font-sans font-normal normal-case tracking-normal shadow-(--shadow-card)"
         >
           <div className="mb-2 flex items-center justify-between gap-2">
-            <span className="truncate text-xs font-semibold text-text-primary">{rotulo}</span>
+            <span className="truncate text-xs font-semibold text-text-primary">
+              {rotulo}
+            </span>
             {!semFiltro && (
               <button
                 type="button"
@@ -217,24 +240,42 @@ export function FiltroColuna({
           </div>
 
           {descricao && (
-            <p className="mb-2 text-[11px] leading-snug text-text-tertiary">{descricao}</p>
+            <p className="mb-2 text-[11px] leading-snug text-text-tertiary">
+              {descricao}
+            </p>
           )}
 
-          <input
-            type="text"
+          <GooeyInput
             value={busca}
-            onChange={(evento) => setBusca(evento.target.value)}
+            onValueChange={setBusca}
+            collapsedWidth={44}
+            expandedWidth={248}
+            className="mb-2 w-full justify-start"
+            classNames={{
+              filterWrap: "w-full",
+              buttonRow: "w-full",
+              trigger:
+                "justify-start bg-surface-page text-text-primary ring-1 ring-border-strong",
+              input: "text-text-primary placeholder:text-text-tertiary",
+              bubbleSurface:
+                "bg-surface-page text-text-primary ring-1 ring-border-strong",
+            }}
             placeholder={`Buscar em ${opcoes.length} valores...`}
             aria-label={`Buscar valores da coluna ${rotulo}`}
-            className="mb-2 w-full rounded border border-border-strong bg-surface-page px-2 py-1.5 text-xs text-text-primary focus:border-accent focus:outline-none"
           />
 
           <div className="flex max-h-56 flex-col gap-0.5 overflow-y-auto text-xs">
             <label
               className={`flex items-center gap-2 rounded px-1 py-1 ${
-                semFiltro ? "opacity-60" : "cursor-pointer hover:bg-surface-page"
+                semFiltro
+                  ? "opacity-60"
+                  : "cursor-pointer hover:bg-surface-page"
               }`}
-              title={semFiltro ? "Todos os valores já estão sendo mostrados" : "Voltar a mostrar todos"}
+              title={
+                semFiltro
+                  ? "Todos os valores já estão sendo mostrados"
+                  : "Voltar a mostrar todos"
+              }
             >
               <input
                 type="checkbox"
@@ -252,7 +293,9 @@ export function FiltroColuna({
             </label>
 
             {visiveis.length === 0 ? (
-              <span className="p-1 text-text-tertiary">Nenhum valor encontrado.</span>
+              <span className="p-1 text-text-tertiary">
+                Nenhum valor encontrado.
+              </span>
             ) : (
               visiveis.map((valor) => (
                 <div
@@ -273,7 +316,10 @@ export function FiltroColuna({
                     >
                       {rotularValor(valor)}
                       {descreverValor?.(valor) && (
-                        <span className="text-text-tertiary"> — {descreverValor(valor)}</span>
+                        <span className="text-text-tertiary">
+                          {" "}
+                          — {descreverValor(valor)}
+                        </span>
                       )}
                     </span>
                   </label>
@@ -303,21 +349,26 @@ export function FiltroColuna({
             ) : (
               <>
                 Mostrando {selecao.length} de {opcoes.length} —{" "}
-                {excluidos === 1 ? "1 valor escondido" : `${excluidos} valores escondidos`}.
+                {excluidos === 1
+                  ? "1 valor escondido"
+                  : `${excluidos} valores escondidos`}
+                .
               </>
             )}
-            {busca.trim() && visiveis.length > 0 && visiveis.length < opcoes.length && (
-              <>
-                {" "}
-                <button
-                  type="button"
-                  onClick={somenteVisiveis}
-                  className="font-medium text-accent hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                >
-                  Mostrar só os {visiveis.length} encontrados
-                </button>
-              </>
-            )}
+            {busca.trim() &&
+              visiveis.length > 0 &&
+              visiveis.length < opcoes.length && (
+                <>
+                  {" "}
+                  <button
+                    type="button"
+                    onClick={somenteVisiveis}
+                    className="font-medium text-accent hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  >
+                    Mostrar só os {visiveis.length} encontrados
+                  </button>
+                </>
+              )}
           </p>
         </div>
       )}

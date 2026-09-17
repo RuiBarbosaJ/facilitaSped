@@ -25,7 +25,7 @@ export function Vigencia({ inicio, fim }: VigenciaProps) {
         {fim ? (
           fim
         ) : (
-          <span className="inline-flex items-center rounded-full bg-success-soft px-2 py-0.5 text-[11px] font-semibold text-success uppercase tracking-wider">
+          <span className="inline-flex items-center rounded bg-success-soft px-2 py-0.5 text-[11px] font-semibold text-success uppercase tracking-wider">
             vigente
           </span>
         )}
