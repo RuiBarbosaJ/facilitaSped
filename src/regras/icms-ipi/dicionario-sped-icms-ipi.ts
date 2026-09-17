@@ -1155,6 +1155,7 @@ const REGISTRO_C100: RegistroSped = {
     },
     {
       id: "FIS-C100-011",
+      implementadaEm: "FIS-C100-TOTAIS",
       nome: "Valor das mercadorias contra a soma dos itens",
       condicao: "Documento com movimento e com ao menos um C170.",
       expressao: "VL_MERC ≈ soma(C170.VL_ITEM)",
@@ -1164,9 +1165,18 @@ const REGISTRO_C100: RegistroSped = {
       procedencia: "inferido",
       camposEnvolvidos: ["VL_MERC"],
       tolerancia: 0.02,
+      correcao: {
+        automatizavel: false,
+        motivo:
+          "O total sai de somar os itens do próprio documento. Exige confirmação porque a divergência pode estar no item, e não no total: reescrever o cabeçalho faz a nota fechar consigo mesma sem que ninguém tenha olhado qual dos dois lados estava certo.",
+        campoCorrigido: "VL_MERC",
+        origemDoValor: "calculado",
+        exigeConfirmacao: true,
+      },
     },
     {
       id: "FIS-C100-012",
+      implementadaEm: "FIS-C100-TOTAIS",
       nome: "Base e imposto do documento contra o analítico",
       condicao: "Documento com movimento e com ao menos um C190.",
       expressao:
@@ -1177,6 +1187,14 @@ const REGISTRO_C100: RegistroSped = {
       procedencia: "inferido",
       camposEnvolvidos: ["VL_BC_ICMS", "VL_ICMS", "VL_BC_ICMS_ST", "VL_ICMS_ST", "VL_IPI"],
       tolerancia: 0.02,
+      correcao: {
+        automatizavel: false,
+        motivo:
+          "Os totais saem de somar os C190 do próprio documento — é o último elo do efeito dominó C170 → C190 → C100. Exige confirmação pelo mesmo motivo do analítico: corrigir o cabeçalho para bater com um analítico errado esconde o erro em vez de resolvê-lo.",
+        campoCorrigido: "VL_BC_ICMS, VL_ICMS, VL_BC_ICMS_ST, VL_ICMS_ST e VL_IPI do C100",
+        origemDoValor: "calculado",
+        exigeConfirmacao: true,
+      },
     },
     {
       id: "FIS-C100-013",
@@ -1245,6 +1263,7 @@ const REGISTRO_C100: RegistroSped = {
     },
     {
       id: "FIS-C100-018",
+      implementadaEm: "FIS-C100-TOTAIS",
       nome: "Documento sem registro analítico",
       condicao:
         "Documento com movimento (COD_SIT em 00, 01, 06, 07, 08). Documento cancelado, denegado ou inutilizado fica FORA desta regra.",
@@ -1402,6 +1421,7 @@ const REGISTRO_C170: RegistroSped = {
       regrasValidacaoCustomizadas: [
         {
           id: "FIS-C170-001",
+          implementadaEm: "FIS-C170-001",
           nome: "Código de situação tributária do ICMS inválido",
           expressao: "origem ∈ TabelaA(0..8) && tributacao ∈ TabelaB(00,10,20,30,40,41,50,51,60,70,90)",
           descricao:
@@ -1777,19 +1797,29 @@ const REGISTRO_C170: RegistroSped = {
   regrasDoRegistro: [
     {
       id: "FIS-C170-010",
+      implementadaEm: "FIS-C170-MATRIZ",
       nome: "Operação tributada sem base de cálculo ou sem imposto",
-      condicao: 'tributacaoDoCstIcms(CST_ICMS) em ("00", "10")',
+      condicao: 'tributacaoDoCstIcms(CST_ICMS) em ("00", "10", "20", "70") e VL_ITEM > 0',
       expressao: "VL_BC_ICMS > 0 && VL_ICMS > 0",
       descricao:
-        "Tributação integral (00) e tributação com ST (10) implicam ICMS próprio destacado: base e imposto maiores que zero.",
+        "Tributação integral (00), com ST (10), com redução de base (20) e com redução mais ST (70) implicam ICMS próprio destacado: base e imposto maiores que zero. Na redução de base o campo VL_BC_ICMS já guarda a base REDUZIDA, e ela continua positiva.",
       severidade: "erro",
       procedencia: "guia-pratico",
       camposEnvolvidos: ["CST_ICMS", "VL_BC_ICMS", "VL_ICMS"],
       observacao:
         "A comparação é sobre a TRIBUTAÇÃO — os dois últimos dígitos. O CST real é '000' ou '110', nunca '00'. Item com VL_ITEM zero (brinde, bonificação escriturada a valor zero) precisa ficar fora, ou a regra aponta erro sobre linha legítima.",
+      correcao: {
+        automatizavel: false,
+        motivo:
+          "Com um dos dois campos preenchido e a alíquota informada, o outro sai da relação que FIS-C170-013 declara — é aritmética, não palpite. Mesmo assim exige confirmação: a mesma divergência se conserta de duas maneiras opostas, e a ferramenta não sabe qual é a certa. Ou falta o valor, ou o CST é que não era de operação tributada. Com os DOIS campos zerados não há o que propor: a alíquota sozinha não diz o valor da operação, e deduzir a base do VL_ITEM assumiria que não há frete, desconto nem redução.",
+        campoCorrigido: "VL_BC_ICMS ou VL_ICMS, o que estiver zerado",
+        origemDoValor: "calculado",
+        exigeConfirmacao: true,
+      },
     },
     {
       id: "FIS-C170-011",
+      implementadaEm: "FIS-C170-MATRIZ",
       nome: "Operação isenta ou suspensa com imposto destacado",
       condicao: 'tributacaoDoCstIcms(CST_ICMS) em ("40", "41", "50")',
       expressao: "VL_ICMS === 0",
@@ -1810,6 +1840,7 @@ const REGISTRO_C170: RegistroSped = {
     },
     {
       id: "FIS-C170-012",
+      implementadaEm: "FIS-C170-012",
       nome: "Base de cálculo sem imposto, ou imposto sem base",
       condicao: 'tributacaoDoCstIcms(CST_ICMS) em ("00", "10", "20", "70", "90")',
       expressao: "(VL_BC_ICMS > 0) === (VL_ICMS > 0)",
@@ -1822,6 +1853,7 @@ const REGISTRO_C170: RegistroSped = {
     },
     {
       id: "FIS-C170-013",
+      implementadaEm: "FIS-C170-013",
       nome: "Imposto divergente da base multiplicada pela alíquota",
       condicao: "VL_BC_ICMS > 0 && ALIQ_ICMS > 0",
       expressao: "VL_ICMS ≈ VL_BC_ICMS * ALIQ_ICMS / 100",
@@ -1832,9 +1864,18 @@ const REGISTRO_C170: RegistroSped = {
       tolerancia: 0.01,
       observacao:
         "Redução de base (tributação 20 e 70) já vem refletida na própria VL_BC_ICMS, então a fórmula continua valendo. Sem tolerância, o arredondamento de centavo faz esta regra disparar em item perfeitamente calculado.",
+      correcao: {
+        automatizavel: false,
+        motivo:
+          "O valor sai da própria fórmula, sobre os campos da linha. A confirmação é necessária porque a regra assume que o errado é o IMPOSTO: se quem errou foi a base ou a alíquota, gravar o imposto recalculado consolida o erro em vez de consertá-lo.",
+        campoCorrigido: "VL_ICMS",
+        origemDoValor: "calculado",
+        exigeConfirmacao: true,
+      },
     },
     {
       id: "FIS-C170-014",
+      implementadaEm: "FIS-C170-MATRIZ",
       nome: "Substituição tributária sem base ou sem imposto retido",
       condicao: 'tributacaoDoCstIcms(CST_ICMS) em ("10", "30", "70")',
       expressao: "VL_BC_ICMS_ST > 0 && VL_ICMS_ST > 0",
@@ -1847,6 +1888,7 @@ const REGISTRO_C170: RegistroSped = {
     },
     {
       id: "FIS-C170-015",
+      implementadaEm: "FIS-C170-MATRIZ",
       nome: "Item com ICMS já retido anteriormente e imposto destacado",
       condicao: 'tributacaoDoCstIcms(CST_ICMS) === "60"',
       expressao: "VL_ICMS === 0",
@@ -1870,7 +1912,50 @@ const REGISTRO_C170: RegistroSped = {
       camposEnvolvidos: ["CST_ICMS"],
     },
     {
+      id: "FIS-C170-017",
+      implementadaEm: "FIS-C170-MATRIZ",
+      nome: "Substituição tributária destacada onde a tributação não a comporta",
+      condicao:
+        'tributacaoDoCstIcms(CST_ICMS) em ("00", "02", "20", "40", "41", "50", "51", "53")',
+      expressao: "VL_BC_ICMS_ST === 0 && VL_ICMS_ST === 0",
+      descricao:
+        "É o outro lado de FIS-C170-014. As tributações que não são de operação com substituição tributária não têm base nem imposto retido a informar: valor ali é o ERP replicando o documento do fornecedor sem olhar o CST que ele mesmo escriturou.",
+      severidade: "alerta",
+      procedencia: "guia-pratico",
+      camposEnvolvidos: ["CST_ICMS", "VL_BC_ICMS_ST", "VL_ICMS_ST"],
+      observacao:
+        "Alerta, e não erro, por causa das tributações 60 e 61: o ICMS-ST daquele item foi retido em operação anterior, e há gerador que repete os valores retidos a título informativo. Por isso elas ficam FORA da condição — a proibição vale para quem nunca teve ST na operação.",
+      correcao: {
+        automatizavel: false,
+        motivo:
+          "Zerar os campos de ST muda o que a nota declara ter sido retido. O erro pode estar nos valores (destaque indevido) ou no CST (a operação era mesmo de substituição) — correções opostas, e só quem conhece a operação escolhe.",
+        exigeConfirmacao: true,
+      },
+    },
+    {
+      id: "FIS-C170-019",
+      implementadaEm: "FIS-C170-019",
+      nome: "Crédito de ICMS destacado em operação que não o admite",
+      condicao:
+        'CFOP de ENTRADA de material de uso e consumo ou de bem do ativo imobilizado, com tributacaoDoCstIcms(CST_ICMS) em ("00", "10", "20", "70")',
+      expressao: "VL_BC_ICMS === 0 && VL_ICMS === 0",
+      descricao:
+        "Na entrada, os campos de base, alíquota e valor do imposto só se informam quando o adquirente TEM DIREITO à apropriação do crédito — é o enfoque do declarante, que atravessa todo o Guia Prático. Material de uso e consumo não dá crédito até a data fixada pela Lei Complementar 87/96; bem do ativo dá, mas em parcelas pelo CIAP, no bloco G, e não pelo destaque no item.",
+      severidade: "alerta",
+      procedencia: "inferido",
+      camposEnvolvidos: ["CFOP", "CST_ICMS", "VL_BC_ICMS", "VL_ICMS"],
+      observacao:
+        "Alerta enquanto a tabela de CFOP não estiver completa: a lista de classes em tabelas/cfop.ts é reconhecidamente parcial, e lista parcial só produz falso NEGATIVO. Há ainda o gerador que replica o documento do fornecedor no item e estorna o crédito por ajuste na apuração — arranjo discutível, mas que não é o erro descrito aqui. Promover a erro depende das duas conferências.",
+      correcao: {
+        automatizavel: false,
+        motivo:
+          "Zerar o crédito muda a apuração do período e quanto o contribuinte deve. E a correção certa pode ser outra: se a mercadoria não era de uso e consumo, o errado é o CFOP, não o valor.",
+        exigeConfirmacao: true,
+      },
+    },
+    {
       id: "FIS-C170-020",
+      implementadaEm: "FIS-C170-020",
       nome: "Tipo do item incompatível com o CFOP",
       condicao:
         'Item cadastrado no 0200 com TIPO_ITEM = "00" (mercadoria para revenda) e CFOP de venda de produção própria.',
@@ -1904,6 +1989,7 @@ const REGISTRO_C170: RegistroSped = {
     },
     {
       id: "FIS-C170-022",
+      implementadaEm: "FIS-C170-ANALITICO",
       nome: "Item sem correspondência no registro analítico",
       condicao: "Documento com movimento e com ao menos um C190.",
       expressao: "existe C190 com (CST_ICMS, CFOP, ALIQ_ICMS) igual aos do item",
@@ -1917,6 +2003,7 @@ const REGISTRO_C170: RegistroSped = {
     },
     {
       id: "FIS-C170-023",
+      implementadaEm: "FIS-C170-ANALITICO",
       nome: "Soma dos itens divergente do analítico",
       condicao: "Documento com movimento, com C170 e com C190.",
       expressao:
@@ -1928,6 +2015,14 @@ const REGISTRO_C170: RegistroSped = {
       tolerancia: 0.02,
       observacao:
         "O VL_OPR do C190 inclui os acessórios rateados por grupo, então a comparação contra a soma pura de VL_ITEM pode divergir legitimamente em documento com frete e despesas. Conferir o critério de rateio antes de promover a erro.",
+      correcao: {
+        automatizavel: false,
+        motivo:
+          "A soma dos itens é dedutível do próprio documento. A confirmação é necessária porque a regra assume que o errado é o ANALÍTICO: quando quem erra é um item, reescrever o C190 para bater com ele propaga o erro do item para a consolidação — e, pelo efeito dominó, para o C100.",
+        campoCorrigido: "VL_BC_ICMS, VL_ICMS, VL_BC_ICMS_ST e VL_ICMS_ST do C190",
+        origemDoValor: "calculado",
+        exigeConfirmacao: true,
+      },
     },
     {
       id: "FIS-C170-024",
@@ -2163,6 +2258,7 @@ const REGISTRO_C190: RegistroSped = {
   regrasDoRegistro: [
     {
       id: "FIS-C190-010",
+      implementadaEm: "FIS-C190-COERENCIA",
       nome: "Alíquota ausente em grupo com ICMS destacado",
       condicao: "VL_ICMS > 0",
       expressao: "ALIQ_ICMS > 0",
@@ -2174,6 +2270,7 @@ const REGISTRO_C190: RegistroSped = {
     },
     {
       id: "FIS-C190-011",
+      implementadaEm: "FIS-C190-COERENCIA",
       nome: "Imposto divergente da base multiplicada pela alíquota",
       condicao: "VL_BC_ICMS > 0 && ALIQ_ICMS > 0",
       expressao: "VL_ICMS ≈ VL_BC_ICMS * ALIQ_ICMS / 100",
@@ -2182,9 +2279,18 @@ const REGISTRO_C190: RegistroSped = {
       procedencia: "guia-pratico",
       camposEnvolvidos: ["VL_BC_ICMS", "ALIQ_ICMS", "VL_ICMS"],
       tolerancia: 0.01,
+      correcao: {
+        automatizavel: false,
+        motivo:
+          "Mesma relação da regra do item, aplicada ao grupo. Exige confirmação pela mesma razão: a regra assume que o errado é o imposto consolidado, e pode ser a base ou a alíquota do grupo.",
+        campoCorrigido: "VL_ICMS",
+        origemDoValor: "calculado",
+        exigeConfirmacao: true,
+      },
     },
     {
       id: "FIS-C190-012",
+      implementadaEm: "FIS-C190-COERENCIA",
       nome: "Grupo isento com imposto destacado",
       condicao: 'tributacaoDoCstIcms(CST_ICMS) em ("40", "41", "50")',
       expressao: "VL_ICMS === 0",
@@ -2195,6 +2301,7 @@ const REGISTRO_C190: RegistroSped = {
     },
     {
       id: "FIS-C190-013",
+      implementadaEm: "FIS-C190-COERENCIA",
       nome: "Redução de base sem valor reduzido",
       condicao: 'tributacaoDoCstIcms(CST_ICMS) em ("20", "70")',
       expressao: "VL_RED_BC > 0",
@@ -2205,6 +2312,7 @@ const REGISTRO_C190: RegistroSped = {
     },
     {
       id: "FIS-C190-014",
+      implementadaEm: "FIS-C190-COERENCIA",
       nome: "Combinação analítica duplicada no documento",
       condicao: "Dois C190 do mesmo documento com o mesmo COD_OBS — inclusive ambos vazios.",
       expressao: "count(C190 do mesmo C100 com a mesma chave) === 1",

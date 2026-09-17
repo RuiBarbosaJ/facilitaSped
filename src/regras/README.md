@@ -97,17 +97,17 @@ Chunks manuais com `FileReader` seriam um retrocesso: `Blob.stream()` +
 `TextDecoderStream` já entregam leitura incremental sem acumular, e resolvem o caractere
 multibyte partido na fronteira do bloco — que o fatiamento manual precisaria tratar à mão.
 
-### As duas lacunas reais para 100 MB
+### As duas lacunas de 100 MB — fechadas para o motor novo
 
-1. **Cancelamento durante o motor.** `rodarMotor(estrutura)` roda como um bloco
-   síncrono. Enquanto ele executa, `self.onmessage` não é chamado: a mensagem CANCELAR
-   fica na fila e o botão é decorativo justamente na fase mais longa. `MotorSped` já
-   recebe `opcoes.cancelado`, mas quem o chama precisa passar o callback e as regras
-   longas precisam consultá-lo entre lotes.
+1. **Cancelamento durante o motor.** `rodarValidacoes(estrutura, cancelada)` repassa o
+   callback do worker, e `MotorSped` o consulta entre uma regra e outra. Continua
+   *cooperativo*: uma regra que leve muito tempo num único laço só é interrompida ao
+   terminar. As quatro regras antigas de `icms-ipi/auditoria/` ainda rodam sem esse
+   canal — `rodarMotor` é um bloco síncrono —, e é mais um motivo para migrá-las.
 
-2. **Teto global de achados.** O teto atual é *por código*. Com ~40 regras a 500 cada,
-   o limite real vira 20.000 objetos num único `postMessage`. `MotorSped` já aplica
-   `tetoGlobal: 5_000`; o caminho do worker ainda usa o teto antigo.
+2. **Teto global de achados.** `rodarValidacoes` passa `tetoGlobal` já descontado do que
+   o motor antigo emitiu (`LIMITES.ACHADOS_NO_TOTAL`), e devolve os descartados para
+   `registrarOmitidos`, que alimenta o "e mais N ocorrências" da tela.
 
 ### O que uma regra precisa respeitar
 
@@ -131,8 +131,9 @@ multibyte partido na fronteira do bloco — que o fatiamento manual precisaria t
 
 `DICIONARIO_SPED_ICMS_IPI` cobre **0000, 0150, 0200, C100, C170 e C190** — 115 campos,
 cada um com `posicao`, `nome`, `tipo` (C/N), `tamanho`, `obrigatorio` (O/OC/N),
-`condicao`, `valoresValidos`, `regraRelacional` e `procedencia`. São 44 regras
-declaradas (relacionais e customizadas).
+`condicao`, `valoresValidos`, `regraRelacional` e `procedencia`. São 46 regras
+declaradas (relacionais e customizadas), das quais 18 trazem `implementadaEm`
+apontando a função que as confere em `icms-ipi/validacoes/`.
 
 ### Três armadilhas que governam quase toda regra
 
@@ -165,17 +166,44 @@ travados por teste.
   Migrá-las para `src/regras/` depende do adaptador `EstruturaSped → ContextoValidacao`,
   que foi verificado como não-trivial: `NotaC100` não satisfaz `Documento` (falta
   `reg` e `filhos` é lista, não `Map`).
-- **`src/regras/` não está ligado ao app.** `MotorSped` não é instanciado em lugar nenhum;
-  quem roda é `rodarMotor` com as 4 regras antigas. Ligar só faz sentido depois do
-  adaptador e junto da migração das regras — sozinho, com a lista vazia, não muda
-  nada na tela.
+- **Os dois motores convivem.** `rodarMotor` (4 regras antigas) e `rodarValidacoes`
+  (`src/regras/`) rodam em sequência no worker. A ponte é
+  `icms-ipi/auditoria/contexto.ts`: um envoltório preguiçoso sobre `NotaC100`, que
+  acrescenta o `reg` e monta o `Map` de filhos só quando alguém pede. A única
+  sobreposição conhecida entre os dois é FIS-014 (sentido do CFOP × IND_OPER) — por
+  isso FIS-C170-021 foi deixada de fora de `validacoes/`, para não duplicar o achado
+  na tela. Migrar as quatro antigas encerra a convivência.
+
+## O que já roda
+
+`REGRAS_ICMS_IPI` tem nove regras cobrindo o bloco C, e o worker as executa. Quatro
+delas emitem VÁRIOS códigos de achado a partir de uma única passagem pelos itens ou
+pelos documentos — é o que evita reler o CST e reconverter os valores meio milhão de
+vezes por regra. Os códigos emitidos são os declarados no dicionário:
+
+| Regra | Códigos que emite | O que confere |
+|---|---|---|
+| `FIS_C170_001` | FIS-C170-001 | Origem (Tabela A) e tributação (Tabela B) do CST; reconhece CSOSN copiado da NF-e |
+| `MATRIZ_CST_ICMS` | FIS-C170-010, 011, 014, 015, 017 | A matriz de exigência de valor da Tabela B, em `tabelas/cst-icms.ts` |
+| `FIS_C170_012` | FIS-C170-012 | Base sem imposto, imposto sem base |
+| `FIS_C170_013` | FIS-C170-013 | `VL_ICMS ≈ VL_BC_ICMS × ALIQ_ICMS` |
+| `FIS_C170_019` | FIS-C170-019 | Crédito destacado em entrada de uso e consumo ou de ativo |
+| `FIS_C170_020` | FIS-C170-020 | `TIPO_ITEM` do 0200 × CFOP de produção própria |
+| `FIS_C170_ANALITICO` | FIS-C170-022, 023 | Item sem grupo; grupo que não fecha com seus itens |
+| `FIS_C190_COERENCIA` | FIS-C190-010 a 014 | Alíquota, cálculo, isenção, redução de base e duplicidade |
+| `FIS_C100_TOTAIS` | FIS-C100-011, 012, 018 | `VL_MERC` × itens; totais × analítico; documento sem C190 |
+
+Nenhuma delas marca o achado como `corrigivel`. É deliberado: o TXT vai assinado à
+Receita, e CST, CFOP, base, alíquota e valor de imposto nunca se corrigem sozinhos —
+onde a correção é dedutível do arquivo, ela vai em `esperado`, como sugestão. A régua
+está em `CorrecaoDeclarada` (`nucleo/tipos.ts`), com dois testes que a protegem.
 
 ## Próximos passos
 
-1. Implementar as regras em `icms-ipi/validacoes/` — o dicionário já diz o que conferir, e
-   o cabeçalho do `index.ts` traz o molde e a lista do que não fazer.
-2. Ligar `MotorSped` ao worker, passando `cancelado` e usando o teto global.
-3. Resolver as cinco pendências bloqueantes com o Guia Prático em mãos.
+1. Resolver as cinco pendências bloqueantes com o Guia Prático em mãos — em especial o
+   critério de rateio do `VL_OPR`, que hoje mantém esse campo fora do confronto
+   FIS-C170-023, e a exigência de filhos para `COD_SIT` 02 a 05.
+2. Migrar as 4 regras de `icms-ipi/auditoria/regras/` e apagar o motor antigo.
 4. Acrescentar ao layout do parser os registros que faltam: 0190, 0400, 0460, E111 e o
    bloco E2 — hoje `rotear()` empilha todo "E1*" numa lista plana, sem hierarquia, e o
    bloco E2 nunca chega lá.

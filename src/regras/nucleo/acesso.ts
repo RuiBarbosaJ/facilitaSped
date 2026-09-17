@@ -1,4 +1,4 @@
-import type { CampoSped, DicionarioSped, RegistroSped } from "./tipos";
+import type { CampoSped, CorrecaoDeclarada, DicionarioSped, RegistroSped } from "./tipos";
 
 /**
  * Acesso ao dicionário a partir de chaves vindas do arquivo do usuário.
@@ -18,6 +18,8 @@ import type { CampoSped, DicionarioSped, RegistroSped } from "./tipos";
 
 interface IndiceDoDicionario {
   readonly porRegistro: ReadonlyMap<string, RegistroSped>;
+  /** `id da regra` → o que a norma declara sobre corrigir aquele erro. */
+  readonly correcaoPorRegra: ReadonlyMap<string, CorrecaoDeclarada>;
   /** `REG|NOME_DO_CAMPO` → posição no array da linha. */
   readonly posicaoPorCampo: Map<string, number | null>;
   /** `REG` → campos indexados por nome, para varreduras por registro. */
@@ -37,8 +39,29 @@ function indiceDe(dicionario: DicionarioSped): IndiceDoDicionario {
     camposPorRegistro.set(reg, new Map(definicao.campos.map((c) => [c.nome, c])));
   }
 
+  /*
+   * O bloco `correcao` das regras, indexado pelo código do achado.
+   *
+   * É o que fecha o ciclo entre a norma e a ferramenta: o dicionário já diz, por
+   * regra, se o conserto pode ser automático, qual campo ele reescreve e — o
+   * que mais importa — POR QUE ele exige decisão humana quando exige. Sem este
+   * índice, esse texto ficava escrito e nunca chegava a quem vai aprovar.
+   */
+  const correcaoPorRegra = new Map<string, CorrecaoDeclarada>();
+  for (const definicao of porRegistro.values()) {
+    for (const regra of definicao.regrasDoRegistro ?? []) {
+      if (regra.correcao) correcaoPorRegra.set(regra.id, regra.correcao);
+    }
+    for (const campo of definicao.campos) {
+      for (const regra of campo.regrasValidacaoCustomizadas ?? []) {
+        if (regra.correcao) correcaoPorRegra.set(regra.id, regra.correcao);
+      }
+    }
+  }
+
   const construido: IndiceDoDicionario = {
     porRegistro,
+    correcaoPorRegra,
     posicaoPorCampo: new Map(),
     camposPorRegistro,
   };
@@ -173,6 +196,19 @@ export function tributacaoDoCstIcms(cst: string | null | undefined): string | nu
  */
 export function codigoNormalizado(bruto: string | null | undefined, tamanho: number): string {
   return (bruto ?? "").trim().padStart(tamanho, "0");
+}
+
+/**
+ * O que a norma declara sobre corrigir o erro de uma regra.
+ *
+ * `undefined` significa "a regra não declarou nada", e quem consome deve tratar
+ * como manual — nunca como automatizável por omissão.
+ */
+export function correcaoDeclaradaDe(
+  dicionario: DicionarioSped,
+  idDaRegra: string
+): CorrecaoDeclarada | undefined {
+  return indiceDe(dicionario).correcaoPorRegra.get(idDaRegra);
 }
 
 /** Todos os registros do dicionário, para varreduras e relatórios. */

@@ -44,6 +44,15 @@ export const LIMITES = {
    */
   ACHADOS_POR_CODIGO: 500,
   /**
+   * Teto de achados somando TODOS os códigos.
+   *
+   * O teto por código sozinho não basta: com algumas dezenas de regras a 500
+   * achados cada, o limite real vira dezenas de milhares de objetos num único
+   * `postMessage` — vários megabytes de structured clone, seguidos de uma lista
+   * que a main thread tenta transformar em nós de DOM de uma vez.
+   */
+  ACHADOS_NO_TOTAL: 5_000,
+  /**
    * Teto de opções distintas por coluna do menu de filtro. COD_ITEM de um
    * arquivo grande tem centenas de milhares de valores — listá-los todos
    * duplica o conteúdo fiscal na main thread e mata a aba ao abrir o menu.
