@@ -15,6 +15,23 @@ export type { Severidade } from "./tipos";
  * devolve (`Achado`) e como registra a regra (`RegraSped`). Nada além disso.
  */
 
+/**
+ * Como o erro apontado pode ser consertado — decidido DEPOIS da auditoria.
+ *
+ * A regra não sabe: ela calcula o valor certo (ou não calcula) e segue. Quem
+ * sabe é o gerador de propostas, que confere o valor contra a linha e consulta
+ * a norma declarada. Por isso o campo é preenchido no fim do processamento, e
+ * não por cada regra — uma regra que esquecesse deixaria o achado dizendo
+ * "manual" sobre um conserto que existe.
+ */
+export type ConsertoDoAchado =
+  /** Sai de contar ou somar o próprio arquivo; entra aprovada. */
+  | "automatica"
+  /** O valor é dedutível, mas há decisão embutida; nasce desmarcada. */
+  | "sugerida"
+  /** Não há valor a propor: o conserto é na origem. */
+  | "manual";
+
 export interface Achado {
   /** Estável entre execuções: `${codigo}:${nl}:${campo ?? reg}`. */
   readonly id: string;
@@ -35,10 +52,41 @@ export interface Achado {
    * exportação e para a tela — num vazamento de escrituração alheia.
    */
   readonly mensagem: string;
+  /**
+   * Número do documento a que a linha pertence — o NUM_DOC do C100.
+   *
+   * É por ele que o contador acha a nota no ERP: o número da LINHA serve para
+   * abrir o .txt, e não serve para mais nada. Fica num campo próprio, e nunca
+   * dentro da mensagem, pela mesma razão que os valores: a mensagem vai para
+   * log e exportação, e um campo separado é o que permite à UI decidir onde
+   * mostrá-lo — ou não mostrá-lo.
+   *
+   * Ausente quando a linha não pertence a documento nenhum (registros de
+   * abertura, cadastros, fechamentos de bloco).
+   */
+  readonly documento?: string;
   /** Valor sugerido, quando a correção é automatizável. */
   readonly esperado?: string;
   readonly atual?: string;
+  /**
+   * Existe proposta de correção para este achado.
+   *
+   * A REGRA não preenche isto: ela não sabe. O worker o reescreve no fim, a
+   * partir das propostas que de fato foram geradas — é a única forma de o selo
+   * na tela e o que entra no arquivo dizerem a mesma coisa.
+   */
   readonly corrigivel: boolean;
+  /** Que tipo de conserto existe. Ausente equivale a `manual`. */
+  readonly conserto?: ConsertoDoAchado;
+  /**
+   * Por que o conserto é o que é — o texto que a norma escreveu para esta regra.
+   *
+   * Importa mais no caso `manual`: sem ele, a tela diz "manual, na origem" e
+   * quem lê não sabe se a ferramenta não conseguiu, não quis, ou esqueceu. O
+   * dicionário já escreve essa frase em `correcao.motivo`; este campo é o que
+   * a faz chegar à tela.
+   */
+  readonly motivoDoConserto?: string;
   /** Referência normativa: Guia Prático, tabela oficial, ato estadual. */
   readonly regra: string;
 }

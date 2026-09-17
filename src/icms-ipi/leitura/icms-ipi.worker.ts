@@ -5,8 +5,10 @@ import { compararValores } from "@/comum/filtrosColuna";
 import { COLUNA_REGISTRO, definicaoDoRegistro } from "../leiaute/acesso";
 import { LEIAUTE_CONFERIDO } from "../leiaute/versao";
 import { LIMITES } from "../limites";
-import { rodarMotor } from "../auditoria/motor";
+import { rodarMotor, rodarValidacoes } from "../auditoria/motor";
+import { identificarDocumentos } from "../auditoria/documentos";
 import { aplicarCorrecoes } from "../regravacao/correcoes";
+import { marcarConsertos, proporCorrecoes } from "../regravacao/propostas";
 import { recalcularTotalizadores } from "../regravacao/totalizadores";
 import { serializar } from "../regravacao/serializador";
 import { encodeCP1252 } from "./encoder";
@@ -200,6 +202,23 @@ async function iniciar(arquivo: File): Promise<void> {
     finalizarParse(estrutura);
     conferirVersaoDoLeiaute(estrutura);
     rodarMotor(estrutura);
+    /*
+     * As regras declaradas em `src/regras/` rodam com o cancelamento em mãos.
+     * É a fase mais longa num arquivo grande — meio milhão de itens conferidos
+     * contra a matriz do CST e contra o analítico —, e sem este canal o botão
+     * Cancelar ficaria inerte exatamente enquanto ela corre.
+     */
+    rodarValidacoes(estrutura, cancelada);
+    if (cancelada()) return;
+
+    // O número da nota entra DEPOIS de todas as regras: a lista já está
+    // limitada pelos tetos, e nenhuma regra precisa conhecer o índice.
+    identificarDocumentos(estrutura);
+
+    // As propostas nascem dos achados: depois do motor, nunca antes.
+    const correcoes = proporCorrecoes(estrutura);
+    // E o achado só sabe que tem conserto depois de a proposta existir.
+    marcarConsertos(estrutura, correcoes);
 
     if (cancelada()) return;
 
@@ -225,6 +244,7 @@ async function iniciar(arquivo: File): Promise<void> {
         achadosOmitidos: achadosOmitidos(estrutura),
       },
       achados: estrutura.achados,
+      correcoes,
     });
   } catch (erro) {
     if (cancelada()) return;
@@ -270,26 +290,49 @@ function conferirVersaoDoLeiaute(estrutura: EstruturaSped): void {
 let indiceFiltrado: number[] | null = null;
 let chaveDoIndice: string | null = null;
 
-function chaveDe(filtros: FiltrosGrade | undefined): string {
-  if (!filtros) return "";
-  return Object.entries(filtros)
-    .filter(([, valores]) => valores && valores.length > 0)
-    .sort(([a], [b]) => (a < b ? -1 : 1))
-    .map(([coluna, valores]) => `${coluna}=${[...valores].sort().join("")}`)
-    .join("");
+/**
+ * Identidade do recorte atual: filtros de coluna mais recorte por linha.
+ *
+ * O recorte por linha entra na chave POR INTEIRO, e não por um resumo (tamanho,
+ * primeiro, último). Um resumo é barato e erra: duas listas diferentes de mesmo
+ * tamanho e mesmas pontas reaproveitariam o índice uma da outra, e a grade
+ * mostraria o recorte anterior sem nada indicar. O custo real é montar uma
+ * string de alguns KB por rolagem — microssegundos —, e o que ela evita é a
+ * grade mentir sobre qual recorte está na tela.
+ */
+function chaveDe(filtros: FiltrosGrade | undefined, linhas: number[] | undefined): string {
+  const porColuna = filtros
+    ? Object.entries(filtros)
+        .filter(([, valores]) => valores && valores.length > 0)
+        .sort(([a], [b]) => (a < b ? -1 : 1))
+        .map(([coluna, valores]) => `${coluna}=${[...valores].sort().join("")}`)
+        .join("")
+    : "";
+
+  // `undefined` (sem recorte) e `[]` (recorte vazio) PRECISAM ter chaves
+  // distintas: o segundo é um recorte legítimo, que zera a grade.
+  const porLinha = linhas === undefined ? "" : `#nl:${linhas.join(",")}`;
+  return porColuna + porLinha;
 }
 
-function obterIndice(estrutura: EstruturaSped, filtros: FiltrosGrade | undefined): number[] {
-  const chave = chaveDe(filtros);
+function obterIndice(
+  estrutura: EstruturaSped,
+  filtros: FiltrosGrade | undefined,
+  recorte: number[] | undefined
+): number[] {
+  const chave = chaveDe(filtros, recorte);
   if (indiceFiltrado && chaveDoIndice === chave) return indiceFiltrado;
 
+  // Um Set por recorte, e não `includes` por linha: o recorte pode ter
+  // centenas de números e o arquivo, centenas de milhares de linhas.
+  const permitidas = recorte === undefined ? null : new Set(recorte);
+
   const indice: number[] = [];
-  if (chave === "") {
-    for (let i = 0; i < estrutura.linhas.length; i++) indice.push(i);
-  } else {
-    for (let i = 0; i < estrutura.linhas.length; i++) {
-      if (colunasReprovadas(estrutura.linhas[i], filtros).length === 0) indice.push(i);
-    }
+  for (let i = 0; i < estrutura.linhas.length; i++) {
+    const linha = estrutura.linhas[i];
+    if (permitidas && !permitidas.has(linha.nl)) continue;
+    if (colunasReprovadas(linha, filtros).length > 0) continue;
+    indice.push(i);
   }
 
   indiceFiltrado = indice;
@@ -301,7 +344,7 @@ function responderJanela(
   estrutura: EstruturaSped,
   msg: Extract<ParaWorker, { tipo: "JANELA" }>
 ): void {
-  const indice = obterIndice(estrutura, msg.filtros);
+  const indice = obterIndice(estrutura, msg.filtros, msg.linhas);
   const limite = Math.min(msg.limite, LIMITES.LINHAS_POR_JANELA);
   const offset = Math.max(0, msg.offset);
 
@@ -339,7 +382,14 @@ function responderValores(
     valores.add(valor);
   };
 
+  // O recorte por linha vale aqui também: sem ele o menu ofereceria valores
+  // que a grade recortada não mostra, e uma coluna sem dado nenhum dentro do
+  // recorte continuaria ocupando espaço por causa de linhas que estão fora.
+  const permitidas = msg.linhas === undefined ? null : new Set(msg.linhas);
+
   for (const linha of estrutura.linhas) {
+    if (permitidas && !permitidas.has(linha.nl)) continue;
+
     const falhas = colunasReprovadas(linha, msg.filtros);
 
     // Reprovou em duas ou mais colunas: não contribui para nenhuma opção. Se

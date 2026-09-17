@@ -396,6 +396,19 @@ export function finalizarParse(estrutura: EstruturaSped): void {
 }
 
 /** Achados que o teto por código descartou. */
+/**
+ * Contabiliza achados descartados por um teto aplicado FORA daqui.
+ *
+ * O motor de `src/regras/` tem tetos próprios — inclusive um teto global, que
+ * `registrarAchado` não conhece — e descarta antes de a estrutura ver o achado.
+ * Sem este canal, a conta de "e mais N ocorrências" da tela ficaria menor do
+ * que o que realmente foi omitido, que é a única informação que impede o
+ * contador de ler a lista como se fosse completa.
+ */
+export function registrarOmitidos(estrutura: EstruturaSped, quantidade: number): void {
+  if (quantidade > 0) estrutura.contexto.omitidos += quantidade;
+}
+
 export function achadosOmitidos(estrutura: EstruturaSped): number {
   return estrutura.contexto.omitidos;
 }

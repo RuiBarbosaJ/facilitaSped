@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { esquecerEstadoMemoria, useEstadoMemoria } from "@/ganchos/useEstadoMemoria";
 import { LIMITES } from "../limites";
 import type { Achado } from "@/regras/nucleo/contrato";
 import type { CodFin, DoWorker, ParaWorker, ResumoArquivo } from "../leitura/protocolo";
+import { idDaCorrecao, type Correcao } from "../regravacao/correcoes";
 
 export interface ProgressoLeitura {
   bytesLidos: number;
@@ -75,6 +76,14 @@ export function useAbaIcmsIpi() {
   );
   const [resumo, setResumo] = useEstadoMemoria<ResumoArquivo | null>("icms_ipi_resumo", null);
   const [achados, setAchados] = useEstadoMemoria<Achado[]>("icms_ipi_achados", []);
+  /*
+   * Propostas de correção e as que o contador aprovou. Memória de SESSÃO, como
+   * os achados: carregam valores lidos do arquivo e morrem com "Encerrar".
+   * As automáticas nascem aprovadas — o contador pode desmarcar; as sugeridas
+   * nascem desmarcadas — o contador precisa marcar vendo de → para.
+   */
+  const [propostas, setPropostas] = useEstadoMemoria<Correcao[]>("icms_ipi_propostas", []);
+  const [aprovadas, setAprovadas] = useEstadoMemoria<string[]>("icms_ipi_aprovadas", []);
   const [erro, setErro] = useEstadoMemoria<string | null>("icms_ipi_erro", null);
   const [gerando, setGerando] = useEstadoMemoria("icms_ipi_gerando", false);
   const [aviso, setAviso] = useEstadoMemoria<string | null>("icms_ipi_aviso", null);
@@ -105,6 +114,10 @@ export function useAbaIcmsIpi() {
           setProgresso(null);
           setResumo(msg.resumo);
           setAchados(msg.achados);
+          setPropostas(msg.correcoes);
+          setAprovadas(
+            msg.correcoes.filter((c) => c.classe === "automatica").map(idDaCorrecao)
+          );
           setErro(null);
           return;
 
@@ -124,8 +137,12 @@ export function useAbaIcmsIpi() {
         case "TXT_OK": {
           setGerando(false);
           baixar(msg.blob, msg.nomeSugerido);
+          const n = msg.aplicadas.length;
+          const r = msg.recusadas.length;
           setAviso(
-            `Arquivo ${msg.nomeSugerido} gerado. SHA-256 do arquivo exportado: ${msg.hash}`
+            `Arquivo ${msg.nomeSugerido} gerado com ${n} ${n === 1 ? "correção aplicada" : "correções aplicadas"}` +
+              (r > 0 ? ` e ${r} ${r === 1 ? "recusada" : "recusadas"} (o arquivo mudou desde a revisão)` : "") +
+              `. SHA-256 do arquivo exportado: ${msg.hash}`
           );
           return;
         }
@@ -134,7 +151,7 @@ export function useAbaIcmsIpi() {
 
     worker.addEventListener("message", aoReceber);
     return () => worker.removeEventListener("message", aoReceber);
-  }, [worker, setProgresso, setResumo, setAchados, setErro, setGerando, setAviso, setTemArquivoOriginal]);
+  }, [worker, setProgresso, setResumo, setAchados, setPropostas, setAprovadas, setErro, setGerando, setAviso, setTemArquivoOriginal]);
 
   const enviar = useCallback(
     (mensagem: ParaWorker) => {
@@ -195,22 +212,97 @@ export function useAbaIcmsIpi() {
     esquecerEstadoMemoria(PREFIXO_ESTADO);
     setResumo(null);
     setAchados([]);
+    setPropostas([]);
+    setAprovadas([]);
     setProgresso(null);
     setErro(null);
     setAviso(null);
     setGerando(false);
-  }, [enviar, setResumo, setAchados, setProgresso, setErro, setAviso, setGerando]);
+  }, [enviar, setResumo, setAchados, setPropostas, setAprovadas, setProgresso, setErro, setAviso, setGerando]);
 
   const gerarTxt = useCallback(
     (codFin: CodFin) => {
       setAviso(null);
       setGerando(true);
       requisicaoRef.current += 1;
-      // Por enquanto nenhuma correção é enviada: a UI de revisão vem a seguir.
-      // Lista vazia = o comportamento de sempre, protegido pelo teste de fidelidade.
-      enviar({ tipo: "GERAR_TXT", requisicao: requisicaoRef.current, codFin, correcoes: [] });
+      // Só o que o contador aprovou na revisão. Nada aprovado = regravação
+      // fiel, o comportamento de sempre, protegido pelo teste de fidelidade.
+      const marcadas = new Set(aprovadas);
+      const correcoes = propostas.filter((c) => marcadas.has(idDaCorrecao(c)));
+      enviar({ tipo: "GERAR_TXT", requisicao: requisicaoRef.current, codFin, correcoes });
     },
-    [enviar, setAviso, setGerando]
+    [enviar, setAviso, setGerando, propostas, aprovadas]
+  );
+
+  const alternarCorrecao = useCallback(
+    (id: string, aprovada: boolean) => {
+      setAprovadas((atual) => {
+        const conjunto = new Set(atual);
+        if (aprovada) conjunto.add(id);
+        else conjunto.delete(id);
+        return [...conjunto];
+      });
+    },
+    [setAprovadas]
+  );
+
+  /** Aprova ou reprova de uma vez todas as propostas de um código. */
+  const alternarPorCodigo = useCallback(
+    (codigo: string, aprovada: boolean) => {
+      setAprovadas((atual) => {
+        const conjunto = new Set(atual);
+        for (const c of propostas) {
+          if (c.codigo !== codigo) continue;
+          if (aprovada) conjunto.add(idDaCorrecao(c));
+          else conjunto.delete(idDaCorrecao(c));
+        }
+        return [...conjunto];
+      });
+    },
+    [propostas, setAprovadas]
+  );
+
+  /**
+   * As correções que de fato vão para o arquivo — a mesma lista que `gerarTxt`
+   * envia ao worker.
+   *
+   * Sai daqui, e não de cada tela que precisa dela, porque "o que vai para o
+   * TXT" é UMA resposta: a grade recorta por ela e a exportação escreve por
+   * ela. Duas derivações do mesmo par (propostas, aprovadas) divergiriam no dia
+   * em que a regra de aprovação mudasse, e a grade passaria a marcar como
+   * corrigida uma linha que sai intacta.
+   */
+  const correcoesAprovadas = useMemo(() => {
+    const marcadas = new Set(aprovadas);
+    return propostas.filter((c) => marcadas.has(idDaCorrecao(c)));
+  }, [propostas, aprovadas]);
+
+  /**
+   * Aprova ou reprova, de uma vez, tudo o que cai nestas linhas.
+   *
+   * É o que sustenta as duas seleções que a grade oferece: a caixa de UMA linha
+   * chama isto com uma linha, e a do cabeçalho chama com o recorte inteiro. Uma
+   * linha pode ter mais de uma correção — duas colunas erradas no mesmo item —,
+   * e a caixa aprova as duas: quem quiser separá-las usa a revisão, que lista
+   * correção a correção.
+   *
+   * Correção que INSERE linha fica de fora: ela não tem linha no arquivo lido,
+   * então não há caixa que a alcance. Ela é aprovada na revisão.
+   */
+  const alternarCorrecoesDeLinhas = useCallback(
+    (linhas: readonly number[], aprovar: boolean) => {
+      const alvo = new Set(linhas);
+      setAprovadas((atual) => {
+        const conjunto = new Set(atual);
+        for (const c of propostas) {
+          if (c.tipo !== "campo" || !alvo.has(c.nl)) continue;
+          if (aprovar) conjunto.add(idDaCorrecao(c));
+          else conjunto.delete(idDaCorrecao(c));
+        }
+        return [...conjunto];
+      });
+    },
+    [propostas, setAprovadas]
   );
 
   /** Devolve o arquivo exatamente como ele entrou, sem passar pela regravação. */
@@ -227,10 +319,30 @@ export function useAbaIcmsIpi() {
 
   return {
     worker,
-    estado: { progresso, resumo, achados, erro, aviso, gerando },
+    estado: {
+      progresso,
+      resumo,
+      achados,
+      propostas,
+      aprovadas,
+      correcoesAprovadas,
+      erro,
+      aviso,
+      gerando,
+    },
     /** Verdadeiro quando a cópia fiel do arquivo ainda está ao alcance. */
     temArquivoOriginal,
-    acoes: { importar, cancelar, encerrar, gerarTxt, baixarCopiaFiel, setAviso },
+    acoes: {
+      importar,
+      cancelar,
+      encerrar,
+      gerarTxt,
+      baixarCopiaFiel,
+      setAviso,
+      alternarCorrecao,
+      alternarPorCodigo,
+      alternarCorrecoesDeLinhas,
+    },
     limites: LIMITES,
   };
 }

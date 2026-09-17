@@ -141,6 +141,32 @@ export function aplicarCorrecoes(
           recusadas.push({ correcao: c, motivo: `a linha ${c.nl} é ${original.reg}, não ${c.reg}` });
           continue;
         }
+        /*
+         * ESCRITA FORA DO ARRAY: só o acréscimo de UM campo vazio passa.
+         *
+         * `campos[posicao] = valor` num índice além do fim ALONGA o array e
+         * deixa buracos nas posições puladas. `serializar` é `join("|")`, e
+         * `join` renderiza buraco como string vazia: cada buraco vira um "|" a
+         * mais na linha entregue ao PVA, que rejeita o arquivo por estrutura.
+         * Pior: o "" sentinela que marcava o fim deixa de ser o último
+         * elemento, e a linha perde o delimitador final.
+         *
+         * A guarda de `de` abaixo NÃO pega isso sozinha — ela lê fora do array
+         * como "", e a correção montada sobre uma linha truncada também traz
+         * `de: ""`. As duas leituras se confirmam e a escrita passa.
+         *
+         * O acréscimo de exatamente um campo VAZIO no fim é o conserto do
+         * delimitador ausente (EST-023), e é a única escrita legítima além do
+         * fim: ela não pula posição nenhuma e não inventa conteúdo.
+         */
+        if (c.posicao > campos.length || (c.posicao === campos.length && c.para !== "")) {
+          recusadas.push({
+            correcao: c,
+            motivo: `a linha não tem o campo ${c.posicao} — está truncada, e preenchê-lo mudaria a estrutura`,
+          });
+          continue;
+        }
+
         if ((campos[c.posicao] ?? "") !== c.de) {
           recusadas.push({
             correcao: c,
