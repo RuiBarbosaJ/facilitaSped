@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Geist, Geist_Mono, Outfit } from "next/font/google";
 import "./globals.css";
 
@@ -43,10 +44,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} ${outfit.variable} h-full antialiased`}
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: APLICAR_TEMA }} />
+        <Script id="aplicar-tema" strategy="beforeInteractive">
+          {APLICAR_TEMA}
+        </Script>
       </head>
       <body className="min-h-full flex flex-col">
-        <a href="#conteudo-principal" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-4 focus:bg-surface-page focus:text-accent">
+        <a
+          href="#conteudo-principal"
+          className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-4 focus:bg-surface-page focus:text-accent"
+        >
           Pular para o conteúdo principal
         </a>
         {children}

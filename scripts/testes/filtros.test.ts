@@ -87,7 +87,9 @@ test("a exclusão de fato tira as linhas daquele valor da tabela", () => {
   const opcoes = opcoesDaColuna(linhas, colunas, {}, "cfop");
   const semTransferencia = alternarValor(opcoes, [], "5152")!;
 
-  const visiveis = filtrarPorColunas(linhas, colunas, { cfop: semTransferencia });
+  const visiveis = filtrarPorColunas(linhas, colunas, {
+    cfop: semTransferencia,
+  });
   assert.equal(visiveis.length, 2);
   assert.ok(visiveis.every((l) => l.cfop !== "5152"));
 });
@@ -98,4 +100,27 @@ test("(Vazio) é excluível como qualquer outro valor", () => {
   const opcoes = ["1102", SEM_VALOR];
   const novo = alternarValor(opcoes, [], SEM_VALOR);
   assert.deepEqual(novo, ["1102"]);
+});
+
+test("opções preservam valores selecionados mesmo fora da interseção", () => {
+  interface Linha {
+    cfop: string;
+    cst: string;
+  }
+  const colunas: ColunaFiltravel<Linha>[] = [
+    { id: "cfop", rotulo: "CFOP", valores: (l) => [l.cfop] },
+    { id: "cst", rotulo: "CST", valores: (l) => [l.cst] },
+  ];
+  const linhas: Linha[] = [
+    { cfop: "1102", cst: "00" },
+    { cfop: "5102", cst: "10" },
+  ];
+
+  const opcoes = opcoesDaColuna(
+    linhas,
+    colunas,
+    { cfop: ["1102"], cst: ["10"] },
+    "cfop",
+  );
+  assert.deepEqual(opcoes, ["1102", "5102"]);
 });

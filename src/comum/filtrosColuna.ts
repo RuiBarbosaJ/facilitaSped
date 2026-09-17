@@ -40,7 +40,10 @@ export interface ColunaFiltravel<T> {
 export type FiltrosColuna = Record<string, string[]>;
 
 /** Ordena números como números ("9" antes de "10") e texto como o pt-BR espera. */
-const COLLATOR = new Intl.Collator("pt-BR", { numeric: true, sensitivity: "base" });
+const COLLATOR = new Intl.Collator("pt-BR", {
+  numeric: true,
+  sensitivity: "base",
+});
 
 /** "(Vazio)" vai para o fim da lista: é ruído, não uma opção que se procura. */
 export function compararValores(a: string, b: string): number {
@@ -74,7 +77,7 @@ interface FiltroAtivo<T> {
 function ativos<T>(
   colunas: ColunaFiltravel<T>[],
   filtros: FiltrosColuna,
-  exceto?: string
+  exceto?: string,
 ): FiltroAtivo<T>[] {
   const lista: FiltroAtivo<T>[] = [];
   for (const coluna of colunas) {
@@ -88,7 +91,7 @@ function ativos<T>(
 
 function passa<T>(item: T, filtros: FiltroAtivo<T>[]): boolean {
   return filtros.every(({ coluna, escolhidos }) =>
-    valoresDe(coluna, item).some((valor) => escolhidos.has(valor))
+    valoresDe(coluna, item).some((valor) => escolhidos.has(valor)),
   );
 }
 
@@ -96,7 +99,7 @@ function passa<T>(item: T, filtros: FiltroAtivo<T>[]): boolean {
 export function filtrarPorColunas<T>(
   itens: T[],
   colunas: ColunaFiltravel<T>[],
-  filtros: FiltrosColuna
+  filtros: FiltrosColuna,
 ): T[] {
   const lista = ativos(colunas, filtros);
   if (lista.length === 0) return itens;
@@ -117,7 +120,7 @@ export function opcoesDaColuna<T>(
   itens: T[],
   colunas: ColunaFiltravel<T>[],
   filtros: FiltrosColuna,
-  id: string
+  id: string,
 ): string[] {
   const alvo = colunas.find((coluna) => coluna.id === id);
   if (!alvo?.valores) return [];
@@ -128,6 +131,12 @@ export function opcoesDaColuna<T>(
     if (!passa(item, outras)) continue;
     for (const valor of valoresDe(alvo, item)) vistos.add(valor);
   }
+
+  // Um filtro ativo pode deixar o valor selecionado fora da interseção das
+  // outras colunas. Ainda assim ele precisa continuar no menu para que o
+  // usuário consiga desmarcá-lo e recuperar a tabela.
+  for (const valor of filtros[id] ?? []) vistos.add(valor);
+
   return Array.from(vistos).sort(compararValores);
 }
 
@@ -146,14 +155,15 @@ export function opcoesDaColuna<T>(
 export function sanearFiltros<T>(
   itens: T[],
   colunas: ColunaFiltravel<T>[],
-  filtros: FiltrosColuna
+  filtros: FiltrosColuna,
 ): FiltrosColuna {
   const chaves = Object.keys(filtros);
   if (chaves.length === 0) return filtros;
 
   const disponiveis = new Map<string, Set<string>>();
   for (const coluna of colunas) {
-    if (coluna.valores && chaves.includes(coluna.id)) disponiveis.set(coluna.id, new Set());
+    if (coluna.valores && chaves.includes(coluna.id))
+      disponiveis.set(coluna.id, new Set());
   }
   if (disponiveis.size > 0) {
     for (const item of itens) {
@@ -212,7 +222,7 @@ export function sanearFiltros<T>(
 export function alternarValor(
   opcoes: readonly string[],
   selecao: readonly string[],
-  valor: string
+  valor: string,
 ): string[] | null {
   // Sem filtro, todo valor está passando — então a base do clique é tudo.
   const base = selecao.length === 0 ? opcoes : selecao;
@@ -221,7 +231,8 @@ export function alternarValor(
 
   if (novo.length === 0) return null;
   // Todas as opções marcadas é o mesmo que nenhum filtro — e envelhece melhor.
-  if (novo.length >= opcoes.length && opcoes.every((o) => novo.includes(o))) return null;
+  if (novo.length >= opcoes.length && opcoes.every((o) => novo.includes(o)))
+    return null;
   return novo;
 }
 
@@ -231,7 +242,10 @@ export function alternarValor(
  * Existe porque, com o clique da caixa passando a excluir, ver um valor
  * sozinho deixaria de caber num gesto — e é metade do uso do menu.
  */
-export function somenteValor(opcoes: readonly string[], valor: string): string[] | null {
+export function somenteValor(
+  opcoes: readonly string[],
+  valor: string,
+): string[] | null {
   // Coluna de um valor só já está isolada; filtrar não muda nada.
   return opcoes.length === 1 ? null : [valor];
 }
@@ -241,7 +255,10 @@ export function somenteValor(opcoes: readonly string[], valor: string): string[]
  *
  * Sem filtro, TODAS aparecem marcadas: é o que de fato acontece com os dados.
  */
-export function estaMarcado(selecao: readonly string[], valor: string): boolean {
+export function estaMarcado(
+  selecao: readonly string[],
+  valor: string,
+): boolean {
   return selecao.length === 0 || selecao.includes(valor);
 }
 
