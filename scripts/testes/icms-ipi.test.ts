@@ -370,3 +370,58 @@ test("versão de leiaute diferente da conferida vira aviso, não erro de leitura
   assert.equal(aviso?.severidade, "alerta");
   assert.deepEqual(regravar(estrutura), original, "o aviso não afeta a fidelidade");
 });
+
+test("amostra sem acento não é evidência de UTF-8: o acento tardio sobrevive", async () => {
+  /*
+   * A amostra de reconhecimento tem 4 KB, e uma escrituração começa por
+   * cadastros que muitas vezes não têm acento nenhum. ASCII puro é UTF-8
+   * VÁLIDO, então o detector escolhia UTF-8 sem nenhuma evidência — e o
+   * primeiro acento lá adiante, que em windows-1252 é um byte alto solto,
+   * virava U+FFFD no fluxo e era GRAVADO assim na regravação.
+   *
+   * Um nome de produto saía corrompido no arquivo entregue à Receita, sem
+   * apontamento e sem ninguém ter aprovado nada.
+   */
+  const enchimento = Array.from(
+    { length: 70 },
+    (_, i) => `|0150|F${String(i).padStart(3, "0")}|FORNECEDOR SEM ACENTO LTDA|1058|1234567800019${i % 10}||MA|2111300||||||`
+  );
+  const linhas = [
+    "|0000|017|0|01012024|31012024|EMPRESA SEM ACENTO|12345678000199||MA|1234567||2111300|||A|1|",
+    "|0001|0|",
+    ...enchimento,
+    "|0200|P001|ÁGUA MINERAL SEM GÁS|||UN|00|22011000||||0,00|",
+    "|0990|74|",
+    "|9001|0|",
+    "|9900|0000|1|",
+    "|9990|3|",
+    "|9999|78|",
+  ];
+
+  const bytes = encodeCP1252(linhas.join(CRLF) + CRLF);
+  assert.ok(bytes.length > 4096, "o acento precisa cair DEPOIS da amostra de reconhecimento");
+
+  const encoding = await detectarEncoding(bytes.subarray(0, LIMITES.BYTES_DE_ASSINATURA));
+  assert.equal(encoding, "windows-1252", "sem evidência de UTF-8, vale o charset do leiaute");
+
+  const { estrutura } = await lerTudo(bytes);
+  const cadastro = estrutura.linhas.find((l) => l.reg === "0200");
+  assert.ok(cadastro?.campos.some((c) => c.includes("ÁGUA")), "o acento chegou inteiro à leitura");
+
+  /*
+   * O bloco 9 é refeito em toda exportação, então o arquivo inteiro não bate
+   * byte a byte. O que precisa bater é a LINHA do acento: é ela que a detecção
+   * errada corrompia.
+   */
+  const regravado = regravar(estrutura);
+  const marcaDeSubstituicao = [0xef, 0xbf, 0xbd];
+  const temFFFD = regravado.some(
+    (_, i) => marcaDeSubstituicao.every((b, j) => regravado[i + j] === b)
+  );
+  assert.equal(temFFFD, false, "nenhum U+FFFD no arquivo entregue");
+
+  const linhaOriginal = encodeCP1252("|0200|P001|ÁGUA MINERAL SEM GÁS|||UN|00|22011000||||0,00|");
+  const contem = (todo: Uint8Array, parte: Uint8Array) =>
+    todo.some((_, i) => parte.every((b, j) => todo[i + j] === b));
+  assert.ok(contem(regravado, linhaOriginal), "a linha com acento volta byte por byte");
+});

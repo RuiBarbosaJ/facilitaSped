@@ -11,8 +11,46 @@ export type Encoding = "utf-8" | "windows-1252";
  */
 export async function detectarEncoding(amostra: Uint8Array): Promise<Encoding> {
   if (amostra[0] === 0xef && amostra[1] === 0xbb && amostra[2] === 0xbf) return "utf-8";
+
+  /*
+   * UTF-8 só com EVIDÊNCIA POSITIVA. Na dúvida, windows-1252.
+   *
+   * A amostra tem 4 KB. Uma escrituração começa pelo 0000 e pelos cadastros, e
+   * é comum que os primeiros milhares de bytes não tenham acento nenhum — nome
+   * de empresa em caixa alta sem cedilha, CNPJ, datas, códigos. Essa amostra é
+   * ASCII puro, e ASCII puro é UTF-8 VÁLIDO: o teste abaixo passava e o arquivo
+   * inteiro era lido como UTF-8.
+   *
+   * O estrago aparecia lá adiante, no primeiro acento: em windows-1252 o "Á" é
+   * o byte 0xC1, que sozinho é sequência UTF-8 inválida. O decodificador do
+   * fluxo (não fatal) o substituía por U+FFFD, e a regravação gravava esses três
+   * bytes de volta. Um nome de produto saía corrompido no arquivo entregue à
+   * Receita, sem apontamento, sem aviso e sem ninguém ter aprovado nada.
+   *
+   * A assimetria decide o desempate: errar para windows-1252 NÃO corrompe. A
+   * tabela cobre os 256 valores de byte e `encodeCP1252` desfaz o caminho, então
+   * um arquivo UTF-8 lido como 1252 aparece com acento estranho na tela e volta
+   * byte por byte igual. Errar para UTF-8 destrói o byte.
+   */
+  let primeiroByteAlto = -1;
+  for (let i = 0; i < amostra.length; i++) {
+    if (amostra[i] >= 0x80) {
+      primeiroByteAlto = i;
+      break;
+    }
+  }
+  if (primeiroByteAlto === -1) return "windows-1252";
+
+  /*
+   * A amostra é um corte no meio do arquivo e pode partir uma sequência
+   * multibyte ao fim. Sem aparar, um arquivo UTF-8 legítimo cujo último acento
+   * caia na fronteira seria lido como 1252 — sem corromper, mas com acento
+   * errado na tela. Três bytes é o maior resto possível de uma sequência.
+   */
+  const aparada = amostra.subarray(0, Math.max(primeiroByteAlto, amostra.length - 3));
+
   try {
-    new TextDecoder("utf-8", { fatal: true }).decode(amostra);
+    new TextDecoder("utf-8", { fatal: true }).decode(aparada);
     return "utf-8";
   } catch {
     return "windows-1252";
