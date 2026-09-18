@@ -218,7 +218,8 @@ export function TabelaAuditoria({
     <div className="relative bg-surface-card rounded-xl shadow-(--shadow-card) overflow-hidden">
       <div
         ref={areaRef}
-        className="overflow-x-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+        className="custom-scrollbar overflow-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+        style={{ maxHeight: "var(--altura-tabela)" }}
         role="region"
         aria-label="Resultado da auditoria"
         tabIndex={0}
@@ -228,13 +229,13 @@ export function TabelaAuditoria({
             Auditoria linha a linha: linhas vermelhas têm NCM inválido;
             amarelas, divergência entre o informado e o SPED.
           </caption>
-          <thead className="bg-surface-head">
+          <thead>
             <tr>
               {colunas.map((coluna, i) => (
                 <th
                   key={coluna.id}
                   scope="col"
-                  className="px-3 py-3.5 text-left text-xs font-bold text-text-secondary uppercase tracking-widest whitespace-nowrap first:pl-4 align-middle"
+                  className="sticky top-0 z-10 bg-surface-head px-3 py-3.5 text-left text-xs font-bold text-text-secondary uppercase tracking-widest whitespace-nowrap first:pl-4 align-middle shadow-(--shadow-header)"
                   style={{ fontFamily: "var(--font-outfit), sans-serif" }}
                 >
                   <div className="flex items-center gap-1">

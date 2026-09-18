@@ -16,6 +16,8 @@ import { useEstadoMemoria } from "@/ganchos/useEstadoMemoria";
 import { useFiltrosColuna } from "@/ganchos/useFiltrosColuna";
 import { COLUNAS_CONSULTA } from "@/consulta/colunas";
 import { Cabecalho } from "@/componentes/Cabecalho";
+import { TituloDaTela } from "@/componentes/TituloDaTela";
+import { BotoesExportar } from "@/consulta/ui/BotoesExportar";
 import { ControlesConsulta } from "@/consulta/ui/ControlesConsulta";
 import { TabelaRegistros } from "@/consulta/ui/TabelaRegistros";
 import { Carregando, MensagemErro } from "@/consulta/ui/EstadoConsulta";
@@ -93,9 +95,18 @@ export default function Home() {
         id="conteudo-principal"
         className="flex-1 w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col gap-4"
       >
-        <h1 className="sr-only">
-          Consulta das tabelas de códigos do SPED EFD-Contribuições
-        </h1>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <TituloDaTela
+            titulo="Tabelas oficiais — consulta de NCM, CST e alíquota"
+            versao={
+              <>
+                EFD-Contribuições
+                {tabelaAtual && versaoAtual && ` · Tabela ${tabelaAtual} v${versaoAtual}`}
+              </>
+            }
+          />
+          {!carregando && !erro && <BotoesExportar regras={resultados} cst={cst} />}
+        </div>
 
         {carregando ? (
           <Carregando />
@@ -130,13 +141,6 @@ export default function Home() {
                   >
                     <RefreshCw size={12} aria-hidden />
                     Dados da Receita Federal atualizados em {atualizadoEm}
-                    {versaoAtual && tabelaAtual && (
-                      <>
-                        {" "}
-                        <span className="mx-1">•</span> Tabela {tabelaAtual}{" "}
-                        (Versão {versaoAtual})
-                      </>
-                    )}
                   </p>
                 )}
               </div>

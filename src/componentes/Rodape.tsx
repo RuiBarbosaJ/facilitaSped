@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 /**
  * Fonte dos dados e contato do desenvolvedor — igual em todas as páginas.
  *
@@ -16,7 +18,19 @@ export function Rodape() {
     <footer className="mt-2 border-t border-border-subtle bg-surface-card text-xs text-text-tertiary">
       <div className="mx-auto flex min-h-32 max-w-[1600px] flex-col items-center justify-center gap-2 px-4 py-7 text-center sm:px-6 lg:px-8">
         <span>
-          Fonte: Receita Federal — tabelas do SPED EFD-Contribuições, sincronizadas diariamente.
+          Fonte: Receita Federal — tabelas do SPED EFD-Contribuições, sincronizadas diariamente.{" "}
+          {/*
+            O segundo caminho para os critérios. A barra de cima serve a quem
+            está procurando; o rodapé serve a quem chegou ao fim de uma tela sem
+            entender por que a ferramenta apontou o que apontou.
+          */}
+          <Link
+            href="/criterios"
+            className="rounded-sm underline underline-offset-2 transition-colors hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            Ver os critérios de conferência e correção
+          </Link>
+          .
         </span>
 
         <div className="flex flex-col items-center gap-0.5">

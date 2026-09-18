@@ -457,7 +457,7 @@ export function GradeRegistro({
 
       <div
         className="relative flex flex-col overflow-hidden rounded-xl border border-border-subtle bg-surface-card shadow-(--shadow-card)"
-        style={{ height: "clamp(420px, calc(100vh - 300px), 900px)" }}
+        style={{ height: "var(--altura-tabela)" }}
       >
         <div
           ref={areaRef}

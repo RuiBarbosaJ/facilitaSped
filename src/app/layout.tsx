@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Geist, Geist_Mono, Outfit } from "next/font/google";
+import { Geist, JetBrains_Mono, Outfit } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -8,8 +8,18 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+/**
+ * A fonte dos DADOS FISCAIS.
+ *
+ * Código de CST, CFOP, natureza da receita, NCM, alíquota e valor não são
+ * texto: são grade. Em fonte proporcional o "1" é estreito e o "0" é largo, e
+ * duas linhas de uma coluna de código param de alinhar — o olho perde a
+ * varredura vertical, que é a única forma de conferir uma tabela de mil linhas.
+ * A JetBrains Mono ainda distingue zero de O e um de l, que num arquivo onde
+ * "0190" e "O190" são coisas diferentes deixa de ser preciosismo.
+ */
+const monoDeDados = JetBrains_Mono({
+  variable: "--font-mono-dados",
   subsets: ["latin"],
 });
 
@@ -41,7 +51,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       // suppressHydrationWarning o React reclamaria da diferença.
       data-theme="light"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} ${outfit.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${monoDeDados.variable} ${outfit.variable} h-full antialiased`}
     >
       <head>
         <Script id="aplicar-tema" strategy="beforeInteractive">
