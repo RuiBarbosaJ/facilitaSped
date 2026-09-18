@@ -11,7 +11,8 @@
     "start": "next start",
     "lint": "eslint",
     "sync": "tsx scripts/sync-tabelas.ts",
-    "teste": "tsx --test scripts/testes/*.test.ts"
+    "teste": "tsx --test scripts/testes/*.test.ts",
+    "icones": "tsx scripts/gerar-icones.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

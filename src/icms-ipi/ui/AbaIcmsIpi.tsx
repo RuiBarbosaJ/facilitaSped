@@ -7,6 +7,8 @@ import { ZonaUpload } from "@/componentes/ZonaUpload";
 import { GradeRegistro } from "./GradeRegistro";
 import { PainelIcmsIpi } from "./PainelIcmsIpi";
 import { TabelaAchados } from "./TabelaAchados";
+import { TituloDaTela } from "@/componentes/TituloDaTela";
+import { LEIAUTE_CONFERIDO } from "../leiaute/versao";
 import { useAbaIcmsIpi } from "./useAbaIcmsIpi";
 import type { CodFin } from "../leitura/protocolo";
 
@@ -50,18 +52,11 @@ export function AbaIcmsIpi() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <p className="text-xs font-semibold uppercase tracking-wider text-accent">
-          Escrituração fiscal digital
-        </p>
-        <h1 className="text-2xl font-semibold tracking-tight">Audite o SPED EFD ICMS/IPI</h1>
-        <p className="max-w-3xl text-sm text-text-secondary">
-          Solte o arquivo <code className="font-mono">.txt</code> da escrituração e a auditoria
-          confere a estrutura dos registros, o cadastro de itens e participantes, o CFOP e os
-          totalizadores de bloco — e devolve o arquivo pronto para o PVA. O arquivo é lido dentro do
-          seu navegador: nada é enviado para nenhum servidor.
-        </p>
-      </div>
+      <TituloDaTela
+        titulo="ICMS/IPI — auditoria da escrituração"
+        versao={<>EFD ICMS/IPI · Leiaute {LEIAUTE_CONFERIDO}</>}
+        descricao="Aponta as divergências da escrituração e regrava o arquivo no mesmo leiaute. Nada é enviado para nenhum servidor."
+      />
 
       {erro && (
         <div

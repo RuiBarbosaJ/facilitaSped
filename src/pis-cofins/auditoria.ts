@@ -209,7 +209,7 @@ export function normalizarCodigo(valor: unknown, tamanho: number): string {
  * linhas e manda trocar o código certo pelo da outra ponta — que é o pior erro
  * possível, porque ele chega pronto, com cara de correção.
  */
-interface Beneficio {
+export interface Beneficio {
   rotulo: string;
   /** CST de RECEITA (tabela 4.3.3/4.3.4, faixa 01–49). */
   csts: string[];
@@ -219,7 +219,7 @@ interface Beneficio {
   notaEntrada?: string;
 }
 
-const BENEFICIOS: Record<string, Beneficio> = {
+export const BENEFICIOS: Record<string, Beneficio> = {
   "4.3.13": { rotulo: "Alíquota zero", csts: ["06"], cstsEntrada: ["73"] },
   "4.3.10": {
     rotulo: "Monofásico",

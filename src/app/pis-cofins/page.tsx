@@ -10,6 +10,7 @@ import { PainelInstrucoes } from "@/pis-cofins/ui/PainelInstrucoes";
 import { ZonaUpload } from "@/componentes/ZonaUpload";
 import { ResumoAuditoria } from "@/pis-cofins/ui/ResumoAuditoria";
 import { TabelaAuditoria } from "@/pis-cofins/ui/TabelaAuditoria";
+import { TituloDaTela } from "@/componentes/TituloDaTela";
 import { CriterioCorrecao, SEM_CORRECAO } from "@/pis-cofins/ui/CriterioCorrecao";
 import { SeletorSentido } from "@/pis-cofins/ui/SeletorSentido";
 import { useTabelasReceita } from "@/ganchos/useTabelasReceita";
@@ -38,15 +39,11 @@ export default function Auditoria() {
       <Cabecalho />
 
       <main id="conteudo-principal" className="flex-1 w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-6">
-        <div className="flex flex-col gap-1">
-          <p className="text-xs font-semibold uppercase tracking-wider text-accent">Auditoria de planilhas</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Confira o NCM do Alterdata contra o SPED</h1>
-          <p className="max-w-3xl text-sm text-text-secondary">
-            Solte o relatório de produtos e a auditoria cruza cada classificação com a nomenclatura NCM
-            vigente e com as tabelas 4.3.x do EFD-Contribuições, apontando CST e natureza da receita
-            divergentes. Tudo acontece no seu navegador.
-          </p>
-        </div>
+        <TituloDaTela
+          titulo="PIS/COFINS — conferência da planilha"
+          versao={<>EFD-Contribuições</>}
+          descricao="Cruza cada classificação com a nomenclatura vigente e com as tabelas de benefício. Nada é enviado para nenhum servidor."
+        />
 
         {erroSped && (
           <Banner tom="erro" titulo="A base do SPED não carregou.">
@@ -166,7 +163,8 @@ export default function Auditoria() {
 
               <div className="flex flex-col md:flex-row md:items-center gap-4 bg-surface-card border border-border-subtle p-4 rounded-xl shadow-(--shadow-card)">
                 <div className="flex-1">
-                  <CampoBusca valor={estado.consulta} onChange={acoes.aoBuscar} />
+                  <CampoBusca valor={estado.consulta} onChange={acoes.aoBuscar}
+          atalhoGlobal />
                 </div>
                 <div className="flex flex-wrap md:flex-nowrap gap-4">
                   <label className="flex items-center gap-2 text-sm text-text-secondary w-full md:w-auto">

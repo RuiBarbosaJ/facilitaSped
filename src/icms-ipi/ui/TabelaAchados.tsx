@@ -127,6 +127,7 @@ export function TabelaAchados({ achados }: { achados: Achado[] }) {
           }}
           placeholder="Busque por código, registro, regra ou mensagem…"
           rotulo="Buscar nos apontamentos da auditoria"
+          atalhoGlobal
         />
 
         <div className="flex flex-wrap gap-2">
@@ -165,19 +166,23 @@ export function TabelaAchados({ achados }: { achados: Achado[] }) {
         no meio da frase e deixava sobrando espaço nas colunas de código.
       */}
       <div className="relative overflow-hidden rounded-xl border border-border-subtle bg-surface-card shadow-(--shadow-card)">
-        <div ref={areaRef} className="overflow-x-auto">
+        <div
+          ref={areaRef}
+          className="custom-scrollbar overflow-auto"
+          style={{ maxHeight: "var(--altura-tabela)" }}
+        >
           <table className="min-w-full text-left">
             <caption className="sr-only">
               Apontamentos da auditoria, do mais grave para o menos grave.
             </caption>
 
-            <thead className="bg-surface-head">
+            <thead>
               <tr>
                 {COLUNAS_ACHADOS.map((coluna, i) => (
                   <th
                     key={coluna.id}
                     scope="col"
-                    className="whitespace-nowrap px-4 py-3.5 align-middle text-xs font-bold uppercase tracking-widest text-text-secondary"
+                    className="sticky top-0 z-10 whitespace-nowrap bg-surface-head px-3 py-2 align-middle text-[11px] font-bold uppercase tracking-wider text-text-secondary shadow-(--shadow-header)"
                     style={{ fontFamily: "var(--font-outfit), sans-serif" }}
                   >
                     <div className="flex items-center gap-1">
@@ -260,7 +265,7 @@ function LinhaAchado({ achado }: { achado: Achado }) {
   const { classe, Icone } = ESTILO_SEVERIDADE[achado.severidade];
 
   return (
-    <tr className="border-t border-border-subtle align-top transition-colors hover:bg-surface-hover">
+    <tr className="border-t border-border-subtle align-top transition-colors odd:bg-surface-page/50 hover:bg-surface-hover">
       <td className={celula("severidade")}>
         <span
           className={`inline-flex w-fit items-center gap-1.5 rounded border px-2 py-0.5 text-[11px] font-bold ${classe}`}
@@ -331,7 +336,7 @@ function LinhaAchado({ achado }: { achado: Achado }) {
         ela era cortada numa altura fixa de linha, e o contador lia meia frase
         sobre o problema que veio conferir.
       */}
-      <td className="min-w-[24rem] px-4 py-2.5 align-top">
+      <td className="min-w-[24rem] px-3 py-1.5 align-top">
         <DescricaoExpandivel
           texto={achado.mensagem}
           limiteCaracteres={180}
@@ -361,7 +366,7 @@ function LinhaAchado({ achado }: { achado: Achado }) {
 
 /** Padding de célula igual ao da consulta; as estreitas não quebram linha. */
 function celula(id: string): string {
-  return `px-4 py-2.5 align-top${ESTREITAS.has(id) ? " whitespace-nowrap" : ""}`;
+  return `px-3 py-1.5 align-top${ESTREITAS.has(id) ? " whitespace-nowrap" : ""}`;
 }
 
 const DESCRICAO_DA_COLUNA: Record<string, string> = {

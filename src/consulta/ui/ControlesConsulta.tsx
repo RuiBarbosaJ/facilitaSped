@@ -26,6 +26,7 @@ export function ControlesConsulta({
       <CampoBusca
         valor={busca}
         onChange={onBuscaChange}
+          atalhoGlobal
         className="min-w-0 flex-1"
       />
     </div>

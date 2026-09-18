@@ -29,10 +29,16 @@
   color-scheme: light;
 
   /* superfícies */
-  --surface-page: #f1f4f8;
+  /*
+   * Cinzas com viés do azul institucional, não cinzas puros: um cinza neutro ao
+   * lado de um azul de marca lê como "sem cor escolhida". A superfície de
+   * cabeçalho é um degrau só acima da página, porque a tabela é o conteúdo e
+   * não precisa de moldura.
+   */
+  --surface-page: #eef2f7;
   --surface-card: #ffffff;
-  --surface-head: #e8edf3;
-  --surface-hover: #eef3fb;
+  --surface-head: #e3e9f1;
+  --surface-hover: #edf2f9;
 
   /* bordas */
   --border-subtle: #dfe5ed;
@@ -50,8 +56,8 @@
   --accent-contrast: #ffffff;
 
   /* estados */
-  --success: #0f6b45;
-  --success-soft: #e3f2ea;
+  --success: #14663f;
+  --success-soft: #e4f0e8;
   --warning: #7a4a00;
   --warning-soft: #fdf3d7;
   --danger: #a4232a;
@@ -97,6 +103,26 @@
    * vira uma coleção de pastilhas. Aqui o arredondamento é só o suficiente para
    * a borda não cortar — o peso visual vem da borda, da sombra e do espaço.
    */
+  /*
+   * Altura do cabeçalho fixo. O componente a reescreve com a medida real; este
+   * valor é o que vale no primeiro quadro, antes de o JS rodar.
+   */
+  --altura-cabecalho: 4.75rem;
+
+  /*
+   * Altura útil de uma tabela rolável.
+   *
+   * Cada tabela rola DENTRO da própria caixa, em vez de esticar a página. É o
+   * que impede o cabeçalho da tabela de passar por cima do cabeçalho do site:
+   * uma tabela presa numa caixa de altura conhecida não tem para onde invadir,
+   * e o `sticky` da linha de títulos se ancora nessa caixa, não na janela.
+   *
+   * (O caminho oposto — deixar a página rolar e grudar os títulos na janela —
+   * não existe: a rolagem horizontal que as 90 colunas do SPED exigem faz do
+   * contêiner um scroll container, e dentro dele `sticky` só enxerga a caixa.)
+   */
+  --altura-tabela: clamp(420px, calc(100svh - var(--altura-cabecalho) - 10rem), 900px);
+
   --radius: 0.375rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -111,29 +137,43 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --surface-page: #0d1219;
-  --surface-card: #151b24;
-  --surface-head: #1a212c;
-  --surface-hover: #1d2632;
+  /*
+   * Azul-ardósia, e não o quase-preto neutro.
+   *
+   * Fundo `#0d1219` com borda cinza fina é o par que qualquer tela escura
+   * genérica usa. Estes tons carregam o mesmo azul do destaque institucional
+   * diluído até virar cinza — o olho lê a família, não a cor. E a página sobe
+   * de #0d para #12: um fundo quase preto faz a tabela flutuar, e o que se quer
+   * aqui é uma superfície de trabalho contínua.
+   */
+  --surface-page: #121822;
+  --surface-card: #1a212c;
+  --surface-head: #232b38;
+  --surface-hover: #212a37;
 
-  --border-subtle: #252e3a;
-  --border-strong: #5f6d80;
+  --border-subtle: #2b3442;
+  --border-strong: #5b6878;
 
   --text-primary: #e8edf4;
   --text-secondary: #a9b6c7;
   --text-tertiary: #93a1b3;
 
-  --accent: #7cb0f8;
-  --accent-hover: #a0c7fb;
-  --accent-soft: #16273d;
-  --accent-contrast: #08111c;
+  /*
+   * Azul institucional clareado só o suficiente para o contraste — não o azul
+   * elétrico de painel de IA. `#7cb0f8` era luminoso demais para um sistema em
+   * que a cor de destaque marca dado fiscal, não chamada para ação.
+   */
+  --accent: #82a8d8;
+  --accent-hover: #a2c2e8;
+  --accent-soft: #1b2a3e;
+  --accent-contrast: #0b131d;
 
-  --success: #4ec08e;
-  --success-soft: #102a20;
-  --warning: #f2c46b;
-  --warning-soft: #33260a;
-  --danger: #f28a86;
-  --danger-soft: #2b1618;
+  --success: #63a585;
+  --success-soft: #142a21;
+  --warning: #dfb46b;
+  --warning-soft: #302510;
+  --danger: #e08a86;
+  --danger-soft: #2d191a;
 
   --badge-ncm-bg: #222b37;
   --badge-ncm-text: #dde5f0;
@@ -177,7 +217,7 @@
   --color-badge-cst-text: var(--badge-cst-text);
 
   --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-mono: var(--font-mono-dados);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -333,5 +373,19 @@ body {
   }
   html {
     @apply font-sans;
+  }
+
+  /*
+   * A monoespaçada entra SEM ligaduras.
+   *
+   * A JetBrains Mono funde `===`, `!=`, `<=` e `->` num glifo só — é um recurso
+   * de editor de código, onde o sinal é operador. Aqui os caracteres SÃO o dado:
+   * uma expressão de regra fiscal que a tela mostra como `≡` deixa de poder ser
+   * conferida contra o Guia Prático, que é a única razão de ela estar impressa.
+   */
+  code,
+  kbd,
+  .font-mono {
+    font-variant-ligatures: none;
   }
 }

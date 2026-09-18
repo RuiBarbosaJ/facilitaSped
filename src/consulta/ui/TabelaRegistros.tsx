@@ -35,16 +35,36 @@ export function TabelaRegistros({
 
   return (
     <div className="relative bg-surface-card rounded-xl shadow-(--shadow-card) overflow-hidden">
-      <div ref={areaRef} className="overflow-x-auto">
+      <div
+        ref={areaRef}
+        className="custom-scrollbar overflow-auto"
+        style={{ maxHeight: "var(--altura-tabela)" }}
+      >
         <table className="min-w-full text-left">
           <caption className="sr-only">Tabela de registros do SPED</caption>
-          <thead className="bg-surface-head">
+          {/*
+            Cabeçalho FIXO. Numa tabela de mil regras, rolar cem linhas e não
+            saber mais qual coluna é a alíquota obriga a voltar ao topo — e o
+            uso real desta tela é varrer, não ler as primeiras dez.
+
+            Ele gruda no topo da CAIXA acima, não no da janela: a caixa rola nos
+            dois eixos, e para um `sticky` lá dentro a janela não existe. Tentar
+            grudá-lo na janela (`top` igual à altura do cabeçalho do site) é o
+            que fazia a linha de títulos subir por cima do campo de busca.
+          */}
+          <thead>
             <tr>
               {colunas.map((coluna, i) => (
                 <th
                   key={coluna.id}
                   scope="col"
-                  className={`px-4 py-3.5 text-xs font-bold text-text-secondary uppercase tracking-widest whitespace-nowrap align-middle ${coluna.alinhamento}`}
+                  /*
+                    O `sticky` vai na CÉLULA, não no `<thead>`: o Tailwind aplica
+                    `border-collapse: collapse` em toda tabela, e com colapso de
+                    bordas o navegador ignora `position: sticky` na linha e no
+                    grupo.
+                  */
+                  className={`sticky top-0 z-10 bg-surface-head px-3 py-2 text-[11px] font-bold text-text-secondary uppercase tracking-wider whitespace-nowrap align-middle shadow-(--shadow-header) ${coluna.alinhamento}`}
                   style={{ fontFamily: "var(--font-outfit), sans-serif" }}
                 >
                   <div
