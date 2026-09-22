@@ -8,7 +8,11 @@ import {
   type RecorteDaGrade,
   type ResumoDoRecorte,
 } from "../auditoria/recorte";
-import { ESTILO_SEVERIDADE, ROTULO_SEVERIDADE } from "./colunasAchados";
+import {
+  ESTILO_SEVERIDADE,
+  ROTULO_SEVERIDADE,
+  TAMANHO_ICONE_FIXO,
+} from "./colunasAchados";
 
 interface FiltroDeLinhasProps {
   recorte: RecorteDaGrade;
@@ -46,17 +50,25 @@ export function FiltroDeLinhas({
   const ativo = marcadas.size > 0 || recorte.corrigidas;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
       {/*
         DOIS EIXOS, e eles não são a mesma pergunta.
 
         As severidades dizem O QUE A AUDITORIA ACHOU; as correções dizem O QUE
         JÁ TEM CONSERTO. Enfileirados sob um rótulo só, os cinco selos liam-se
         como cinco severidades — e "Corrigidas" virava uma categoria de problema
-        que não existe. O separador e o rótulo próprio são o que desfaz isso.
+        que não existe.
+
+        Um traço de 1px entre os dois grupos resolvia de perto e desperdiçava a
+        barra: tudo encostado à esquerda deixava seiscentos pixels vazios do
+        outro lado. Cada eixo no seu canto diz a mesma coisa de longe — o que a
+        auditoria achou de um lado, o que já tem conserto do outro — e a ação
+        que desfaz o recorte fecha a barra à direita, como em `BarraFiltros`.
       */}
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-xs font-medium text-text-tertiary">Apontamentos</span>
+        <span className="text-xs font-medium text-text-tertiary">
+          Apontamentos
+        </span>
 
         {SEVERIDADES.map((severidade) => {
           const linhas = resumo.linhasPorSeveridade[severidade];
@@ -77,35 +89,43 @@ export function FiltroDeLinhas({
                   : `${linhas.toLocaleString("pt-BR")} ${linhas === 1 ? "linha" : "linhas"} com apontamento ${rotulo.toLowerCase()}`
               }
               className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40 ${classe} ${
-                marcada ? "ring-2 ring-accent ring-offset-1" : "opacity-90 hover:opacity-100"
+                marcada
+                  ? "ring-2 ring-accent ring-offset-1"
+                  : "opacity-90 hover:opacity-100"
               }`}
             >
-              <Icone size={13} aria-hidden />
+              <Icone
+                size={TAMANHO_ICONE_FIXO}
+                className="shrink-0"
+                aria-hidden
+              />
               {rotulo}
-              <span className="tabular-nums">{linhas.toLocaleString("pt-BR")}</span>
+              <span className="tabular-nums">
+                {linhas.toLocaleString("pt-BR")}
+              </span>
             </button>
           );
         })}
       </div>
 
-      <span className="hidden h-6 w-px shrink-0 bg-border-subtle sm:block" aria-hidden />
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <Correcoes
+          resumo={resumo}
+          marcada={recorte.corrigidas}
+          onAlternar={onAlternarCorrigidas}
+        />
 
-      <Correcoes
-        resumo={resumo}
-        marcada={recorte.corrigidas}
-        onAlternar={onAlternarCorrigidas}
-      />
-
-      {ativo && (
-        <button
-          type="button"
-          onClick={onLimpar}
-          className="inline-flex items-center gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-        >
-          <Eraser size={12} aria-hidden />
-          Ver o arquivo inteiro
-        </button>
-      )}
+        {ativo && (
+          <button
+            type="button"
+            onClick={onLimpar}
+            className="inline-flex items-center gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <Eraser size={TAMANHO_ICONE_FIXO} className="shrink-0" aria-hidden />
+            Ver o arquivo inteiro
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -131,11 +151,15 @@ function Correcoes({
   marcada: boolean;
   onAlternar: (marcada: boolean) => void;
 }) {
-  const aDecidir = Math.max(0, resumo.linhasComProposta - resumo.linhasAprovadas);
+  const aDecidir = Math.max(
+    0,
+    resumo.linhasComProposta - resumo.linhasAprovadas,
+  );
   const vazio = resumo.linhasComProposta === 0;
+  const temAprovada = resumo.linhasAprovadas > 0;
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1.5">
       <span className="text-xs font-medium text-text-tertiary">Correções</span>
 
       <button
@@ -147,7 +171,9 @@ function Correcoes({
           vazio
             ? "Nenhuma linha deste arquivo tem correção proposta."
             : `${resumo.linhasAprovadas} de ${resumo.linhasComProposta} ${
-                resumo.linhasComProposta === 1 ? "linha corrigível aprovada" : "linhas corrigíveis aprovadas"
+                resumo.linhasComProposta === 1
+                  ? "linha corrigível aprovada"
+                  : "linhas corrigíveis aprovadas"
               }. Clique para ver só estas linhas na grade.`
         }
         className={`inline-flex items-center gap-2 rounded-lg border px-2 py-1 text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40 ${
@@ -156,25 +182,55 @@ function Correcoes({
             : "border-border-strong bg-surface-card hover:bg-surface-page"
         }`}
       >
-        <Wrench size={13} className="shrink-0 text-text-tertiary" aria-hidden />
+        <Wrench
+          size={TAMANHO_ICONE_FIXO}
+          className={`shrink-0 ${marcada ? "text-accent" : "text-text-tertiary"}`}
+          aria-hidden
+        />
 
         {vazio ? (
           <span className="font-medium text-text-tertiary">nenhuma</span>
         ) : (
           <>
-            <span className="inline-flex items-center gap-1 font-semibold text-success">
-              <Check size={12} aria-hidden />
-              <span className="tabular-nums">{resumo.linhasAprovadas.toLocaleString("pt-BR")}</span>
-              aprovadas
+            {/*
+              O número em negrito, a palavra em peso normal: a varredura procura
+              "quantas", e com os dois no mesmo peso os quatro pedaços do selo
+              tinham todos a mesma voz.
+
+              O visto verde só aparece quando há o que ele afirma. Correção
+              `sugerida` nasce desmarcada, então um arquivo só de sugestões
+              abria com "✓ 0 aprovadas" — um visto verde ao lado de um zero, que
+              de relance é o desenho de "está tudo certo" em cima do estado em
+              que nada foi decidido. Sem nenhuma aprovada, o zero fica apagado e
+              o peso do selo vai para o número que pede ação.
+            */}
+            <span
+              className={`inline-flex items-center gap-1 ${
+                temAprovada ? "text-success" : "text-text-tertiary"
+              }`}
+            >
+              {temAprovada && (
+                <Check
+                  size={TAMANHO_ICONE_FIXO}
+                  className="shrink-0"
+                  aria-hidden
+                />
+              )}
+              <span className="font-semibold tabular-nums">
+                {resumo.linhasAprovadas.toLocaleString("pt-BR")}
+              </span>
+              {resumo.linhasAprovadas === 1 ? "aprovada" : "aprovadas"}
             </span>
 
             {aDecidir > 0 && (
               <>
-                <span className="text-border-strong" aria-hidden>
+                <span className="text-text-tertiary" aria-hidden>
                   ·
                 </span>
-                <span className="inline-flex items-center gap-1 font-semibold text-accent">
-                  <span className="tabular-nums">{aDecidir.toLocaleString("pt-BR")}</span>
+                <span className="inline-flex items-center gap-1 text-accent">
+                  <span className="font-semibold tabular-nums">
+                    {aDecidir.toLocaleString("pt-BR")}
+                  </span>
                   a decidir
                 </span>
               </>

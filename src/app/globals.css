@@ -117,11 +117,15 @@
    * uma tabela presa numa caixa de altura conhecida não tem para onde invadir,
    * e o `sticky` da linha de títulos se ancora nessa caixa, não na janela.
    *
+   * A folga descontada é só o respiro da página — o `py-8` do conteúdo e uma
+   * faixa de rodapé à vista. O que sobra vira linha de tabela, que é o que
+   * estas telas existem para mostrar.
+   *
    * (O caminho oposto — deixar a página rolar e grudar os títulos na janela —
    * não existe: a rolagem horizontal que as 90 colunas do SPED exigem faz do
    * contêiner um scroll container, e dentro dele `sticky` só enxerga a caixa.)
    */
-  --altura-tabela: clamp(420px, calc(100svh - var(--altura-cabecalho) - 10rem), 900px);
+  --altura-tabela: clamp(420px, calc(100svh - var(--altura-cabecalho) - 7rem), 1000px);
 
   --radius: 0.375rem;
   --sidebar: oklch(0.985 0 0);

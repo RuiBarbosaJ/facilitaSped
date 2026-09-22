@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { CheckCheck, Wrench } from "lucide-react";
 
+import { TAMANHO_ICONE_FIXO } from "./colunasAchados";
 import { idDaCorrecao, type Correcao } from "../regravacao/correcoes";
 
 interface RevisaoCorrecoesProps {
@@ -80,7 +81,7 @@ export function RevisaoCorrecoes({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent">
-            <Wrench size={17} aria-hidden />
+            <Wrench size={TAMANHO_ICONE_FIXO} className="shrink-0" aria-hidden />
           </span>
           <div>
             <h2 id="titulo-revisao" className="text-base font-semibold">
@@ -121,7 +122,7 @@ export function RevisaoCorrecoes({
                   onClick={() => onAlternarCodigo(grupo.codigo, !todas)}
                   className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-accent hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
-                  <CheckCheck size={13} aria-hidden />
+                  <CheckCheck size={TAMANHO_ICONE_FIXO} className="shrink-0" aria-hidden />
                   {todas ? "Desmarcar todas" : nenhuma ? "Aprovar todas" : "Aprovar as restantes"}
                 </button>
               </div>

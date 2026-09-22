@@ -13,10 +13,29 @@ import { GooeyInput } from "@/components/ui/gooey-input";
 
 import type { ColunaGrade, EstadoDasColunas } from "../leiaute/colunas";
 import type { MarcasDaAuditoria } from "../auditoria/recorte";
-import { ESTILO_SEVERIDADE, FUNDO_SEVERIDADE, ROTULO_SEVERIDADE } from "./colunasAchados";
+import {
+  ESTILO_SEVERIDADE,
+  FUNDO_SEVERIDADE,
+  ROTULO_SEVERIDADE,
+  TAMANHO_ICONE_FIXO,
+} from "./colunasAchados";
 
 const LARGURA = 300;
 const MARGEM = 8;
+/**
+ * Abaixo disto o menu não é menu: não cabem os botões, a busca e uma linha de
+ * coluna. Com a barra no pé da janela e só isto sobrando, ele sobe em vez de
+ * nascer fora da tela — sendo `fixed`, nenhuma rolagem o alcançaria.
+ */
+const ALTURA_MINIMA = 260;
+
+/** Preso pelo topo (abre para baixo) ou pela base (abre para cima). */
+interface Posicao {
+  top?: number;
+  bottom?: number;
+  left: number;
+  alturaMaxima: number;
+}
 
 interface SeletorColunasProps {
   /** Todas as colunas do arquivo — o universo da escolha. */
@@ -90,9 +109,7 @@ export function SeletorColunas({
   const idMenu = useId();
   const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState("");
-  const [posicao, setPosicao] = useState<{ top: number; left: number } | null>(
-    null,
-  );
+  const [posicao, setPosicao] = useState<Posicao | null>(null);
   const botaoRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -125,10 +142,19 @@ export function SeletorColunas({
       const alvo = botaoRef.current?.getBoundingClientRect();
       if (!alvo) return;
       const limite = window.innerWidth - LARGURA - MARGEM;
-      setPosicao({
-        top: alvo.bottom + 4,
-        left: Math.max(MARGEM, Math.min(alvo.right - LARGURA, limite)),
-      });
+      const left = Math.max(MARGEM, Math.min(alvo.right - LARGURA, limite));
+
+      const abaixo = window.innerHeight - alvo.bottom - 4 - MARGEM;
+      const acima = alvo.top - 4 - MARGEM;
+      setPosicao(
+        abaixo >= ALTURA_MINIMA || abaixo >= acima
+          ? { top: alvo.bottom + 4, left, alturaMaxima: abaixo }
+          : {
+              bottom: window.innerHeight - alvo.top + 4,
+              left,
+              alturaMaxima: acima,
+            },
+      );
     }
 
     reposicionar();
@@ -179,7 +205,7 @@ export function SeletorColunas({
         title={titulo}
         className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border-strong bg-surface-card px-2.5 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-surface-page focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
-        <Columns3 size={14} aria-hidden />
+        <Columns3 size={TAMANHO_ICONE_FIXO} className="shrink-0" aria-hidden />
         Colunas
         <span className="tabular-nums text-text-tertiary">
           {visiveis.length}/{colunas.length}
@@ -205,10 +231,16 @@ export function SeletorColunas({
           id={idMenu}
           role="dialog"
           aria-label="Escolher colunas visíveis"
-          style={{ top: posicao.top, left: posicao.left, width: LARGURA }}
-          className="fixed z-50 rounded-xl border border-border-strong bg-surface-card p-3 text-left shadow-(--shadow-card)"
+          style={{
+            top: posicao.top,
+            bottom: posicao.bottom,
+            left: posicao.left,
+            width: LARGURA,
+            maxHeight: posicao.alturaMaxima,
+          }}
+          className="fixed z-50 flex flex-col overflow-hidden rounded-xl border border-border-strong bg-surface-card p-3 text-left shadow-(--shadow-card)"
         >
-          <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
             <span className="text-xs font-semibold text-text-primary">
               Colunas da grade
             </span>
@@ -219,14 +251,14 @@ export function SeletorColunas({
                 title="Voltar ao automático: mostra as preenchidas, esconde as vazias"
                 className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-accent hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
-                <RotateCcw size={12} aria-hidden />
+                <RotateCcw size={TAMANHO_ICONE_FIXO} className="shrink-0" aria-hidden />
                 Automático
               </button>
             )}
           </div>
 
           {cheiasOcultas > 0 && (
-            <p className="mb-2 rounded bg-warning-soft px-2 py-1 text-[11px] leading-snug text-warning">
+            <p className="mb-2 shrink-0 rounded bg-warning-soft px-2 py-1 text-[11px] leading-snug text-warning">
               {cheiasOcultas === 1
                 ? "1 coluna com dados está escondida por sua escolha."
                 : `${cheiasOcultas} colunas com dados estão escondidas por sua escolha.`}{" "}
@@ -235,7 +267,7 @@ export function SeletorColunas({
             </p>
           )}
 
-          <p className="mb-2 text-[11px] leading-snug text-text-tertiary">
+          <p className="mb-2 shrink-0 text-[11px] leading-snug text-text-tertiary">
             {recortadoPorCorrecoes
               ? "Só as colunas que a regravação reescreve estão na grade. As demais aparecem aqui como “não se aplica” — marque a caixa para trazer qualquer uma de volta."
               : "Colunas que nenhuma linha do recorte possui ficam escondidas. Colunas em branco — o campo existe e ninguém preencheu — continuam na grade, com selo."}
@@ -247,14 +279,14 @@ export function SeletorColunas({
             mais rápido do que desmarcar noventa e sete — e quem começa do vazio
             precisa do botão antes de rolar a lista, não depois dela.
           */}
-          <div className="mb-2 flex items-center gap-1.5">
+          <div className="mb-2 flex shrink-0 items-center gap-1.5">
             <button
               type="button"
               onClick={onMostrarTodas}
               title="Traz todas as colunas do arquivo, inclusive as que não se aplicam ao recorte"
               className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border-strong px-2 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:bg-surface-page focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
-              <Eye size={12} aria-hidden />
+              <Eye size={TAMANHO_ICONE_FIXO} className="shrink-0" aria-hidden />
               Todas
             </button>
             <button
@@ -263,7 +295,7 @@ export function SeletorColunas({
               title="Esvazia a grade para você marcar só as colunas que quer ver"
               className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border-strong px-2 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:bg-surface-page focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
-              <EyeOff size={12} aria-hidden />
+              <EyeOff size={TAMANHO_ICONE_FIXO} className="shrink-0" aria-hidden />
               Nenhuma
             </button>
           </div>
@@ -274,7 +306,7 @@ export function SeletorColunas({
             alwaysOpen
             collapsedWidth={44}
             expandedWidth={260}
-            className="mb-2 w-full justify-start"
+            className="mb-2 w-full shrink-0 justify-start"
             classNames={{
               filterWrap: "w-full",
               buttonRow: "w-full",
@@ -288,7 +320,7 @@ export function SeletorColunas({
             aria-label="Buscar coluna"
           />
 
-          <div className="flex max-h-72 flex-col gap-0.5 overflow-y-auto text-xs">
+          <div className="flex max-h-72 min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto text-xs">
             {encontradas.length === 0 ? (
               <span className="p-1 text-text-tertiary">
                 Nenhuma coluna encontrada.
@@ -342,7 +374,9 @@ export function SeletorColunas({
                     */}
                     <span
                       className={`min-w-0 flex-1 truncate ${
-                        marcaDaColuna ? FUNDO_SEVERIDADE[marcaDaColuna.severidade].texto : "text-text-primary"
+                        marcaDaColuna
+                          ? FUNDO_SEVERIDADE[marcaDaColuna.severidade].texto
+                          : "text-text-primary"
                       }`}
                     >
                       {coluna.titulo}
@@ -353,10 +387,16 @@ export function SeletorColunas({
                           FUNDO_SEVERIDADE[marcaDaColuna.severidade].texto
                         }`}
                         title={`${marcaDaColuna.quantidade.toLocaleString("pt-BR")} ${
-                          marcaDaColuna.quantidade === 1 ? "apontamento" : "apontamentos"
+                          marcaDaColuna.quantidade === 1
+                            ? "apontamento"
+                            : "apontamentos"
                         } neste campo; o mais grave é ${ROTULO_SEVERIDADE[marcaDaColuna.severidade].toLowerCase()}.`}
                       >
-                        <IconeDaMarca size={11} aria-hidden />
+                        <IconeDaMarca
+                          size={TAMANHO_ICONE_FIXO}
+                          className="shrink-0"
+                          aria-hidden
+                        />
                         {marcaDaColuna.quantidade.toLocaleString("pt-BR")}
                       </span>
                     )}
@@ -398,7 +438,7 @@ export function SeletorColunas({
             )}
           </div>
 
-          <p className="mt-2 flex items-center justify-between gap-2 border-t border-border-subtle pt-2 text-[11px] text-text-tertiary">
+          <p className="mt-2 flex shrink-0 items-center justify-between gap-2 border-t border-border-subtle pt-2 text-[11px] text-text-tertiary">
             <span>
               {visiveis.length} de {colunas.length} visíveis
             </span>

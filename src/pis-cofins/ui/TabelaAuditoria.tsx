@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import {
   ROTULO_STATUS_NATUREZA,
   statusNatureza,
@@ -29,7 +29,7 @@ interface TabelaAuditoriaProps {
  * confundem com a superfície, e a borda garante que a linha se destaque.
  */
 const ESTILO_LINHA: Record<LinhaAuditada["destaque"], string> = {
-  nenhum: "border-l-4 border-l-transparent",
+  nenhum: "border-l-4 border-l-transparent hover:bg-surface-hover",
   amarelo: "bg-warning-soft border-l-4 border-l-warning",
   vermelho: "bg-danger-soft border-l-4 border-l-danger",
 };
@@ -203,6 +203,51 @@ function CelulaNatureza({
   );
 }
 
+/** Quantas observações a linha mostra antes de pedir para expandir. */
+const OBSERVACOES_A_VISTA = 2;
+
+/**
+ * As observações da linha: as primeiras à vista, o resto sob demanda.
+ *
+ * Esta era a célula mais alta da tabela. Cinco observações empilhadas faziam
+ * uma linha de 236px, e a caixa inteira cabia quatro produtos — para conferir
+ * uma planilha de novecentas linhas, quatro por tela é rolagem, não leitura.
+ *
+ * Duas já respondem o que a varredura pergunta ("esta linha tem problema, e de
+ * que tipo?"); as outras são detalhe de quem parou naquela linha para decidir.
+ * O botão conta quantas ficaram, então ninguém precisa expandir para saber se
+ * vale a pena.
+ */
+function Observacoes({ itens }: { itens: string[] }) {
+  const [expandido, setExpandido] = useState(false);
+
+  if (itens.length === 0) {
+    return <span className="text-xs text-success">Coerente com o SPED</span>;
+  }
+
+  const escondidas = itens.length - OBSERVACOES_A_VISTA;
+  const visiveis = expandido ? itens : itens.slice(0, OBSERVACOES_A_VISTA);
+
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <ul className="flex flex-col gap-0.5 text-xs text-text-secondary">
+        {visiveis.map((o) => (
+          <li key={o}>{o}</li>
+        ))}
+      </ul>
+      {escondidas > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpandido(!expandido)}
+          className="rounded text-xs font-medium text-accent transition-colors hover:text-accent-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          {expandido ? "Ver menos" : `Ver mais (+${escondidas})`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** Auditoria linha a linha. Vermelho = NCM inválido; amarelo = divergência. */
 export function TabelaAuditoria({
   linhas,
@@ -235,7 +280,7 @@ export function TabelaAuditoria({
                 <th
                   key={coluna.id}
                   scope="col"
-                  className="sticky top-0 z-10 bg-surface-head px-3 py-3.5 text-left text-xs font-bold text-text-secondary uppercase tracking-widest whitespace-nowrap first:pl-4 align-middle shadow-(--shadow-header)"
+                  className="sticky top-0 z-10 bg-surface-head px-3 py-2 text-left text-[11px] font-bold text-text-secondary uppercase tracking-wider whitespace-nowrap first:pl-4 align-middle shadow-(--shadow-header)"
                   style={{ fontFamily: "var(--font-outfit), sans-serif" }}
                 >
                   <div className="flex items-center gap-1">
@@ -280,11 +325,11 @@ export function TabelaAuditoria({
                   key={l.linha}
                   className={`align-top ${ESTILO_LINHA[l.destaque]}`}
                 >
-                  <td className="px-3 py-2.5 whitespace-nowrap font-mono text-text-tertiary">
+                  <td className="px-3 py-1.5 whitespace-nowrap font-mono text-text-tertiary">
                     {l.linha}
                   </td>
 
-                  <td className="px-3 py-2.5 min-w-[200px] max-w-56 lg:max-w-md xl:max-w-xl 2xl:max-w-3xl">
+                  <td className="px-3 py-1.5 min-w-[200px] max-w-56 lg:max-w-md xl:max-w-xl 2xl:max-w-3xl">
                     <DescricaoExpandivel
                       texto={l.nome}
                       limiteCaracteres={100}
@@ -302,7 +347,7 @@ export function TabelaAuditoria({
                     )}
                   </td>
 
-                  <td className="px-3 py-2.5 whitespace-nowrap">
+                  <td className="px-3 py-1.5 whitespace-nowrap">
                     <span className="font-mono rounded bg-badge-ncm-bg px-1.5 py-0.5 text-badge-ncm-text">
                       {l.ncm || l.classificacaoOriginal || "—"}
                     </span>
@@ -315,7 +360,7 @@ export function TabelaAuditoria({
                   </td>
 
                   {/* Coluna "Informado → Corrigido" quando critério ativo */}
-                  <td className="px-3 py-2.5 whitespace-nowrap text-text-secondary">
+                  <td className="px-3 py-1.5 whitespace-nowrap text-text-secondary">
                     <CelulaCst
                       cstPis={l.cstPis}
                       cstCofins={l.cstCofins}
@@ -326,7 +371,7 @@ export function TabelaAuditoria({
                   </td>
 
                   {/* Coluna "Nat. Receita" */}
-                  <td className="px-3 py-2.5 whitespace-nowrap text-text-secondary">
+                  <td className="px-3 py-1.5 whitespace-nowrap text-text-secondary">
                     <CelulaNatureza
                       natureza={l.natureza}
                       naturezaCorrigida={l.naturezaCorrigida}
@@ -335,7 +380,7 @@ export function TabelaAuditoria({
                     />
                   </td>
 
-                  <td className="px-3 py-2.5 whitespace-nowrap">
+                  <td className="px-3 py-1.5 whitespace-nowrap">
                     <span
                       className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${ESTILO_SELO[l.situacao]}`}
                     >
@@ -363,7 +408,7 @@ export function TabelaAuditoria({
                       )}
                   </td>
 
-                  <td className="px-3 py-2.5 min-w-48 max-w-72">
+                  <td className="px-3 py-1.5 min-w-48 max-w-72">
                     {/* Com o critério ligado, a linha requalificada não mostra mais a
                         regra das outras tabelas: o critério mandou ignorá-las, e
                         exibir "CST 03/04" ao lado de um CST corrigido para 01 (ou 06)
@@ -412,18 +457,8 @@ export function TabelaAuditoria({
                     )}
                   </td>
 
-                  <td className="px-3 py-2.5 min-w-64 max-w-md">
-                    {l.observacoes.length > 0 ? (
-                      <ul className="flex flex-col gap-0.5 text-xs text-text-secondary">
-                        {l.observacoes.map((o) => (
-                          <li key={o}>{o}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <span className="text-xs text-success">
-                        Coerente com o SPED
-                      </span>
-                    )}
+                  <td className="px-3 py-1.5 min-w-64 max-w-md">
+                    <Observacoes itens={l.observacoes} />
                   </td>
                 </tr>
               ))

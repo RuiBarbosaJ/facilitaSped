@@ -212,11 +212,22 @@ export function GooeyInput({
         )}
         style={{ filter: `url(#${filterId})` }}
       >
+        {/*
+          `expandedWidth` é uma medida absoluta e não conhece o container.
+
+          Dentro de um menu de largura fixa, ela mais o deslocamento da bolha
+          passavam da borda: o campo aberto saía por cima da linha do painel. O
+          teto desconta o deslocamento — a bolha e a pílula juntas nunca
+          ultrapassam a caixa de quem usa o componente. Ele também vence o
+          tamanho mínimo automático do item flexível, que sozinho impedia a
+          pílula de encolher até caber.
+        */}
         <motion.div
           className={cn(
             "flex h-10 items-center justify-start",
             classNames?.buttonRow,
           )}
+          style={{ maxWidth: `calc(100% - ${expandedOffset}px)` }}
           variants={buttonVariants}
           initial="collapsed"
           animate={isExpanded ? "expanded" : "collapsed"}

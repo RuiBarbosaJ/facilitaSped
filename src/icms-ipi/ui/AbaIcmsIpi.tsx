@@ -6,6 +6,7 @@ import { AlertTriangle, Download, FileText, Loader2, ShieldCheck, Trash2 } from 
 import { ZonaUpload } from "@/componentes/ZonaUpload";
 import { GradeRegistro } from "./GradeRegistro";
 import { PainelIcmsIpi } from "./PainelIcmsIpi";
+import { RevisaoCorrecoes } from "./RevisaoCorrecoes";
 import { TabelaAchados } from "./TabelaAchados";
 import { TituloDaTela } from "@/componentes/TituloDaTela";
 import { LEIAUTE_CONFERIDO } from "../leiaute/versao";
@@ -227,6 +228,23 @@ export function AbaIcmsIpi() {
               </p>
             )}
           </section>
+
+          {/*
+            A revisão vem ANTES do botão que gera o arquivo.
+
+            A grade também aprova, uma linha por vez, e é onde se confere o
+            conserto no contexto do registro. O que faltava era a outra leitura:
+            a lista do que vai mudar, agrupada por código, com o motivo e o
+            de → para de cada item — e o "aprovar todas" que a grade só oferece
+            dentro do recorte. Quem vai assinar precisa poder ler o diff inteiro
+            sem caçá-lo coluna a coluna.
+          */}
+          <RevisaoCorrecoes
+            propostas={propostas}
+            aprovadas={aprovadas}
+            onAlternar={acoes.alternarCorrecao}
+            onAlternarCodigo={acoes.alternarPorCodigo}
+          />
 
           <section
             aria-labelledby="titulo-exportacao"

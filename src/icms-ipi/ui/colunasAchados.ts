@@ -1,9 +1,16 @@
 import { AlertTriangle, Info, ShieldAlert } from "lucide-react";
 
 import type { ColunaFiltravel } from "@/comum/filtrosColuna";
-import type { Achado, ConsertoDoAchado, Severidade } from "@/regras/nucleo/contrato";
+import type {
+  Achado,
+  ConsertoDoAchado,
+  Severidade,
+} from "@/regras/nucleo/contrato";
 
 export type ColunaAchado = ColunaFiltravel<Achado>;
+
+/** Tamanho visual fixo dos ícones de severidade na tela do ICMS/IPI. */
+export const TAMANHO_ICONE_FIXO = 14;
 
 /** Rótulo de cada severidade. É por ele que o menu de filtro é lido e ordenado. */
 export const ROTULO_SEVERIDADE: Record<Severidade, string> = {
@@ -29,9 +36,18 @@ export const ESTILO_SEVERIDADE: Record<
   Severidade,
   { classe: string; Icone: typeof AlertTriangle }
 > = {
-  critico: { classe: "border-danger/30 bg-danger-soft text-danger", Icone: ShieldAlert },
-  erro: { classe: "border-danger/30 bg-danger-soft text-danger", Icone: AlertTriangle },
-  alerta: { classe: "border-warning/30 bg-warning-soft text-warning", Icone: AlertTriangle },
+  critico: {
+    classe: "border-danger/30 bg-danger-soft text-danger",
+    Icone: ShieldAlert,
+  },
+  erro: {
+    classe: "border-danger/30 bg-danger-soft text-danger",
+    Icone: AlertTriangle,
+  },
+  alerta: {
+    classe: "border-warning/30 bg-warning-soft text-warning",
+    Icone: AlertTriangle,
+  },
   info: { classe: "border-accent/30 bg-accent-soft text-accent", Icone: Info },
 };
 
@@ -45,7 +61,10 @@ export const ESTILO_SEVERIDADE: Record<
  * A cor sozinha não basta, aqui como na lista: a célula pintada também ganha
  * `title` e entra no rótulo lido em voz alta.
  */
-export const FUNDO_SEVERIDADE: Record<Severidade, { celula: string; texto: string }> = {
+export const FUNDO_SEVERIDADE: Record<
+  Severidade,
+  { celula: string; texto: string }
+> = {
   critico: { celula: "bg-danger-soft", texto: "text-danger" },
   erro: { celula: "bg-danger-soft", texto: "text-danger" },
   alerta: { celula: "bg-warning-soft", texto: "text-warning" },

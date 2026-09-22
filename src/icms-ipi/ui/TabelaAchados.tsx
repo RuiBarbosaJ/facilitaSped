@@ -15,6 +15,7 @@ import {
   ESTILO_SEVERIDADE,
   ORDEM_SEVERIDADE,
   ROTULO_SEVERIDADE,
+  TAMANHO_ICONE_FIXO,
   textoDoAchado,
 } from "./colunasAchados";
 import type { Achado, Severidade } from "@/regras/nucleo/contrato";
@@ -38,21 +39,30 @@ const PAGINA = 100;
 const SEVERIDADES: Severidade[] = ["critico", "erro", "alerta", "info"];
 
 /** Colunas que nunca quebram linha: código, número, selo. */
-const ESTREITAS = new Set(["severidade", "linha", "nota", "registro", "codigo", "correcao"]);
+const ESTREITAS = new Set([
+  "severidade",
+  "linha",
+  "nota",
+  "registro",
+  "codigo",
+  "correcao",
+]);
 
 export function TabelaAchados({ achados }: { achados: Achado[] }) {
   const [busca, setBusca] = useState("");
   const [visiveisAteAqui, setVisiveisAteAqui] = useEstadoMemoria(
     "icms_ipi_achados_visiveis",
-    PAGINA
+    PAGINA,
   );
 
   const ordenados = useMemo(
     () =>
       [...achados].sort(
-        (a, b) => ORDEM_SEVERIDADE[a.severidade] - ORDEM_SEVERIDADE[b.severidade] || a.nl - b.nl
+        (a, b) =>
+          ORDEM_SEVERIDADE[a.severidade] - ORDEM_SEVERIDADE[b.severidade] ||
+          a.nl - b.nl,
       ),
-    [achados]
+    [achados],
   );
 
   // A busca vem antes dos filtros de coluna, como na auditoria de planilhas: as
@@ -69,25 +79,31 @@ export function TabelaAchados({ achados }: { achados: Achado[] }) {
    * outras duas tabelas — e sem isso quem tinha pedido "mostrar mais" cinco
    * vezes e então filtrava recebia uma página que não pediu.
    */
-  const voltarAoInicio = useCallback(() => setVisiveisAteAqui(PAGINA), [setVisiveisAteAqui]);
+  const voltarAoInicio = useCallback(
+    () => setVisiveisAteAqui(PAGINA),
+    [setVisiveisAteAqui],
+  );
 
   const colunas = useFiltrosColuna(
     encontrados,
     COLUNAS_ACHADOS,
     "icms_ipi_achados_filtros",
-    voltarAoInicio
+    voltarAoInicio,
   );
   const filtrados = colunas.itensFiltrados;
   const exibidos = useMemo(
     () => filtrados.slice(0, visiveisAteAqui),
-    [filtrados, visiveisAteAqui]
+    [filtrados, visiveisAteAqui],
   );
   const restantes = filtrados.length - exibidos.length;
 
   const contagemPorSeveridade = useMemo(() => {
     const contagem = new Map<Severidade, number>();
     for (const achado of achados) {
-      contagem.set(achado.severidade, (contagem.get(achado.severidade) ?? 0) + 1);
+      contagem.set(
+        achado.severidade,
+        (contagem.get(achado.severidade) ?? 0) + 1,
+      );
     }
     return contagem;
   }, [achados]);
@@ -100,7 +116,7 @@ export function TabelaAchados({ achados }: { achados: Achado[] }) {
       const jaSozinho = atual.length === 1 && atual[0] === rotulo;
       colunas.definir("severidade", jaSozinho ? null : [rotulo]);
     },
-    [colunas]
+    [colunas],
   );
 
   const filtrosAtivos = useMemo(
@@ -111,7 +127,7 @@ export function TabelaAchados({ achados }: { achados: Achado[] }) {
         valores,
         onRemover: () => colunas.definir(id, null),
       })),
-    [colunas]
+    [colunas],
   );
 
   const areaRef = useRef<HTMLDivElement>(null);
@@ -136,7 +152,9 @@ export function TabelaAchados({ achados }: { achados: Achado[] }) {
             if (quantidade === 0) return null;
 
             const { classe, Icone } = ESTILO_SEVERIDADE[severidade];
-            const marcada = colunas.filtros.severidade?.includes(ROTULO_SEVERIDADE[severidade]);
+            const marcada = colunas.filtros.severidade?.includes(
+              ROTULO_SEVERIDADE[severidade],
+            );
 
             return (
               <button
@@ -145,12 +163,20 @@ export function TabelaAchados({ achados }: { achados: Achado[] }) {
                 onClick={() => alternarSeveridade(severidade)}
                 aria-pressed={Boolean(marcada)}
                 className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${classe} ${
-                  marcada ? "ring-2 ring-accent ring-offset-1" : "opacity-90 hover:opacity-100"
+                  marcada
+                    ? "ring-2 ring-accent ring-offset-1"
+                    : "opacity-90 hover:opacity-100"
                 }`}
               >
-                <Icone size={13} aria-hidden />
+                <Icone
+                  size={TAMANHO_ICONE_FIXO}
+                  className="shrink-0"
+                  aria-hidden
+                />
                 {ROTULO_SEVERIDADE[severidade]}
-                <span className="tabular-nums">{quantidade.toLocaleString("pt-BR")}</span>
+                <span className="tabular-nums">
+                  {quantidade.toLocaleString("pt-BR")}
+                </span>
               </button>
             );
           })}
@@ -192,7 +218,9 @@ export function TabelaAchados({ achados }: { achados: Achado[] }) {
                           rotulo={coluna.rotulo}
                           opcoes={colunas.opcoesDe(coluna.id)}
                           selecionados={colunas.filtros[coluna.id]}
-                          onChange={(valores) => colunas.definir(coluna.id, valores)}
+                          onChange={(valores) =>
+                            colunas.definir(coluna.id, valores)
+                          }
                           alinharDireita={i >= COLUNAS_ACHADOS.length / 2}
                           descricao={DESCRICAO_DA_COLUNA[coluna.id]}
                         />
@@ -214,7 +242,10 @@ export function TabelaAchados({ achados }: { achados: Achado[] }) {
                     colSpan={COLUNAS_ACHADOS.length}
                     className="h-[320px] px-6 text-center align-middle"
                   >
-                    <SearchX className="mx-auto mb-3 h-8 w-8 text-text-tertiary" aria-hidden />
+                    <SearchX
+                      className="mx-auto mb-3 h-8 w-8 text-text-tertiary"
+                      aria-hidden
+                    />
                     <p className="text-text-secondary">
                       Nenhum apontamento
                       {busca ? ` para “${busca}”` : " para este filtro"}
@@ -239,16 +270,23 @@ export function TabelaAchados({ achados }: { achados: Achado[] }) {
             onClick={() => setVisiveisAteAqui((atual) => atual + PAGINA)}
             className="rounded-xl border border-border-subtle bg-surface-card px-5 py-2.5 text-sm font-medium text-accent shadow-(--shadow-card) transition-colors hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
-            Mostrar mais {Math.min(PAGINA, restantes)} de {restantes.toLocaleString("pt-BR")}
+            Mostrar mais {Math.min(PAGINA, restantes)} de{" "}
+            {restantes.toLocaleString("pt-BR")}
           </button>
         </div>
       )}
 
       <p className="text-xs text-text-tertiary" aria-live="polite">
-        {filtrados.length.toLocaleString("pt-BR")} de {achados.length.toLocaleString("pt-BR")}{" "}
+        {filtrados.length.toLocaleString("pt-BR")} de{" "}
+        {achados.length.toLocaleString("pt-BR")}{" "}
         {achados.length === 1 ? "apontamento" : "apontamentos"}
-        {filtrados.length !== achados.length ? " com a busca e os filtros aplicados" : ""}
-        {restantes > 0 ? ` — exibindo os primeiros ${exibidos.length.toLocaleString("pt-BR")}` : ""}.
+        {filtrados.length !== achados.length
+          ? " com a busca e os filtros aplicados"
+          : ""}
+        {restantes > 0
+          ? ` — exibindo os primeiros ${exibidos.length.toLocaleString("pt-BR")}`
+          : ""}
+        .
       </p>
     </div>
   );
@@ -270,12 +308,14 @@ function LinhaAchado({ achado }: { achado: Achado }) {
         <span
           className={`inline-flex w-fit items-center gap-1.5 rounded border px-2 py-0.5 text-[11px] font-bold ${classe}`}
         >
-          <Icone size={12} aria-hidden />
+          <Icone size={TAMANHO_ICONE_FIXO} className="shrink-0" aria-hidden />
           {ROTULO_SEVERIDADE[achado.severidade]}
         </span>
       </td>
 
-      <td className={`${celula("linha")} font-mono text-xs text-text-tertiary tabular-nums`}>
+      <td
+        className={`${celula("linha")} font-mono text-xs text-text-tertiary tabular-nums`}
+      >
         {achado.nl > 0 ? achado.nl.toLocaleString("pt-BR") : "—"}
       </td>
 
@@ -286,25 +326,33 @@ function LinhaAchado({ achado }: { achado: Achado }) {
       */}
       <td
         className={`${celula("nota")} font-mono text-xs font-medium text-text-primary tabular-nums`}
-        title={achado.documento ? `Documento nº ${achado.documento}` : undefined}
+        title={
+          achado.documento ? `Documento nº ${achado.documento}` : undefined
+        }
       >
         {achado.documento || "—"}
       </td>
 
-      <td className={`${celula("registro")} font-mono text-xs font-medium text-text-secondary`}>
+      <td
+        className={`${celula("registro")} font-mono text-xs font-medium text-text-secondary`}
+      >
         {achado.reg || "—"}
       </td>
 
-      <td className={`${celula("codigo")} font-mono text-xs font-semibold text-text-secondary`}>
+      <td
+        className={`${celula("codigo")} font-mono text-xs font-semibold text-text-secondary`}
+      >
         {achado.codigo}
       </td>
 
-      <td className={`${celula("regra")} text-xs text-text-tertiary`}>{achado.regra}</td>
+      <td className={`${celula("regra")} text-xs text-text-tertiary`}>
+        {achado.regra}
+      </td>
 
       <td className={`${celula("correcao")} text-xs`}>
         {achado.conserto === "automatica" ? (
           <span className="inline-flex items-center gap-1 rounded bg-success-soft px-2 py-0.5 font-medium text-success">
-            <Wrench size={11} aria-hidden />
+            <Wrench size={TAMANHO_ICONE_FIXO} className="shrink-0" aria-hidden />
             Na regravação
           </span>
         ) : achado.conserto === "sugerida" ? (
@@ -312,13 +360,15 @@ function LinhaAchado({ achado }: { achado: Achado }) {
             className="inline-flex items-center gap-1 rounded bg-warning-soft px-2 py-0.5 font-medium text-warning"
             title="A ferramenta calculou o valor, mas ele só entra no arquivo se você marcar a linha na grade acima."
           >
-            <Wrench size={11} aria-hidden />
+            <Wrench size={TAMANHO_ICONE_FIXO} className="shrink-0" aria-hidden />
             Sugerida
           </span>
         ) : (
           <span
             className={`text-text-tertiary ${
-              achado.motivoDoConserto ? "cursor-help underline decoration-dotted underline-offset-2" : ""
+              achado.motivoDoConserto
+                ? "cursor-help underline decoration-dotted underline-offset-2"
+                : ""
             }`}
             title={
               achado.motivoDoConserto ??
@@ -355,8 +405,8 @@ function LinhaAchado({ achado }: { achado: Achado }) {
         />
         {achado.esperado !== undefined && (
           <span className="mt-1 block text-xs text-text-tertiary">
-            Informado <span className="font-mono">{achado.atual}</span> · calculado{" "}
-            <span className="font-mono">{achado.esperado}</span>
+            Informado <span className="font-mono">{achado.atual}</span> ·
+            calculado <span className="font-mono">{achado.esperado}</span>
           </span>
         )}
       </td>
@@ -376,7 +426,8 @@ const DESCRICAO_DA_COLUNA: Record<string, string> = {
   registro: "Registro do SPED em que o apontamento foi encontrado.",
   codigo:
     "Código estável da regra. EST são regras de estrutura, CAD de cadastro, FIS de classificação fiscal e AUD de falha do próprio motor.",
-  regra: "Referência normativa ou o trecho do Guia Prático que sustenta o apontamento.",
+  regra:
+    "Referência normativa ou o trecho do Guia Prático que sustenta o apontamento.",
   correcao:
     "Automática: a regravação do TXT já resolve. Sugerida: a ferramenta calculou o valor e espera sua aprovação na grade. Manual: precisa ser corrigido no sistema que gerou o arquivo.",
 };

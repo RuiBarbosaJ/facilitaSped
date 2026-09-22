@@ -172,7 +172,7 @@ export default function Auditoria() {
                     <select
                       value={estado.cfopFiltro}
                       onChange={(e) => { acoes.setCfopFiltro(e.target.value); acoes.setVisiveis(PAGINA); }}
-                      className="block w-full py-2 pl-2.5 pr-8 text-sm rounded-lg border border-border-strong bg-surface-card text-text-primary focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
+                      className="block w-full min-w-0 py-2 pl-2.5 pr-8 text-sm rounded-lg border border-border-strong bg-surface-card text-text-primary focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
                     >
                       <option value="todos">Todos os CFOPs</option>
                       {dados.opcoesCfop.map((c) => <option key={c} value={c}>{c}</option>)}

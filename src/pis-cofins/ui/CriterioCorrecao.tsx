@@ -147,7 +147,7 @@ export function CriterioCorrecao({
               value={valor}
               onChange={(e) => onChange(e.target.value)}
               aria-label="Critério de correção de CST"
-              className="py-2 pl-2.5 pr-8 text-sm rounded-lg border border-border-strong bg-surface-card text-text-primary focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
+              className="block min-w-0 max-w-full py-2 pl-2.5 pr-8 text-sm rounded-lg border border-border-strong bg-surface-card text-text-primary focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
             >
               <option value={SEM_CORRECAO}>Sem correção — exibir planilha original</option>
               {opcoes.map((o) => (

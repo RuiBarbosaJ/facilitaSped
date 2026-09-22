@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { Filter, X } from "lucide-react";
 import { GooeyInput } from "@/components/ui/gooey-input";
 
@@ -41,6 +42,20 @@ interface FiltroColunaProps {
 
 const LARGURA = 288;
 const MARGEM = 8;
+/**
+ * Abaixo disto o menu não é menu: não cabem o cabeçalho, a busca e uma linha de
+ * valor. Quando a tabela está no pé da janela e só sobra isto, ele abre para
+ * cima da coluna em vez de nascer fora da tela.
+ */
+const ALTURA_MINIMA = 220;
+
+/** Preso pelo topo (abre para baixo) ou pela base (abre para cima). */
+interface Posicao {
+  top?: number;
+  bottom?: number;
+  left: number;
+  alturaMaxima: number;
+}
 
 /** Célula vazia não tem texto para mostrar; o menu a chama pelo nome. */
 function rotularValor(valor: string): string {
@@ -65,8 +80,12 @@ function rotularValor(valor: string): string {
  * Desmarcar a última caixa ou remarcar a que faltava volta para "todos" — o
  * menu nunca leva a uma tabela em branco por acidente.
  *
- * O menu é posicionado em coordenadas de viewport porque o container da tabela
- * rola na horizontal e recorta o que passa das bordas.
+ * O menu é posicionado em coordenadas de viewport e desenhado no `body`. São
+ * duas razões diferentes: o container da tabela rola na horizontal e recorta o
+ * que passa das bordas, e a célula de cabeçalho que hospeda o botão é `sticky`
+ * com `z-index` — ela abre um contexto de empilhamento próprio, dentro do qual
+ * o `z-50` do menu não vale nada. Era isso que deixava o topo do menu serrado:
+ * a coluna vizinha, outra `sticky`, pintava por cima dele.
  */
 export function FiltroColuna({
   rotulo,
@@ -79,11 +98,11 @@ export function FiltroColuna({
 }: FiltroColunaProps) {
   const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState("");
-  const [posicao, setPosicao] = useState<{ top: number; left: number } | null>(
-    null,
-  );
+  const [posicao, setPosicao] = useState<Posicao | null>(null);
   const botaoRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  /** O foco já foi entregue nesta abertura? Reposicionar não pode reentregá-lo. */
+  const focoEntregue = useRef(false);
 
   const selecao = useMemo(() => selecionados ?? [], [selecionados]);
   const semFiltro = selecao.length === 0;
@@ -119,14 +138,34 @@ export function FiltroColuna({
     if (!aberto) return;
 
     function reposicionar() {
-      const alvo = botaoRef.current?.getBoundingClientRect();
-      if (!alvo) return;
+      const botao = botaoRef.current;
+      if (!botao) return;
+      const alvo = botao.getBoundingClientRect();
+
+      /*
+        O menu nasce da LINHA de cabeçalho inteira, não do botão.
+
+        O botão fica no meio da célula, e descer a partir dele metia os
+        primeiros pixels do menu por baixo do cabeçalho — que continua ali,
+        `sticky`, pintando por cima.
+      */
+      const celula = botao.closest("th")?.getBoundingClientRect();
+      const base = Math.max(alvo.bottom, celula?.bottom ?? alvo.bottom);
+      const teto = Math.min(alvo.top, celula?.top ?? alvo.top);
+
       const bruto = alinharDireita ? alvo.right - LARGURA : alvo.left;
       const limite = window.innerWidth - LARGURA - MARGEM;
-      setPosicao({
-        top: alvo.bottom + 4,
-        left: Math.max(MARGEM, Math.min(bruto, limite)),
-      });
+      const left = Math.max(MARGEM, Math.min(bruto, limite));
+
+      // Com a tabela no pé da janela não sobrava altura nenhuma embaixo: o menu
+      // abria fora da tela e, sendo `fixed`, nenhuma rolagem o alcançava.
+      const abaixo = window.innerHeight - base - 4 - MARGEM;
+      const acima = teto - 4 - MARGEM;
+      setPosicao(
+        abaixo >= ALTURA_MINIMA || abaixo >= acima
+          ? { top: base + 4, left, alturaMaxima: abaixo }
+          : { bottom: window.innerHeight - teto + 4, left, alturaMaxima: acima },
+      );
     }
 
     reposicionar();
@@ -138,6 +177,26 @@ export function FiltroColuna({
       window.removeEventListener("resize", reposicionar);
     };
   }, [aberto, alinharDireita]);
+
+  /*
+    O foco entra no menu quando ele abre.
+
+    Desenhá-lo no `body` resolveu o recorte e o empilhamento e custou a ordem de
+    tabulação: o menu deixou de ser vizinho do botão no DOM, então quem abria
+    pelo teclado dava Tab e caía no filtro da coluna SEGUINTE — as caixas e a
+    busca só eram alcançáveis depois de atravessar a página inteira. Focar a
+    caixa (e não o campo de busca) leva o teclado para dentro sem sequestrar a
+    digitação de quem abriu com o mouse.
+  */
+  useEffect(() => {
+    if (!aberto) {
+      focoEntregue.current = false;
+      return;
+    }
+    if (focoEntregue.current || !menuRef.current) return;
+    focoEntregue.current = true;
+    menuRef.current.focus({ preventScroll: true });
+  }, [aberto, posicao]);
 
   useEffect(() => {
     if (!aberto) return;
@@ -215,163 +274,183 @@ export function FiltroColuna({
         )}
       </button>
 
-      {aberto && posicao && (
-        <div
-          ref={menuRef}
-          role="group"
-          aria-label={`Filtro da coluna ${rotulo}`}
-          style={{ top: posicao.top, left: posicao.left, width: LARGURA }}
-          className="fixed z-50 rounded-xl border border-border-strong bg-surface-card p-3 text-left font-sans font-normal normal-case tracking-normal shadow-(--shadow-card)"
-        >
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <span className="truncate text-xs font-semibold text-text-primary">
-              {rotulo}
-            </span>
-            {!semFiltro && (
-              <button
-                type="button"
-                onClick={() => onChange(null)}
-                className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-accent hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-              >
-                <X size={12} aria-hidden />
-                Limpar
-              </button>
-            )}
-          </div>
-
-          {descricao && (
-            <p className="mb-2 text-[11px] leading-snug text-text-tertiary">
-              {descricao}
-            </p>
-          )}
-
-          <GooeyInput
-            value={busca}
-            onValueChange={setBusca}
-            collapsedWidth={44}
-            expandedWidth={248}
-            className="mb-2 w-full justify-start"
-            classNames={{
-              filterWrap: "w-full",
-              buttonRow: "w-full",
-              trigger:
-                "justify-start bg-surface-page text-text-primary ring-1 ring-border-strong",
-              input: "text-text-primary placeholder:text-text-tertiary",
-              bubbleSurface:
-                "bg-surface-page text-text-primary ring-1 ring-border-strong",
+      {aberto &&
+        posicao &&
+        createPortal(
+          <div
+            ref={menuRef}
+            role="group"
+            aria-label={`Filtro da coluna ${rotulo}`}
+            tabIndex={-1}
+            onBlur={(evento) => {
+              // `relatedTarget` nulo é clique em área não-focável do próprio
+              // menu; quem fecha esse caso é o ouvinte de clique-fora.
+              const proximo = evento.relatedTarget as Node | null;
+              if (!proximo) return;
+              if (menuRef.current?.contains(proximo)) return;
+              if (botaoRef.current?.contains(proximo)) return;
+              fechar();
             }}
-            placeholder={`Buscar em ${opcoes.length} valores...`}
-            aria-label={`Buscar valores da coluna ${rotulo}`}
-          />
-
-          <div className="flex max-h-56 flex-col gap-0.5 overflow-y-auto text-xs">
-            <label
-              className={`flex items-center gap-2 rounded px-1 py-1 ${
-                semFiltro
-                  ? "opacity-60"
-                  : "cursor-pointer hover:bg-surface-page"
-              }`}
-              title={
-                semFiltro
-                  ? "Todos os valores já estão sendo mostrados"
-                  : "Voltar a mostrar todos"
-              }
-            >
-              <input
-                type="checkbox"
-                checked={semFiltro}
-                // Parcialmente marcado quando há valor escondido: é o estado
-                // real da coluna, e o mesmo sinal que uma planilha usa.
-                ref={(el) => {
-                  if (el) el.indeterminate = !semFiltro;
-                }}
-                disabled={semFiltro}
-                onChange={() => onChange(null)}
-                className="rounded border-border-strong text-accent focus:ring-accent"
-              />
-              <span className="font-semibold">(Todos)</span>
-            </label>
-
-            {visiveis.length === 0 ? (
-              <span className="p-1 text-text-tertiary">
-                Nenhum valor encontrado.
+            style={{
+              top: posicao.top,
+              bottom: posicao.bottom,
+              left: posicao.left,
+              width: LARGURA,
+              maxHeight: posicao.alturaMaxima,
+            }}
+            className="fixed z-50 flex flex-col overflow-hidden rounded-xl border border-border-strong bg-surface-card p-3 text-left shadow-(--shadow-card) focus:outline-none"
+          >
+            <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
+              <span className="truncate text-xs font-semibold text-text-primary">
+                {rotulo}
               </span>
-            ) : (
-              visiveis.map((valor) => (
-                <div
-                  key={valor}
-                  className="group flex items-center gap-2 rounded px-1 py-1 hover:bg-surface-page"
+              {!semFiltro && (
+                <button
+                  type="button"
+                  onClick={() => onChange(null)}
+                  className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-accent hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
-                  <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={estaMarcado(selecao, valor)}
-                      onChange={() => alternar(valor)}
-                      aria-label={`Mostrar ${textoDaOpcao(valor)}`}
-                      className="shrink-0 rounded border-border-strong text-accent focus:ring-accent"
-                    />
-                    <span
-                      className={`min-w-0 flex-1 truncate ${valor === SEM_VALOR ? "italic text-text-tertiary" : ""}`}
-                      title={textoDaOpcao(valor)}
+                  <X size={12} aria-hidden />
+                  Limpar
+                </button>
+              )}
+            </div>
+
+            {descricao && (
+              <p className="mb-2 shrink-0 text-[11px] leading-snug text-text-tertiary">
+                {descricao}
+              </p>
+            )}
+
+            <GooeyInput
+              value={busca}
+              onValueChange={setBusca}
+              alwaysOpen
+              collapsedWidth={44}
+              expandedWidth={248}
+              className="mb-2 w-full shrink-0 justify-start"
+              classNames={{
+                filterWrap: "w-full",
+                buttonRow: "w-full",
+                trigger:
+                  "justify-start bg-surface-page text-text-primary ring-1 ring-border-strong",
+                input: "text-text-primary placeholder:text-text-tertiary",
+                bubbleSurface:
+                  "bg-surface-page text-text-primary ring-1 ring-border-strong",
+              }}
+              placeholder={`Buscar em ${opcoes.length} valores...`}
+              aria-label={`Buscar valores da coluna ${rotulo}`}
+            />
+
+            <div className="flex max-h-56 min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto text-xs">
+              <label
+                className={`flex items-center gap-2 rounded px-1 py-1 ${
+                  semFiltro
+                    ? "opacity-60"
+                    : "cursor-pointer hover:bg-surface-page"
+                }`}
+                title={
+                  semFiltro
+                    ? "Todos os valores já estão sendo mostrados"
+                    : "Voltar a mostrar todos"
+                }
+              >
+                <input
+                  type="checkbox"
+                  checked={semFiltro}
+                  // Parcialmente marcado quando há valor escondido: é o estado
+                  // real da coluna, e o mesmo sinal que uma planilha usa.
+                  ref={(el) => {
+                    if (el) el.indeterminate = !semFiltro;
+                  }}
+                  disabled={semFiltro}
+                  onChange={() => onChange(null)}
+                  className="rounded border-border-strong text-accent focus:ring-accent"
+                />
+                <span className="font-semibold">(Todos)</span>
+              </label>
+
+              {visiveis.length === 0 ? (
+                <span className="p-1 text-text-tertiary">
+                  Nenhum valor encontrado.
+                </span>
+              ) : (
+                visiveis.map((valor) => (
+                  <div
+                    key={valor}
+                    className="group flex items-center gap-2 rounded px-1 py-1 hover:bg-surface-page"
+                  >
+                    <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={estaMarcado(selecao, valor)}
+                        onChange={() => alternar(valor)}
+                        aria-label={`Mostrar ${textoDaOpcao(valor)}`}
+                        className="shrink-0 rounded border-border-strong text-accent focus:ring-accent"
+                      />
+                      <span
+                        className={`min-w-0 flex-1 truncate ${valor === SEM_VALOR ? "italic text-text-tertiary" : ""}`}
+                        title={textoDaOpcao(valor)}
+                      >
+                        {rotularValor(valor)}
+                        {descreverValor?.(valor) && (
+                          <span className="text-text-tertiary">
+                            {" "}
+                            — {descreverValor(valor)}
+                          </span>
+                        )}
+                      </span>
+                    </label>
+
+                    {/*
+                      Isolar um valor é o outro gesto do menu, e sem ele a caixa
+                      que exclui obrigaria a desmarcar todo o resto um a um.
+                      Aparece no hover e no foco do teclado — nunca some para quem
+                      navega sem mouse.
+                    */}
+                    <button
+                      type="button"
+                      onClick={() => somente(valor)}
+                      title={`Mostrar apenas ${textoDaOpcao(valor)}`}
+                      className="shrink-0 rounded px-1 py-0.5 text-[10px] font-medium text-accent opacity-0 transition-opacity hover:bg-accent-soft focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent group-hover:opacity-100"
                     >
-                      {rotularValor(valor)}
-                      {descreverValor?.(valor) && (
-                        <span className="text-text-tertiary">
-                          {" "}
-                          — {descreverValor(valor)}
-                        </span>
-                      )}
-                    </span>
-                  </label>
+                      só este
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
 
-                  {/*
-                    Isolar um valor é o outro gesto do menu, e sem ele a caixa
-                    que exclui obrigaria a desmarcar todo o resto um a um.
-                    Aparece no hover e no foco do teclado — nunca some para quem
-                    navega sem mouse.
-                  */}
-                  <button
-                    type="button"
-                    onClick={() => somente(valor)}
-                    title={`Mostrar apenas ${textoDaOpcao(valor)}`}
-                    className="shrink-0 rounded px-1 py-0.5 text-[10px] font-medium text-accent opacity-0 transition-opacity hover:bg-accent-soft focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent group-hover:opacity-100"
-                  >
-                    só este
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-
-          <p className="mt-2 border-t border-border-subtle pt-2 text-[11px] text-text-tertiary">
-            {semFiltro ? (
-              "Todos os valores aparecem. Desmarque um para escondê-lo."
-            ) : (
-              <>
-                Mostrando {selecao.length} de {opcoes.length} —{" "}
-                {excluidos === 1
-                  ? "1 valor escondido"
-                  : `${excluidos} valores escondidos`}
-                .
-              </>
-            )}
-            {busca.trim() &&
-              visiveis.length > 0 &&
-              visiveis.length < opcoes.length && (
+            <p className="mt-2 shrink-0 border-t border-border-subtle pt-2 text-[11px] text-text-tertiary">
+              {semFiltro ? (
+                "Todos os valores aparecem. Desmarque um para escondê-lo."
+              ) : (
                 <>
-                  {" "}
-                  <button
-                    type="button"
-                    onClick={somenteVisiveis}
-                    className="font-medium text-accent hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                  >
-                    Mostrar só os {visiveis.length} encontrados
-                  </button>
+                  Mostrando {selecao.length} de {opcoes.length} —{" "}
+                  {excluidos === 1
+                    ? "1 valor escondido"
+                    : `${excluidos} valores escondidos`}
+                  .
                 </>
               )}
-          </p>
-        </div>
-      )}
+              {busca.trim() &&
+                visiveis.length > 0 &&
+                visiveis.length < opcoes.length && (
+                  <>
+                    {" "}
+                    <button
+                      type="button"
+                      onClick={somenteVisiveis}
+                      className="font-medium text-accent hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    >
+                      Mostrar só os {visiveis.length} encontrados
+                    </button>
+                  </>
+                )}
+            </p>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }

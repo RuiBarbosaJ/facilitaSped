@@ -10,14 +10,23 @@ import { FiltroColuna } from "@/componentes/FiltroColuna";
 import { COLUNA_REGISTRO, valorDaColuna } from "../leiaute/acesso";
 import { larguraPadraoDe, type ColunaGrade } from "../leiaute/colunas";
 import type { Achado, Severidade } from "@/regras/nucleo/contrato";
-import { idDaCorrecao, type Correcao, type CorrecaoDeCampo } from "../regravacao/correcoes";
+import {
+  idDaCorrecao,
+  type Correcao,
+  type CorrecaoDeCampo,
+} from "../regravacao/correcoes";
 import { FiltroDeLinhas } from "./FiltroDeLinhas";
-import { chaveDaCelula, marcarAuditoria, type MarcasDaAuditoria } from "../auditoria/recorte";
+import {
+  chaveDaCelula,
+  marcarAuditoria,
+  type MarcasDaAuditoria,
+} from "../auditoria/recorte";
 import {
   BORDA_SEVERIDADE,
   ESTILO_SEVERIDADE,
   FUNDO_SEVERIDADE,
   ROTULO_SEVERIDADE,
+  TAMANHO_ICONE_FIXO,
 } from "./colunasAchados";
 import { descreverValor, temDominio } from "../leiaute/dominios";
 import { LIMITES } from "../limites";
@@ -177,7 +186,10 @@ export function GradeRegistro({
    */
   const correcaoPorCelula = useMemo(() => {
     const aprovadasPorId = new Set(correcoesAprovadas.map(idDaCorrecao));
-    const mapa = new Map<string, { correcao: CorrecaoDeCampo; aprovada: boolean }>();
+    const mapa = new Map<
+      string,
+      { correcao: CorrecaoDeCampo; aprovada: boolean }
+    >();
     for (const correcao of propostas) {
       if (correcao.tipo !== "campo") continue;
       mapa.set(chaveDaCelula(correcao.nl, correcao.campo), {
@@ -199,8 +211,11 @@ export function GradeRegistro({
   const marcas = useMemo(() => marcarAuditoria(achados ?? []), [achados]);
 
   /** A coluna de seleção só existe quando há algo a aprovar. */
-  const podeSelecionar = propostasPorLinha.size > 0 && Boolean(onAlternarLinhas);
-  const larguraDaNumeracao = podeSelecionar ? LARGURA_COM_SELECAO : LARGURA_DA_NUMERACAO;
+  const podeSelecionar =
+    propostasPorLinha.size > 0 && Boolean(onAlternarLinhas);
+  const larguraDaNumeracao = podeSelecionar
+    ? LARGURA_COM_SELECAO
+    : LARGURA_DA_NUMERACAO;
 
   /** Linha aprovada é linha em que TODAS as propostas estão aprovadas. */
   const linhaAprovada = useCallback(
@@ -209,7 +224,7 @@ export function GradeRegistro({
       if (!lista || lista.length === 0) return false;
       return lista.every((c) => idsAprovados.has(idDaCorrecao(c)));
     },
-    [propostasPorLinha, idsAprovados]
+    [propostasPorLinha, idsAprovados],
   );
 
   /**
@@ -227,12 +242,12 @@ export function GradeRegistro({
 
   const aprovadasNoRecorte = useMemo(
     () => linhasSelecionaveis.filter(linhaAprovada).length,
-    [linhasSelecionaveis, linhaAprovada]
+    [linhasSelecionaveis, linhaAprovada],
   );
 
   const alternarLinha = useCallback(
     (nl: number, aprovar: boolean) => onAlternarLinhas?.([nl], aprovar),
-    [onAlternarLinhas]
+    [onAlternarLinhas],
   );
 
   const areaRef = useRef<HTMLDivElement>(null);
@@ -254,7 +269,9 @@ export function GradeRegistro({
   /** Largura das colunas fixas: a seta da esquerda não pode cobri-las. */
   const larguraFixa =
     larguraDaNumeracao +
-    (colunas[0] ? larguraDa(`col_${colunas[0].nome}`, larguraPadraoDe(colunas[0])) : 0);
+    (colunas[0]
+      ? larguraDa(`col_${colunas[0].nome}`, larguraPadraoDe(colunas[0]))
+      : 0);
 
   const linhasVirtuais = virtualizador.getVirtualItems();
   const primeira = linhasVirtuais[0]?.index ?? 0;
@@ -264,17 +281,25 @@ export function GradeRegistro({
     if (linhasVirtuais.length > 0) garantirIntervalo(primeira, ultima);
   }, [primeira, ultima, linhasVirtuais.length, garantirIntervalo]);
 
-  const copiar = useCallback(async (valor: string, id: string, rotulo: string) => {
-    if (!valor) return;
-    try {
-      await navigator.clipboard.writeText(valor);
-      setCopiada(id);
-      setAnuncio(`${rotulo} copiado.`);
-      window.setTimeout(() => setCopiada((atual) => (atual === id ? null : atual)), 1500);
-    } catch {
-      setAnuncio(`Não foi possível copiar ${rotulo}: o navegador bloqueou a área de transferência.`);
-    }
-  }, []);
+  const copiar = useCallback(
+    async (valor: string, id: string, rotulo: string) => {
+      if (!valor) return;
+      try {
+        await navigator.clipboard.writeText(valor);
+        setCopiada(id);
+        setAnuncio(`${rotulo} copiado.`);
+        window.setTimeout(
+          () => setCopiada((atual) => (atual === id ? null : atual)),
+          1500,
+        );
+      } catch {
+        setAnuncio(
+          `Não foi possível copiar ${rotulo}: o navegador bloqueou a área de transferência.`,
+        );
+      }
+    },
+    [],
+  );
 
   /*
    * Navegação por teclado.
@@ -292,12 +317,24 @@ export function GradeRegistro({
       const destino = { ...foco };
 
       switch (evento.key) {
-        case "ArrowDown": destino.linha = Math.min(ultimaLinha, foco.linha + 1); break;
-        case "ArrowUp": destino.linha = Math.max(0, foco.linha - 1); break;
-        case "ArrowRight": destino.coluna = Math.min(ultimaColuna, foco.coluna + 1); break;
-        case "ArrowLeft": destino.coluna = Math.max(0, foco.coluna - 1); break;
-        case "PageDown": destino.linha = Math.min(ultimaLinha, foco.linha + 20); break;
-        case "PageUp": destino.linha = Math.max(0, foco.linha - 20); break;
+        case "ArrowDown":
+          destino.linha = Math.min(ultimaLinha, foco.linha + 1);
+          break;
+        case "ArrowUp":
+          destino.linha = Math.max(0, foco.linha - 1);
+          break;
+        case "ArrowRight":
+          destino.coluna = Math.min(ultimaColuna, foco.coluna + 1);
+          break;
+        case "ArrowLeft":
+          destino.coluna = Math.max(0, foco.coluna - 1);
+          break;
+        case "PageDown":
+          destino.linha = Math.min(ultimaLinha, foco.linha + 20);
+          break;
+        case "PageUp":
+          destino.linha = Math.max(0, foco.linha - 20);
+          break;
         case "Home":
           destino.coluna = 0;
           if (evento.ctrlKey) destino.linha = 0;
@@ -312,9 +349,10 @@ export function GradeRegistro({
 
       evento.preventDefault();
       setFoco(destino);
-      if (destino.linha !== foco.linha) virtualizador.scrollToIndex(destino.linha);
+      if (destino.linha !== foco.linha)
+        virtualizador.scrollToIndex(destino.linha);
     },
-    [colunas.length, foco, totalDeLinhas, virtualizador]
+    [colunas.length, foco, totalDeLinhas, virtualizador],
   );
 
   /*
@@ -329,7 +367,9 @@ export function GradeRegistro({
    */
   useEffect(() => {
     setFoco((atual) =>
-      atual.coluna > colunas.length ? { ...atual, coluna: colunas.length } : atual
+      atual.coluna > colunas.length
+        ? { ...atual, coluna: colunas.length }
+        : atual,
     );
   }, [colunas.length]);
 
@@ -339,7 +379,9 @@ export function GradeRegistro({
     const area = areaRef.current;
     if (!area || !area.contains(document.activeElement)) return;
     area
-      .querySelector<HTMLElement>(`[data-celula="${foco.linha}-${foco.coluna}"]`)
+      .querySelector<HTMLElement>(
+        `[data-celula="${foco.linha}-${foco.coluna}"]`,
+      )
       ?.focus({ preventScroll: true });
   }, [foco, linhasVirtuais.length]);
 
@@ -358,11 +400,17 @@ export function GradeRegistro({
             className={`shrink-0 border-r border-border-subtle bg-surface-head px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-text-secondary whitespace-nowrap relative ${
               fixa ? "sticky z-40 shadow-[2px_0_4px_-1px_rgb(0_0_0/0.08)]" : ""
             }`}
-            style={{ width: larguraDa(id, padrao), left: fixa ? larguraDaNumeracao : undefined }}
+            style={{
+              width: larguraDa(id, padrao),
+              left: fixa ? larguraDaNumeracao : undefined,
+            }}
           >
             <div className="flex items-center gap-1.5 pr-1">
               <SeloDaColuna marca={marcas.colunas.get(coluna.nome)} />
-              <span className="truncate" title={`${coluna.titulo} (${coluna.nome})`}>
+              <span
+                className="truncate"
+                title={`${coluna.titulo} (${coluna.nome})`}
+              >
                 {coluna.titulo}
               </span>
               <FiltroColuna
@@ -383,13 +431,22 @@ export function GradeRegistro({
           </th>
         );
       }),
-    [colunas, filtros, filtrar, larguraDa, larguraDaNumeracao, marcas, opcoes, redimensionar]
+    [
+      colunas,
+      filtros,
+      filtrar,
+      larguraDa,
+      larguraDaNumeracao,
+      marcas,
+      opcoes,
+      redimensionar,
+    ],
   );
 
   /** Colunas com filtro ativo: o seletor as trava visíveis. */
   const colunasFiltradas = useMemo(
     () => new Set(Object.keys(filtros).filter((nome) => filtros[nome]?.length)),
-    [filtros]
+    [filtros],
   );
 
   return (
@@ -450,8 +507,9 @@ export function GradeRegistro({
       {truncadas.length > 0 && (
         <p className="text-xs text-text-tertiary">
           As colunas {truncadas.join(", ")} têm mais de{" "}
-          {LIMITES.OPCOES_POR_COLUNA.toLocaleString("pt-BR")} valores distintos; o menu lista apenas
-          os primeiros. Use a busca dentro do menu para chegar a um valor específico.
+          {LIMITES.OPCOES_POR_COLUNA.toLocaleString("pt-BR")} valores distintos;
+          o menu lista apenas os primeiros. Use a busca dentro do menu para
+          chegar a um valor específico.
         </p>
       )}
 
@@ -480,11 +538,15 @@ export function GradeRegistro({
             style={{ display: "grid" }}
           >
             <caption className="sr-only">
-              Uma coluna por campo do layout. Cada linha preenche apenas as colunas do seu registro.
-              Use as setas para navegar entre as células e Enter para copiar a célula em foco.
+              Uma coluna por campo do layout. Cada linha preenche apenas as
+              colunas do seu registro. Use as setas para navegar entre as
+              células e Enter para copiar a célula em foco.
             </caption>
 
-            <thead className="sticky top-0 bg-surface-head" style={{ display: "grid", zIndex: 30 }}>
+            <thead
+              className="sticky top-0 bg-surface-head"
+              style={{ display: "grid", zIndex: 30 }}
+            >
               <tr
                 aria-rowindex={1}
                 style={{
@@ -528,7 +590,10 @@ export function GradeRegistro({
                           aprovadasNoRecorte < linhasSelecionaveis.length;
                       }}
                       onChange={(evento) =>
-                        onAlternarLinhas?.(linhasSelecionaveis, evento.target.checked)
+                        onAlternarLinhas?.(
+                          linhasSelecionaveis,
+                          evento.target.checked,
+                        )
                       }
                       aria-label={`Aprovar a correção das ${linhasSelecionaveis.length} linhas corrigíveis do recorte`}
                       title={
@@ -559,7 +624,9 @@ export function GradeRegistro({
               {linhasVirtuais.map((linhaVirtual) => {
                 const dados = linhas[linhaVirtual.index];
                 const fundo =
-                  linhaVirtual.index % 2 !== 0 ? "var(--surface-page)" : "var(--surface-card)";
+                  linhaVirtual.index % 2 !== 0
+                    ? "var(--surface-page)"
+                    : "var(--surface-card)";
 
                 return (
                   <tr
@@ -584,7 +651,9 @@ export function GradeRegistro({
                         larguraDaNumeracao={larguraDaNumeracao}
                         marcas={marcas}
                         correcoes={correcaoPorCelula}
-                        selecionavel={podeSelecionar && propostasPorLinha.has(dados.nl)}
+                        selecionavel={
+                          podeSelecionar && propostasPorLinha.has(dados.nl)
+                        }
                         aprovada={linhaAprovada(dados.nl)}
                         onAlternarLinha={alternarLinha}
                         foco={foco}
@@ -642,7 +711,9 @@ export function GradeRegistro({
                 ? ` (${todasAsColunas.length - colunas.length} ocultas: ${
                     estadoColunas.ausentes.size
                   } não se aplicam ao recorte${
-                    Object.keys(escolhaDeColunas).length > 0 ? ", o resto por sua escolha" : ""
+                    Object.keys(escolhaDeColunas).length > 0
+                      ? ", o resto por sua escolha"
+                      : ""
                   })`
                 : ""
             }.`}
@@ -664,7 +735,10 @@ interface CelulasProps {
   larguraDaNumeracao: number;
   marcas: MarcasDaAuditoria;
   /** Correções por célula (`nl|campo`), aprovadas e sugeridas. */
-  correcoes: ReadonlyMap<string, { correcao: CorrecaoDeCampo; aprovada: boolean }>;
+  correcoes: ReadonlyMap<
+    string,
+    { correcao: CorrecaoDeCampo; aprovada: boolean }
+  >;
   /** A linha tem correção a aprovar — só então a caixa existe. */
   selecionavel: boolean;
   aprovada: boolean;
@@ -731,7 +805,9 @@ function Celulas({
           : undefined
       }
       className={`sticky left-0 z-20 flex shrink-0 items-center gap-2 border-r border-border-subtle py-2 pr-3 font-mono text-[11px] text-text-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${
-        daLinha ? `border-l-[3px] pl-[9px] ${BORDA_SEVERIDADE[daLinha]}` : "pl-3"
+        daLinha
+          ? `border-l-[3px] pl-[9px] ${BORDA_SEVERIDADE[daLinha]}`
+          : "pl-3"
       }`}
       style={{ width: larguraDaNumeracao, backgroundColor: fundo }}
     >
@@ -740,7 +816,9 @@ function Celulas({
           type="checkbox"
           tabIndex={-1}
           checked={aprovada}
-          onChange={(evento) => onAlternarLinha(numeroDaLinha, evento.target.checked)}
+          onChange={(evento) =>
+            onAlternarLinha(numeroDaLinha, evento.target.checked)
+          }
           onClick={(evento) => evento.stopPropagation()}
           aria-label={`Aprovar a correção da linha ${numeroDaLinha}`}
           title="Esta linha tem correção proposta. Marque para que ela entre no TXT gerado."
@@ -787,7 +865,9 @@ function Celulas({
     const conserto = correcoes.get(chaveDaCelula(numeroDaLinha, coluna.nome));
     const corrigida = conserto?.aprovada ? conserto.correcao : null;
     const sugerida = conserto && !conserto.aprovada ? conserto.correcao : null;
-    const apontada = marcas.celulas.get(chaveDaCelula(numeroDaLinha, coluna.nome));
+    const apontada = marcas.celulas.get(
+      chaveDaCelula(numeroDaLinha, coluna.nome),
+    );
     /*
      * A correção vence a severidade na pintura.
      *
@@ -796,7 +876,11 @@ function Celulas({
      * de aprovar. O porquê da correção continua na lista de apontamentos, que
      * é onde ele lê o detalhe; aqui ele vê o resultado.
      */
-    const pintura = corrigida ? null : apontada ? FUNDO_SEVERIDADE[apontada] : null;
+    const pintura = corrigida
+      ? null
+      : apontada
+        ? FUNDO_SEVERIDADE[apontada]
+        : null;
 
     celulas.push(
       <td
@@ -813,8 +897,8 @@ function Celulas({
             : sugerida
               ? `, com correção sugerida para ${sugerida.para || "vazio"}, ainda não aprovada`
               : apontada
-              ? `, com apontamento de severidade ${ROTULO_SEVERIDADE[apontada].toLowerCase()}`
-              : ""
+                ? `, com apontamento de severidade ${ROTULO_SEVERIDADE[apontada].toLowerCase()}`
+                : ""
         }`}
         title={
           corrigida
@@ -822,8 +906,8 @@ function Celulas({
             : sugerida
               ? `Correção sugerida: trocar "${sugerida.de}" por "${sugerida.para}". ${sugerida.motivo} Marque a caixa da linha ${numeroDaLinha} para que ela entre no arquivo gerado.`
               : apontada
-              ? `Este campo tem apontamento de severidade ${ROTULO_SEVERIDADE[apontada].toLowerCase()}. O detalhe está na lista de apontamentos, pela linha ${numeroDaLinha}.`
-              : undefined
+                ? `Este campo tem apontamento de severidade ${ROTULO_SEVERIDADE[apontada].toLowerCase()}. O detalhe está na lista de apontamentos, pela linha ${numeroDaLinha}.`
+                : undefined
         }
         onFocus={() => onFoco({ linha: indiceDaLinha, coluna: indice + 1 })}
         onClick={() => onFoco({ linha: indiceDaLinha, coluna: indice + 1 })}
@@ -844,7 +928,11 @@ function Celulas({
         } ${
           numerica ? "justify-end font-mono" : "justify-start"
         } ${fixa ? "sticky z-20 font-mono font-medium shadow-[2px_0_4px_-1px_rgb(0_0_0/0.08)]" : ""} ${
-          corrigida ? "bg-success-soft font-medium" : pintura ? `${pintura.celula} font-medium` : ""
+          corrigida
+            ? "bg-success-soft font-medium"
+            : pintura
+              ? `${pintura.celula} font-medium`
+              : ""
         }`}
         style={{
           width: larguraDa(`col_${coluna.nome}`, larguraPadraoDe(coluna)),
@@ -893,8 +981,16 @@ function Celulas({
           <span
             aria-hidden={naoSeAplica}
             aria-label={naoSeAplica ? undefined : "campo em branco"}
-            title={naoSeAplica ? undefined : "Campo em branco: o registro possui o campo e ele não foi preenchido"}
-            className={naoSeAplica ? "text-text-tertiary/60" : "font-medium text-warning/80"}
+            title={
+              naoSeAplica
+                ? undefined
+                : "Campo em branco: o registro possui o campo e ele não foi preenchido"
+            }
+            className={
+              naoSeAplica
+                ? "text-text-tertiary/60"
+                : "font-medium text-warning/80"
+            }
           >
             {naoSeAplica ? "—" : "∅"}
           </span>
@@ -918,7 +1014,7 @@ function Celulas({
             )}
           </button>
         )}
-      </td>
+      </td>,
     );
   });
 
@@ -976,7 +1072,10 @@ function AlcaDeRedimensionamento({ rotulo, largura, onLargura }: AlcaProps) {
       }}
       className="absolute right-0 top-0 flex h-full w-4 -mr-2 cursor-col-resize touch-none justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
     >
-      <span aria-hidden className="h-full w-px bg-transparent transition-colors hover:bg-accent" />
+      <span
+        aria-hidden
+        className="h-full w-px bg-transparent transition-colors hover:bg-accent"
+      />
     </div>
   );
 }
@@ -1013,7 +1112,7 @@ function SeloDaColuna({
         marca.quantidade === 1 ? "apontamento" : "apontamentos"
       }, o mais grave de severidade ${rotulo}`}
     >
-      <Icone size={12} aria-hidden />
+      <Icone size={TAMANHO_ICONE_FIXO} className="shrink-0" aria-hidden />
     </span>
   );
 }
