@@ -18,12 +18,12 @@ const ROTULO_CLASSE = {
   automatica: {
     texto: "automática",
     ajuda: "O valor certo é dedutível do próprio arquivo, sem decisão fiscal. Nasce aprovada; desmarque se quiser.",
-    classe: "bg-success-soft text-success",
+    classe: "text-success",
   },
   sugerida: {
     texto: "sugerida",
     ajuda: "Há uma decisão embutida. Nasce desmarcada; aprove só depois de conferir de → para.",
-    classe: "bg-warning-soft text-warning",
+    classe: "text-warning",
   },
 } as const;
 
@@ -74,26 +74,17 @@ export function RevisaoCorrecoes({
   const linhasNovas = propostas.filter((c) => c.tipo === "linha" && marcadas.has(idDaCorrecao(c))).length;
 
   return (
-    <section
-      aria-labelledby="titulo-revisao"
-      className="flex flex-col gap-4 rounded-xl border border-border-subtle bg-surface-card p-4 shadow-(--shadow-card)"
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent">
-            <Wrench size={TAMANHO_ICONE_FIXO} className="shrink-0" aria-hidden />
-          </span>
-          <div>
-            <h2 id="titulo-revisao" className="text-base font-semibold">
-              Correções para o arquivo gerado
-            </h2>
-            <p className="mt-0.5 text-xs text-text-secondary">
-              {totalAprovadas} de {propostas.length} aprovada{propostas.length === 1 ? "" : "s"}
-              {linhasNovas > 0 && ` · ${linhasNovas} linha${linhasNovas === 1 ? "" : "s"} nova${linhasNovas === 1 ? "" : "s"}`}
-              . Só o que está marcado entra no TXT; o resto sai como veio.
-            </p>
-          </div>
-        </div>
+    <section aria-labelledby="titulo-revisao" className="flex flex-col gap-3">
+      <div>
+        <h3 id="titulo-revisao" className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+          <Wrench size={TAMANHO_ICONE_FIXO} className="shrink-0 text-text-tertiary" aria-hidden />
+          Correções para o arquivo gerado
+        </h3>
+        <p className="mt-0.5 text-xs text-text-secondary">
+          {totalAprovadas} de {propostas.length} aprovada{propostas.length === 1 ? "" : "s"}
+          {linhasNovas > 0 && ` · ${linhasNovas} linha${linhasNovas === 1 ? "" : "s"} nova${linhasNovas === 1 ? "" : "s"}`}
+          . Só o que está marcado entra no TXT; o resto sai como veio.
+        </p>
       </div>
 
       <ul className="flex flex-col gap-3">
@@ -103,14 +94,11 @@ export function RevisaoCorrecoes({
           const nenhuma = grupo.aprovadasNoGrupo === 0;
 
           return (
-            <li key={grupo.codigo} className="rounded-lg border border-border-subtle">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle bg-surface-page/60 px-3 py-2">
+            <li key={grupo.codigo} className="rounded-md border border-border-subtle">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle px-3 py-2">
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <span className="font-mono text-xs font-semibold text-text-primary">{grupo.codigo}</span>
-                  <span
-                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${rotulo.classe}`}
-                    title={rotulo.ajuda}
-                  >
+                  <span className={`text-xs font-medium ${rotulo.classe}`} title={rotulo.ajuda}>
                     {rotulo.texto}
                   </span>
                   <span className="text-xs text-text-tertiary">
@@ -120,7 +108,7 @@ export function RevisaoCorrecoes({
                 <button
                   type="button"
                   onClick={() => onAlternarCodigo(grupo.codigo, !todas)}
-                  className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-accent hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   <CheckCheck size={TAMANHO_ICONE_FIXO} className="shrink-0" aria-hidden />
                   {todas ? "Desmarcar todas" : nenhuma ? "Aprovar todas" : "Aprovar as restantes"}
@@ -135,7 +123,7 @@ export function RevisaoCorrecoes({
                   const marcada = marcadas.has(id);
                   return (
                     <li key={id}>
-                      <label className="flex cursor-pointer items-center gap-3 rounded px-2 py-1.5 hover:bg-surface-page">
+                      <label className="flex cursor-pointer items-center gap-3 rounded-sm px-2 py-1.5 hover:bg-surface-hover">
                         <input
                           type="checkbox"
                           checked={marcada}

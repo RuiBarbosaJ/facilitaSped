@@ -56,19 +56,19 @@ const COLUNAS = [
 export function Comparativo() {
   return (
     <>
-      <div className="hidden overflow-hidden rounded-md border border-border-subtle md:block">
+      <div className="hidden overflow-hidden rounded-md border border-border-subtle bg-surface-card md:block">
         <table className="w-full border-collapse text-left text-sm">
           <caption className="sr-only">O que cada tela recebe, confere, devolve e corrige.</caption>
           <thead>
             <tr>
-              <th scope="col" className="w-40 bg-surface-head px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-text-secondary">
+              <th scope="col" className="w-40 bg-surface-card px-3 py-2 text-xs font-medium text-text-secondary">
                 <span className="sr-only">Pergunta</span>
               </th>
               {COLUNAS.map((c) => (
                 <th
                   key={c.chave}
                   scope="col"
-                  className="bg-surface-head px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-text-secondary"
+                  className="bg-surface-card px-3 py-2 text-xs font-medium text-text-secondary"
                 >
                   {c.rotulo}
                 </th>
@@ -77,8 +77,8 @@ export function Comparativo() {
           </thead>
           <tbody>
             {LINHAS.map((l) => (
-              <tr key={l.pergunta} className="border-t border-border-subtle align-top odd:bg-surface-page/50">
-                <th scope="row" className="px-3 py-2.5 text-xs font-semibold text-text-primary">
+              <tr key={l.pergunta} className="border-t border-border-subtle align-top">
+                <th scope="row" className="px-3 py-2.5 text-sm font-medium text-text-primary">
                   {l.pergunta}
                 </th>
                 {COLUNAS.map((c) => (
@@ -95,7 +95,7 @@ export function Comparativo() {
       <div className="flex flex-col gap-3 md:hidden">
         {COLUNAS.map((c) => (
           <div key={c.chave} className="rounded-md border border-border-subtle bg-surface-card">
-            <p className="border-b border-border-subtle bg-surface-head px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-text-secondary">
+            <p className="border-b border-border-subtle bg-surface-card px-3 py-2 text-xs font-medium text-text-secondary">
               {c.rotulo}
             </p>
             <dl className="flex flex-col gap-2 p-3 text-sm">

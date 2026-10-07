@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import {
   ROTULO_STATUS_NATUREZA,
   statusNatureza,
@@ -12,6 +12,7 @@ import type { FiltrosColuna } from "@/comum/filtrosColuna";
 import { DescricaoExpandivel } from "@/componentes/DescricaoExpandivel";
 import { FiltroColuna } from "@/componentes/FiltroColuna";
 import { NavegacaoLateral } from "@/componentes/NavegacaoLateral";
+import { formatarNcm } from "@/comum/ncm";
 
 interface TabelaAuditoriaProps {
   /** Só a fatia que deve ser exibida. */
@@ -22,32 +23,45 @@ interface TabelaAuditoriaProps {
   onFiltrar: (id: string, valores: string[] | null) => void;
   /** Quando true, a coluna "Informado" exibe o CST corrigido ao lado do original. */
   criterioCorrecaoAtivo?: boolean;
+  /** O que vem depois da última linha, dentro da área que rola ("Mostrar mais"). */
+  rodape?: ReactNode;
 }
 
 /**
  * Além do fundo, uma borda à esquerda: no tema escuro os tons suaves quase se
- * confundem com a superfície, e a borda garante que a linha se destaque.
+ * confundem com a superfície, e a borda garante que a linha se destaque. Fina:
+ * ela marca a linha, não a emoldura.
  */
 const ESTILO_LINHA: Record<LinhaAuditada["destaque"], string> = {
-  nenhum: "border-l-4 border-l-transparent hover:bg-surface-hover",
-  amarelo: "bg-warning-soft border-l-4 border-l-warning",
-  vermelho: "bg-danger-soft border-l-4 border-l-danger",
+  nenhum: "border-l-2 border-l-transparent hover:bg-surface-hover/60",
+  amarelo: "bg-warning-soft/70 border-l-2 border-l-warning",
+  vermelho: "bg-danger-soft/70 border-l-2 border-l-danger",
 };
 
-/** O selo da natureza repete o texto da opção de filtro — verde quando o
+/** O status da natureza repete o texto da opção de filtro — verde quando o
  *  critério resolveu a linha, vermelho quando invalidou a natureza informada. */
 const ESTILO_STATUS_NATUREZA: Record<StatusNatureza, string> = {
-  corrigida: "bg-success-soft text-success",
-  coerente: "bg-success-soft text-success",
-  invalida: "bg-danger-soft text-danger",
+  corrigida: "text-success",
+  coerente: "text-success",
+  invalida: "text-danger",
 };
 
-const ESTILO_SELO: Record<LinhaAuditada["situacao"], string> = {
-  beneficio: "bg-success-soft text-success",
-  possivel: "bg-accent-soft text-accent",
-  tributado: "bg-badge-ncm-bg text-badge-ncm-text",
-  invalido: "bg-danger text-accent-contrast",
+/**
+ * A situação da linha: um ponto colorido e o nome. Era uma pastilha de fundo
+ * cheio em toda linha — numa planilha de novecentos produtos, novecentas
+ * pastilhas, e a cor deixava de separar uma situação da outra.
+ */
+const COR_SITUACAO: Record<LinhaAuditada["situacao"], { ponto: string; texto: string }> = {
+  beneficio: { ponto: "bg-success", texto: "text-text-primary" },
+  possivel: { ponto: "bg-accent", texto: "text-accent" },
+  tributado: { ponto: "bg-text-tertiary", texto: "text-text-secondary" },
+  invalido: { ponto: "bg-danger", texto: "text-danger font-medium" },
 };
+
+/** O NCM como se lê na TIPI; o que não tem oito dígitos aparece como veio. */
+function ncmParaLer(ncm: string): string {
+  return ncm.length === 8 ? formatarNcm(ncm) : ncm;
+}
 
 function Codigo({ valor }: { valor: string }) {
   return valor ? (
@@ -91,7 +105,8 @@ function CelulaCst({
             <span className="font-mono line-through text-text-tertiary">
               {cstCofins || "—"}
             </span>
-            <span className="mx-1 text-text-tertiary">→</span>
+            <span className="mx-1 text-text-tertiary" aria-hidden>→</span>
+            <span className="sr-only">corrigido para</span>
             <span className="font-mono font-semibold text-success">
               {cstCorrigido}
             </span>
@@ -113,18 +128,9 @@ function CelulaCst({
         </div>
       )}
 
-      {/* Badge de correção aplicada */}
-      {mudou && (
-        <span className="mt-0.5 inline-flex w-fit items-center gap-1 rounded bg-success-soft px-1.5 py-0.5 text-[10px] font-medium text-success">
-          ✓ corrigido
-        </span>
-      )}
-
-      {/* NCM inválido não corrigido */}
+      {/* NCM inválido não corrigido: o critério não tem o que gravar. */}
       {criterioAtivo && cstCorrigido === "" && (
-        <span className="mt-0.5 inline-flex w-fit items-center gap-1 rounded bg-danger-soft px-1.5 py-0.5 text-[10px] font-medium text-danger">
-          NCM inválido
-        </span>
+        <span className="text-xs text-danger">NCM inválido — sem correção</span>
       )}
     </div>
   );
@@ -186,20 +192,41 @@ function CelulaNatureza({
       </div>
 
       {aIndicar.length > 0 && (
-        <div className={`text-[11px] ${escolhaIncerta ? "text-warning" : "text-text-tertiary"}`}>
+        <div className={`text-xs ${escolhaIncerta ? "text-warning" : "text-text-tertiary"}`}>
           SPED: <span className="font-mono">{aIndicar.join(" / ")}</span>
           {escolhaIncerta && " — confira"}
         </div>
       )}
 
       {status && (
-        <span
-          className={`mt-0.5 inline-flex w-fit items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${ESTILO_STATUS_NATUREZA[status]}`}
-        >
+        <span className={`text-xs ${ESTILO_STATUS_NATUREZA[status]}`}>
           {ROTULO_STATUS_NATUREZA[status]}
         </span>
       )}
     </div>
+  );
+}
+
+/**
+ * Texto de apoio numa linha só, que se abre ao clique.
+ *
+ * A descrição oficial do NCM e a da regra do SPED ocupavam duas linhas cada,
+ * mais um "Ver mais" numa terceira — e eram elas, não o dado conferido, que
+ * faziam cada produto ocupar 110px. Uma linha basta para reconhecer o texto; o
+ * resto está a um clique, no próprio texto, sem um botão a mais por célula.
+ */
+function TextoDeApoio({ texto }: { texto: string }) {
+  const [aberto, setAberto] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={() => setAberto(!aberto)}
+      aria-expanded={aberto}
+      title={aberto ? undefined : texto}
+      className="block w-full rounded-sm text-left text-xs text-text-tertiary transition-colors hover:text-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+    >
+      <span className={aberto ? "" : "line-clamp-1"}>{texto}</span>
+    </button>
   );
 }
 
@@ -256,11 +283,12 @@ export function TabelaAuditoria({
   opcoesDe,
   onFiltrar,
   criterioCorrecaoAtivo = false,
+  rodape,
 }: TabelaAuditoriaProps) {
   const areaRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div className="relative bg-surface-card rounded-xl shadow-(--shadow-card) overflow-hidden">
+    <div className="relative overflow-hidden rounded-lg border border-border-subtle bg-surface-card">
       <div
         ref={areaRef}
         className="custom-scrollbar overflow-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
@@ -280,8 +308,7 @@ export function TabelaAuditoria({
                 <th
                   key={coluna.id}
                   scope="col"
-                  className="sticky top-0 z-10 bg-surface-head px-3 py-2 text-left text-[11px] font-bold text-text-secondary uppercase tracking-wider whitespace-nowrap first:pl-4 align-middle shadow-(--shadow-header)"
-                  style={{ fontFamily: "var(--font-outfit), sans-serif" }}
+                  className="sticky top-0 z-10 bg-surface-card px-3 py-2 text-left align-middle text-xs font-medium whitespace-nowrap text-text-secondary shadow-[inset_0_-1px_0_var(--border-subtle)] first:pl-4"
                 >
                   <div className="flex items-center gap-1">
                     <span>
@@ -310,12 +337,12 @@ export function TabelaAuditoria({
                   colSpan={colunas.length}
                   className="h-[400px] px-6 text-center align-middle text-text-secondary"
                 >
-                  <p className="text-base font-medium">
-                    Nenhuma linha neste filtro.
+                  <p className="text-sm font-medium text-text-primary">
+                    Nenhuma linha neste recorte.
                   </p>
-                  <p className="text-sm text-text-tertiary mt-1">
-                    Revise o cartão de resumo selecionado, a busca, o CFOP ou os
-                    filtros das colunas para ver os resultados.
+                  <p className="mt-1 text-sm text-text-tertiary">
+                    Volte para &ldquo;Todas as linhas&rdquo; na coluna Situação, ou
+                    revise a busca, o CFOP e os filtros das colunas.
                   </p>
                 </td>
               </tr>
@@ -323,33 +350,33 @@ export function TabelaAuditoria({
               linhas.map((l) => (
                 <tr
                   key={l.linha}
-                  className={`align-top ${ESTILO_LINHA[l.destaque]}`}
+                  className={`border-b border-border-subtle align-top transition-colors last:border-b-0 ${ESTILO_LINHA[l.destaque]}`}
                 >
-                  <td className="px-3 py-1.5 whitespace-nowrap font-mono text-text-tertiary">
+                  <td className="px-3 py-2 pl-4 whitespace-nowrap font-mono text-xs text-text-tertiary tabular-nums">
                     {l.linha}
                   </td>
 
-                  <td className="px-3 py-1.5 min-w-[200px] max-w-56 lg:max-w-md xl:max-w-xl 2xl:max-w-3xl">
+                  <td className="px-3 py-2 min-w-[200px] max-w-56 lg:max-w-md xl:max-w-xl 2xl:max-w-3xl">
                     <DescricaoExpandivel
                       texto={l.nome}
                       limiteCaracteres={100}
                       className="text-text-primary"
                       destacar={false}
                     />
+                    {/*
+                      A descrição oficial do NCM, sem realce: o realce de termos
+                      pintava "NCM" de pastilha em toda linha da tabela.
+                    */}
                     {l.descricaoNcm && (
                       <div className="mt-0.5">
-                        <DescricaoExpandivel
-                          texto={`NCM: ${l.descricaoNcm}`}
-                          limiteCaracteres={100}
-                          className="text-xs text-text-tertiary"
-                        />
+                        <TextoDeApoio texto={l.descricaoNcm} />
                       </div>
                     )}
                   </td>
 
-                  <td className="px-3 py-1.5 whitespace-nowrap">
-                    <span className="font-mono rounded bg-badge-ncm-bg px-1.5 py-0.5 text-badge-ncm-text">
-                      {l.ncm || l.classificacaoOriginal || "—"}
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    <span className="font-mono text-[13px] text-text-primary">
+                      {l.ncm ? ncmParaLer(l.ncm) : l.classificacaoOriginal || "—"}
                     </span>
                     {l.ncm &&
                       l.classificacaoOriginal.replace(/\D/g, "") !== l.ncm && (
@@ -360,7 +387,7 @@ export function TabelaAuditoria({
                   </td>
 
                   {/* Coluna "Informado → Corrigido" quando critério ativo */}
-                  <td className="px-3 py-1.5 whitespace-nowrap text-text-secondary">
+                  <td className="px-3 py-2 whitespace-nowrap text-text-secondary">
                     <CelulaCst
                       cstPis={l.cstPis}
                       cstCofins={l.cstCofins}
@@ -371,7 +398,7 @@ export function TabelaAuditoria({
                   </td>
 
                   {/* Coluna "Nat. Receita" */}
-                  <td className="px-3 py-1.5 whitespace-nowrap text-text-secondary">
+                  <td className="px-3 py-2 whitespace-nowrap text-text-secondary">
                     <CelulaNatureza
                       natureza={l.natureza}
                       naturezaCorrigida={l.naturezaCorrigida}
@@ -380,10 +407,9 @@ export function TabelaAuditoria({
                     />
                   </td>
 
-                  <td className="px-3 py-1.5 whitespace-nowrap">
-                    <span
-                      className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${ESTILO_SELO[l.situacao]}`}
-                    >
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    <span className={`inline-flex items-center gap-1.5 text-sm ${COR_SITUACAO[l.situacao].texto}`}>
+                      <span aria-hidden className={`size-1.5 shrink-0 rounded-full ${COR_SITUACAO[l.situacao].ponto}`} />
                       {l.rotulo}
                     </span>
                     {/* Quando o critério está ativo e a linha tem um CST corrigido
@@ -394,70 +420,59 @@ export function TabelaAuditoria({
                     {criterioCorrecaoAtivo &&
                       l.cstCorrigido === undefined &&
                       l.situacao !== "invalido" && (
-                        <div className="mt-1 inline-flex items-center gap-1 rounded bg-badge-ncm-bg px-1.5 py-0.5 text-[10px] font-medium text-badge-ncm-text">
+                        <div className="mt-0.5 text-xs text-text-tertiary">
                           Fora do critério — mantida
                         </div>
                       )}
                     {criterioCorrecaoAtivo &&
                       l.cstCorrigido !== undefined &&
                       l.situacao !== "invalido" && (
-                        <div className="mt-1 inline-flex items-center gap-1 rounded bg-success-soft px-1.5 py-0.5 text-[10px] font-medium text-success">
-                          <span>✓</span>
-                          <span>Coerente com o critério</span>
+                        <div className="mt-0.5 text-xs text-success">
+                          Coerente com o critério
                         </div>
                       )}
                   </td>
 
-                  <td className="px-3 py-1.5 min-w-48 max-w-72">
+                  <td className="px-3 py-2 min-w-48 max-w-72">
                     {/* Com o critério ligado, a linha requalificada não mostra mais a
                         regra das outras tabelas: o critério mandou ignorá-las, e
                         exibir "CST 03/04" ao lado de um CST corrigido para 01 (ou 06)
                         só faz o contador duvidar da correção que ele mesmo pediu. */}
                     {criterioCorrecaoAtivo && l.cstCorrigido === "01" ? (
-                      <span className="inline-flex w-fit items-center gap-1 rounded bg-success-soft px-2 py-0.5 text-[10px] font-medium text-success">
+                      <span className="text-xs text-success">
                         Tratado como tributado (CST 01)
                       </span>
                     ) : l.regra ? (
                       <div className="flex flex-col gap-0.5">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-xs text-text-tertiary">
-                            CST
+                        {/*
+                          A regra numa linha de texto: os códigos em mono, sem
+                          pastilha. "CST 06 · nat. 105 · 4.3.13" se lê de uma vez;
+                          as três pastilhas que havia ali se liam como botões.
+                        */}
+                        <div className="text-xs whitespace-nowrap text-text-tertiary">
+                          CST{" "}
+                          <span className="font-mono font-medium text-text-primary">
+                            {l.regra.cstsAceitos.join(" ou ")}
                           </span>
-                          {l.regra.cstsAceitos.map((cst) => (
-                            <span
-                              key={cst}
-                              className="font-mono rounded bg-badge-cst-bg px-1.5 py-0.5 text-xs font-medium text-badge-cst-text"
-                            >
-                              {cst}
-                            </span>
-                          ))}
                           {l.regra.naturezas.length > 0 && (
                             <>
-                              <span className="text-xs text-text-tertiary">
-                                · nat.
-                              </span>
-                              <span className="font-mono text-xs font-medium">
+                              {" · nat. "}
+                              <span className="font-mono font-medium text-text-primary">
                                 {l.regra.naturezas.join(" / ")}
                               </span>
                             </>
                           )}
-                          <span className="text-xs text-text-tertiary">
-                            · tabela {l.regra.tabela}
-                          </span>
+                          {" · tabela "}
+                          {l.regra.tabela}
                         </div>
-                        <div
-                          className="line-clamp-2 text-xs text-text-secondary"
-                          title={l.regra.descricao}
-                        >
-                          {l.regra.descricao}
-                        </div>
+                        <TextoDeApoio texto={l.regra.descricao} />
                       </div>
                     ) : (
                       <span className="text-text-tertiary">—</span>
                     )}
                   </td>
 
-                  <td className="px-3 py-1.5 min-w-64 max-w-md">
+                  <td className="px-3 py-2 min-w-64 max-w-md">
                     <Observacoes itens={l.observacoes} />
                   </td>
                 </tr>
@@ -465,6 +480,8 @@ export function TabelaAuditoria({
             )}
           </tbody>
         </table>
+
+        {rodape}
       </div>
 
       <NavegacaoLateral area={areaRef} />

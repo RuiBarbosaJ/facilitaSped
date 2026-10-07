@@ -72,7 +72,7 @@ export function FiltroDeLinhas({
 
         {SEVERIDADES.map((severidade) => {
           const linhas = resumo.linhasPorSeveridade[severidade];
-          const { classe, Icone } = ESTILO_SEVERIDADE[severidade];
+          const { texto, Icone } = ESTILO_SEVERIDADE[severidade];
           const marcada = marcadas.has(severidade);
           const rotulo = ROTULO_SEVERIDADE[severidade];
 
@@ -88,19 +88,25 @@ export function FiltroDeLinhas({
                   ? `Nenhuma linha com apontamento de severidade ${rotulo.toLowerCase()}`
                   : `${linhas.toLocaleString("pt-BR")} ${linhas === 1 ? "linha" : "linhas"} com apontamento ${rotulo.toLowerCase()}`
               }
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40 ${classe} ${
+              /*
+                Botão neutro com o ícone na cor da severidade, e não pastilha
+                de fundo cheio: quatro pastilhas vermelhas, amarelas e azuis
+                lado a lado gritavam mais que a grade que elas filtram. Marcado,
+                ele ganha o azul de seleção — o mesmo dos outros recortes.
+              */
+              className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40 ${
                 marcada
-                  ? "ring-2 ring-accent ring-offset-1"
-                  : "opacity-90 hover:opacity-100"
+                  ? "border-accent bg-accent-soft text-accent"
+                  : "border-border-subtle bg-surface-card text-text-secondary hover:bg-surface-hover"
               }`}
             >
               <Icone
                 size={TAMANHO_ICONE_FIXO}
-                className="shrink-0"
+                className={`shrink-0 ${marcada ? "" : texto}`}
                 aria-hidden
               />
               {rotulo}
-              <span className="tabular-nums">
+              <span className="font-mono tabular-nums">
                 {linhas.toLocaleString("pt-BR")}
               </span>
             </button>
@@ -119,7 +125,7 @@ export function FiltroDeLinhas({
           <button
             type="button"
             onClick={onLimpar}
-            className="inline-flex items-center gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <Eraser size={TAMANHO_ICONE_FIXO} className="shrink-0" aria-hidden />
             Ver o arquivo inteiro
@@ -176,10 +182,10 @@ function Correcoes({
                   : "linhas corrigíveis aprovadas"
               }. Clique para ver só estas linhas na grade.`
         }
-        className={`inline-flex items-center gap-2 rounded-lg border px-2 py-1 text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40 ${
+        className={`inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40 ${
           marcada
-            ? "border-accent bg-accent-soft ring-2 ring-accent ring-offset-1"
-            : "border-border-strong bg-surface-card hover:bg-surface-page"
+            ? "border-accent bg-accent-soft"
+            : "border-border-subtle bg-surface-card hover:bg-surface-hover"
         }`}
       >
         <Wrench

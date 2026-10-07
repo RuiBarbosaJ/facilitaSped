@@ -106,59 +106,65 @@ export function Cabecalho({ children }: CabecalhoProps) {
        */
       className="sticky top-0 z-40 border-b border-border-subtle bg-surface-card shadow-(--shadow-header)"
     >
-      {/* Barra superior fina com as cores do Brasil (Gov.br / RFB style) */}
+      {/* A faixa com as cores do Brasil: a assinatura institucional da marca. */}
       <div className="h-1 w-full bg-linear-to-r from-[#00A859] via-[#FED000] to-[#1351B4]"></div>
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-y-4 gap-x-2 py-4 relative">
-          {/* Botão de Tema (Esquerda no desktop, Segunda linha à esquerda no mobile) */}
-          <div className="flex-1 basis-0 flex items-center justify-start order-2 sm:order-1">
-            <BotaoTema />
-          </div>
+        {/*
+          MARCA À ESQUERDA, NAVEGAÇÃO À DIREITA, TEMA NO CANTO.
 
-          {/* Logo e Título (Centro no desktop, Primeira linha centralizada no mobile) */}
-          <div className="w-full sm:w-auto flex items-center justify-center gap-3 min-w-0 order-1 sm:order-2 shrink-0">
-            <Link
-              href="/"
-              className="shrink-0 flex items-center justify-center size-12 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 transition-transform hover:scale-105"
-              aria-label="Facilita Sped — início"
-            >
-              <Image 
-                src="/logo-sped-v2.png" 
-                alt="Logo SPED" 
-                width={48} 
-                height={48}
-                className="w-full h-full object-contain"
-              />
-            </Link>
-            <div className="min-w-0">
-              <div className="flex items-start justify-center sm:justify-start">
-                <p 
-                  className="text-xl font-bold tracking-tight truncate leading-none py-1" 
-                  style={{ fontFamily: 'var(--font-outfit), sans-serif' }}
-                >
-                  <span className="bg-linear-to-r from-accent to-accent-hover bg-clip-text text-transparent mr-1">Facilita</span>
-                  <span className="text-text-primary">
-                    Sped
-                    <sup className="text-[0.6rem] font-black text-accent uppercase ml-[1px]" title="Rui">r</sup>
-                  </span>
-                </p>
-              </div>
-              <p className="text-xs text-text-tertiary truncate">
-                EFD-Contribuições e ICMS/IPI
-              </p>
-            </div>
-          </div>
+          O seletor de tema ocupava o canto superior esquerdo — o lugar onde o
+          olho começa a ler a tela — e a marca ficava centrada entre ele e a
+          navegação. Era o controle menos usado da ferramenta no ponto mais
+          nobre dela. Agora a leitura vai da marca às páginas, e o tema fica
+          onde as preferências costumam morar.
 
-          {/* Navegação (Direita no desktop, Segunda linha à direita no mobile) */}
-          {/*
-            No celular a navegação toma a linha inteira. Disputando a faixa com
-            o botão de tema ela sobrava ~250px para quatro destinos, e cada um
-            caía numa linha própria: o cabeçalho passava de 240px de altura e
-            comia um terço da tela antes do primeiro dado.
-          */}
-          <div className="order-3 flex w-full basis-full items-center justify-center gap-3 sm:w-auto sm:flex-1 sm:basis-0 sm:justify-end sm:gap-5">
-            <nav aria-label="Páginas">
-              <ul className="flex flex-wrap items-center justify-center gap-0.5 sm:flex-nowrap sm:justify-end sm:gap-1">
+          No celular são duas linhas: marca e tema em cima, as quatro páginas
+          embaixo. Antes eram três, e o cabeçalho comia um quarto da tela antes
+          do primeiro dado.
+        */}
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 py-3 sm:flex-nowrap">
+          <Link
+            href="/"
+            aria-label="Facilita Sped — início"
+            className="group flex min-w-0 shrink-0 items-center gap-2.5 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+          >
+            <Image
+              src="/logo-sped-v2.png"
+              alt=""
+              width={36}
+              height={36}
+              className="size-9 shrink-0 object-contain"
+            />
+            <span className="flex min-w-0 flex-col">
+              {/*
+                Cor chapada no "Facilita". O degradê de dois azuis que ele
+                usava era o único texto em degradê do sistema — e é o
+                acabamento que mais denuncia tela feita no automático.
+              */}
+              <span
+                className="text-lg leading-tight font-bold tracking-tight"
+                style={{ fontFamily: "var(--font-outfit), sans-serif" }}
+              >
+                <span className="text-accent">Facilita</span>{" "}
+                <span className="text-text-primary">
+                  Sped
+                  <sup className="ml-px text-[0.6rem] font-black text-accent uppercase" title="Rui">
+                    r
+                  </sup>
+                </span>
+              </span>
+              <span className="truncate text-xs text-text-tertiary">EFD-Contribuições e ICMS/IPI</span>
+            </span>
+          </Link>
+
+          <div className="order-last flex w-full items-center sm:order-0 sm:ml-auto sm:w-auto">
+            {/*
+              No celular a faixa pode rolar de lado, por segurança: quatro
+              destinos cabem em 360px, mas uma fonte maior no aparelho não
+              pode empurrar "Critérios" para fora sem caminho de volta.
+            */}
+            <nav aria-label="Páginas" className="-mx-1 min-w-0 flex-1 max-sm:overflow-x-auto sm:mx-0">
+              <ul className="flex items-center gap-0.5 sm:gap-1">
                 {PAGINAS.map((pagina, i) => {
                   const { href, rotulo, contexto, descricao } = pagina;
                   const ativa = atual === href;
@@ -173,7 +179,7 @@ export function Cabecalho({ children }: CabecalhoProps) {
                         href={href}
                         aria-current={ativa ? "page" : undefined}
                         aria-describedby={id}
-                        className={`peer block rounded-lg px-2 py-1.5 text-[13px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:px-3 sm:text-sm ${
+                        className={`peer block rounded-md px-2 py-1.5 text-[13px] font-medium whitespace-nowrap transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:px-3 sm:text-sm ${
                           ativa
                             ? "bg-accent-soft text-accent"
                             : "text-text-secondary hover:text-text-primary hover:bg-surface-page"
@@ -200,20 +206,23 @@ export function Cabecalho({ children }: CabecalhoProps) {
                         /*
                           Ancorado à DIREITA do item, não centrado. A navegação
                           mora na ponta direita da barra: centrado, o bloco de
-                          "ICMS/IPI" saía pela borda da janela, e no celular —
-                          onde a barra desce e os itens se apertam — os três
-                          saíam.
+                          "ICMS/IPI" saía pela borda da janela. No celular a
+                          barra começa na margem ESQUERDA, e os dois primeiros
+                          itens ancoram por ela — pela direita, o bloco de
+                          "Tabelas oficiais" nasceria fora da tela.
                         */
-                        className="pointer-events-none absolute top-full right-0 z-50 mt-2 w-64 translate-y-1 rounded-md border border-border-subtle bg-surface-card p-3 text-left opacity-0 shadow-(--shadow-card) transition duration-150 group-hover:translate-y-0 group-hover:opacity-100 peer-focus-visible:translate-y-0 peer-focus-visible:opacity-100"
+                        className={`pointer-events-none absolute top-full z-50 mt-2 w-64 translate-y-1 rounded-md border border-border-subtle bg-surface-card p-3 text-left opacity-0 shadow-(--shadow-card) transition duration-150 group-hover:translate-y-0 group-hover:opacity-100 peer-focus-visible:translate-y-0 peer-focus-visible:opacity-100 ${
+                          i < 2 ? "left-0 sm:left-auto sm:right-0" : "right-0"
+                        }`}
                       >
                         {/* A seta que amarra o bloco ao item; herda borda e fundo. */}
                         <span
                           aria-hidden
-                          className="absolute -top-1 right-6 size-2 rotate-45 border-l border-t border-border-subtle bg-surface-card"
+                          className={`absolute -top-1 size-2 rotate-45 border-l border-t border-border-subtle bg-surface-card ${
+                            i < 2 ? "left-6 sm:left-auto sm:right-6" : "right-6"
+                          }`}
                         />
-                        <span className="block font-mono text-[10px] uppercase tracking-wider text-text-tertiary">
-                          {contexto}
-                        </span>
+                        <span className="block text-xs text-text-tertiary">{contexto}</span>
                         <span className="mt-1 block text-xs leading-relaxed text-text-secondary">
                           {descricao}
                         </span>
@@ -224,9 +233,13 @@ export function Cabecalho({ children }: CabecalhoProps) {
               </ul>
             </nav>
           </div>
+
+          <div className="ml-auto shrink-0 sm:ml-0">
+            <BotaoTema />
+          </div>
         </div>
 
-        {children && <div className="pb-4">{children}</div>}
+        {children && <div className="pb-3">{children}</div>}
       </div>
     </header>
   );

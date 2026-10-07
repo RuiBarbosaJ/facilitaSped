@@ -203,7 +203,7 @@ export function SeletorColunas({
         aria-haspopup="dialog"
         aria-controls={aberto ? idMenu : undefined}
         title={titulo}
-        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border-strong bg-surface-card px-2.5 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:bg-surface-page focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border-subtle bg-surface-card px-2.5 py-1 text-xs font-medium text-text-secondary transition-colors hover:bg-surface-page focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
         <Columns3 size={TAMANHO_ICONE_FIXO} className="shrink-0" aria-hidden />
         Colunas

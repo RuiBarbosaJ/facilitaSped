@@ -24,9 +24,7 @@ export function Sumario() {
       aria-label="Seções desta página"
       className="hidden lg:block lg:sticky lg:top-[calc(var(--altura-cabecalho)+1.5rem)] lg:self-start"
     >
-      <p className="mb-3 font-mono text-[10px] uppercase tracking-wider text-text-tertiary">
-        Nesta página
-      </p>
+      <p className="mb-3 text-xs font-medium text-text-tertiary">Nesta página</p>
       <ol className="flex flex-col gap-0.5 border-l border-border-subtle">
         {SUMARIO.map(({ id, numero, titulo }) => (
           <li key={id}>
@@ -34,7 +32,7 @@ export function Sumario() {
               href={`#${id}`}
               className="-ml-px flex gap-2.5 border-l border-transparent py-1.5 pl-3 text-sm text-text-secondary transition-colors hover:border-l-accent hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
-              <span className="font-mono text-[11px] text-text-tertiary tabular-nums">{numero}</span>
+              <span className="font-mono text-xs text-text-tertiary tabular-nums">{numero}</span>
               <span className="min-w-0">{titulo}</span>
             </a>
           </li>

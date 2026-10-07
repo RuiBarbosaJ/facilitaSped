@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Download, Info, Loader2 } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import { COLUNAS_MODELO, COLUNAS_OBRIGATORIAS } from "@/pis-cofins/auditoria";
 import { gerarXlsx, baixarArquivo } from "@/pis-cofins/planilha";
 
@@ -12,7 +12,12 @@ const EXEMPLOS: (string | number)[][] = [
   ["Cerveja lata 350 ml", "2203.00.00", "", "01", "01"],
 ];
 
-/** Explica o leiaute esperado e entrega um modelo em branco. */
+/**
+ * Explica o leiaute esperado e entrega um modelo em branco.
+ *
+ * As colunas em lista, uma por linha, com a obrigatória marcada em texto — e não
+ * numa frase corrida em que cinco nomes de coluna em fonte mono se emendavam.
+ */
 export function PainelInstrucoes() {
   const [gerando, setGerando] = useState(false);
 
@@ -30,45 +35,36 @@ export function PainelInstrucoes() {
     }
   }
 
+  const obrigatorias = COLUNAS_OBRIGATORIAS as readonly string[];
+
   return (
-    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 px-2 mb-2">
-      <div className="flex flex-1 items-start gap-3 text-sm text-text-secondary">
-        <span className="shrink-0 grid place-items-center size-8 rounded-md bg-accent-soft text-accent">
-          <Info size={16} aria-hidden />
-        </span>
-        <div className="min-w-0">
-          <p>
-            Utilize o <strong className="font-semibold text-text-primary">relatório padrão de NCM</strong> do Alterdata (.xls/.xlsx) ou preencha o nosso modelo padrão.
-          </p>
-          <p className="mt-1.5 text-xs text-text-tertiary">
-            Colunas esperadas:{" "}
-            {COLUNAS_MODELO.map((coluna, i) => (
-              <span key={coluna}>
-                {i > 0 && ", "}
-                <span
-                  className={
-                    (COLUNAS_OBRIGATORIAS as readonly string[]).includes(coluna)
-                      ? "font-mono font-medium text-text-secondary"
-                      : "font-mono"
-                  }
-                >
-                  {coluna}
-                </span>
-              </span>
-            ))}
-            . As duas primeiras são obrigatórias.
-          </p>
-        </div>
+    <div className="flex flex-col gap-5 text-sm">
+      <p className="max-w-md text-text-secondary">
+        Use o <strong className="font-medium text-text-primary">relatório padrão de NCM</strong> do
+        Alterdata (.xls ou .xlsx) ou o nosso modelo. A ferramenta procura o cabeçalho sozinha, em
+        qualquer aba.
+      </p>
+
+      <div>
+        <p className="text-xs font-medium text-text-tertiary">Colunas que ela lê</p>
+        <ul className="mt-2 flex flex-col gap-1.5">
+          {COLUNAS_MODELO.map((coluna) => (
+            <li key={coluna} className="flex items-baseline gap-2">
+              <span className="font-mono text-[13px] text-text-primary">{coluna}</span>
+              {obrigatorias.includes(coluna) && <span className="text-xs text-text-tertiary">obrigatória</span>}
+            </li>
+          ))}
+        </ul>
       </div>
 
       <button
         type="button"
         onClick={baixarModelo}
         disabled={gerando}
-        className="shrink-0 inline-flex items-center gap-2 rounded-xl bg-surface-card px-4 py-2 text-sm font-medium text-accent border border-border-subtle shadow-(--shadow-card) hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-colors"
+        className="inline-flex w-fit items-center gap-2 rounded-md border border-border-strong bg-surface-card px-3 py-1.5 text-sm font-medium text-text-primary transition-colors hover:bg-surface-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-60"
       >
-        {gerando ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <Download size={16} aria-hidden />}
-        Baixar Modelo Padrão
+        {gerando ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <Download size={15} aria-hidden />}
+        Baixar modelo
       </button>
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { Wand2 } from "lucide-react";
+import { LinhaDeAjuste } from "@/componentes/LinhaDeAjuste";
 
 /** Valor especial que desliga o critério de correção. */
 export const SEM_CORRECAO = "nenhum";
@@ -95,7 +95,14 @@ interface CriterioCorrecaoProps {
   totalMantidas?: number;
 }
 
-/** Seletor de critério de correção estilo Alterdata, com descrição contextual. */
+/**
+ * O critério de correção, como uma linha do painel de ajustes.
+ *
+ * Antes era um cartão com ícone de varinha e título próprio; o que ele diz é o
+ * que importa: o que a correção faz, nesta ponta, e quantas linhas ela mexe.
+ * Ligado, a linha inteira fica azul — a tabela abaixo passa a mostrar a
+ * planilha CORRIGIDA, e isso não pode passar despercebido.
+ */
 export function CriterioCorrecao({
   valor,
   onChange,
@@ -109,92 +116,63 @@ export function CriterioCorrecao({
   const opcoes = opcoesDoSentido(sentido);
   const opcaoAtiva = opcoes.find((o) => o.cst === valor);
   const ativo = valor !== SEM_CORRECAO;
+  const linhas = (n: number) => `${n.toLocaleString("pt-BR")} ${n === 1 ? "linha" : "linhas"}`;
 
   return (
-    <div
-      className={`rounded-xl border p-4 transition-colors ${
-        ativo
-          ? "border-accent bg-accent-soft"
-          : "border-border-subtle bg-surface-card"
-      }`}
-    >
-      <div className="flex flex-col sm:flex-row sm:items-start gap-3">
-        {/* Ícone + título */}
-        <span
-          className={`grid size-9 shrink-0 place-items-center rounded-lg ${
-            ativo ? "bg-accent text-accent-contrast" : "bg-surface-page text-text-tertiary"
-          }`}
+    <LinhaDeAjuste rotulo="Correção" htmlFor="criterio-correcao" ativo={ativo}>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <select
+          id="criterio-correcao"
+          value={valor}
+          onChange={(e) => onChange(e.target.value)}
+          className="block min-w-0 max-w-full rounded-md border border-border-strong bg-surface-card py-1.5 pr-8 pl-2.5 text-sm text-text-primary transition-colors focus:border-accent focus:ring-2 focus:ring-accent focus:outline-none"
         >
-          <Wand2 size={17} aria-hidden />
-        </span>
+          <option value={SEM_CORRECAO}>Sem correção — exibir planilha original</option>
+          {opcoes.map((o) => (
+            <option key={o.cst} value={o.cst}>
+              {o.rotulo}
+            </option>
+          ))}
+        </select>
 
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-text-primary">
-            Critério de Correção
-          </p>
-          <p className="text-xs text-text-secondary mt-0.5">
-            {ativo && opcaoAtiva
-              ? descreverOpcao(opcaoAtiva, cstTributado)
-              : `Escolha um critério para o sistema corrigir os CSTs de ${
-                  sentido === "entrada" ? "aquisição" : "receita"
-                } seguindo as tabelas do SPED.`}
-          </p>
-
-          {/* Seletor */}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <select
-              id="criterio-correcao"
-              value={valor}
-              onChange={(e) => onChange(e.target.value)}
-              aria-label="Critério de correção de CST"
-              className="block min-w-0 max-w-full py-2 pl-2.5 pr-8 text-sm rounded-lg border border-border-strong bg-surface-card text-text-primary focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
-            >
-              <option value={SEM_CORRECAO}>Sem correção — exibir planilha original</option>
-              {opcoes.map((o) => (
-                <option key={o.cst} value={o.cst}>
-                  {o.rotulo}
-                </option>
-              ))}
-            </select>
-
-            {ativo && valor !== SEM_CORRECAO && (
-              <button
-                type="button"
-                onClick={() => onChange(SEM_CORRECAO)}
-                className="text-xs text-text-tertiary underline underline-offset-2 hover:text-text-secondary transition-colors"
-              >
-                Limpar
-              </button>
-            )}
-          </div>
-
-          {/* Resumo da correção */}
-          {ativo && totalLinhas > 0 && (
-            <div className="mt-3 flex flex-wrap gap-3 text-xs">
-              <span className="inline-flex items-center gap-1.5 rounded bg-success-soft px-2.5 py-1 font-medium text-success">
-                <span className="size-1.5 rounded-full bg-success" />
-                {totalBeneficio.toLocaleString("pt-BR")} linha
-                {totalBeneficio !== 1 ? "s" : ""} → CST {valor}
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded bg-badge-ncm-bg px-2.5 py-1 font-medium text-badge-ncm-text">
-                <span className="size-1.5 rounded-full bg-text-tertiary" />
-                {totalTributado.toLocaleString("pt-BR")} linha
-                {totalTributado !== 1 ? "s" : ""} → CST {cstTributado}
-              </span>
-              {/* O critério não rebaixa quem já tem benefício próprio vigente:
-                  o medicamento monofásico não vira tributado só porque o
-                  critério do dia é alíquota zero. */}
-              {totalMantidas > 0 && (
-                <span className="inline-flex items-center gap-1.5 rounded bg-badge-ncm-bg px-2.5 py-1 font-medium text-badge-ncm-text">
-                  <span className="size-1.5 rounded-full bg-text-tertiary" />
-                  {totalMantidas.toLocaleString("pt-BR")} mantida
-                  {totalMantidas !== 1 ? "s" : ""} (benefício próprio)
-                </span>
-              )}
-            </div>
-          )}
-        </div>
+        {ativo && (
+          <button
+            type="button"
+            onClick={() => onChange(SEM_CORRECAO)}
+            className="rounded-sm text-xs text-text-secondary underline underline-offset-2 transition-colors hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            Voltar à planilha original
+          </button>
+        )}
       </div>
-    </div>
+
+      <p className="text-xs text-text-secondary">
+        {ativo && opcaoAtiva
+          ? descreverOpcao(opcaoAtiva, cstTributado)
+          : `Escolha um critério para o sistema corrigir os CSTs de ${
+              sentido === "entrada" ? "aquisição" : "receita"
+            } seguindo as tabelas do SPED.`}
+      </p>
+
+      {/* O efeito da correção, em números — sem pastilhas: a cor só no que muda de código. */}
+      {ativo && totalLinhas > 0 && (
+        <p className="text-xs text-text-secondary">
+          <strong className="font-semibold text-success">{linhas(totalBeneficio)}</strong> recebem CST {valor}
+          {" · "}
+          <strong className="font-semibold text-text-primary">{linhas(totalTributado)}</strong> recebem CST{" "}
+          {cstTributado}
+          {/* O critério não rebaixa quem já tem benefício próprio vigente:
+              o medicamento monofásico não vira tributado só porque o
+              critério do dia é alíquota zero. */}
+          {totalMantidas > 0 && (
+            <>
+              {" · "}
+              <strong className="font-semibold text-text-primary">{linhas(totalMantidas)}</strong> mantidas
+              (benefício próprio)
+            </>
+          )}
+        </p>
+      )}
+    </LinhaDeAjuste>
   );
 }

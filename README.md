@@ -86,15 +86,15 @@ interface RegraTabelaSped {
 
 Quando uma célula do documento cita vários NCMs ("0713.33.19, 0713.33.29 e 1106.20"), cada um vira um registro próprio, para que a busca por qualquer deles encontre a regra.
 
-Na tela esses registros voltam a aparecer como **uma linha só**, com os NCMs lado a lado — o agrupamento acontece depois da busca, então o índice continua enxergando cada NCM separadamente e nenhuma consulta deixa de encontrar o que encontrava. Regras que abrangem muitos NCMs mostram os seis primeiros e um "+N" que expande. Clicar num NCM copia aquele código.
+Na tela esses registros voltam a aparecer como **uma linha só**, com os NCMs lado a lado — o agrupamento acontece depois da busca, então o índice continua enxergando cada NCM separadamente e nenhuma consulta deixa de encontrar o que encontrava. Regras que abrangem muitos NCMs mostram os seis primeiros e um "+N" que expande. Clicar em qualquer código — NCM, CST ou natureza da receita — copia aquele código.
 
 ## A consulta
 
-A tela abre no **CST 06** (alíquota zero), que é o que a equipe usa no dia a dia; um seletor troca para qualquer outro CST publicado, ou para todos.
+A tela abre no **CST 06** (alíquota zero), que é o que a equipe usa no dia a dia; a lista ao lado da tabela troca para qualquer outro CST publicado, ou para todos, e mostra quantas regras a busca encontra em cada um — quando o recorte escolhido não tem resultado, a tela diz onde há.
 
 Para cada código de natureza da receita, só a **vigência mais recente** é exibida. Quando a Receita altera uma regra, o portal acrescenta uma linha nova com o mesmo código e outro período sem apagar a anterior — a consulta mostra a última versão, mesmo que já encerrada, porque é a informação mais atual sobre aquele código. A coluna Vigência deixa claro se a regra ainda vale.
 
-A busca filtra por **NCM ou descrição**; CST e natureza da receita aparecem na tabela, mas não são pesquisáveis.
+A busca filtra por **NCM ou descrição**; CST e natureza da receita aparecem na tabela, mas não são pesquisáveis. O NCM pode ir como está na nota, com ou sem pontos (`1006.40.00`): as regras que citam o próprio código, a posição ou o capítulo que o abrangem vêm na frente do resultado da busca por texto, que continua inteiro atrás delas. A busca por texto ignora acento ("acucar" acha "açúcar").
 
 A tela mostra **quando os dados foram atualizados pela última vez**, no horário de Brasília. O carimbo vive em `public/data/sync-meta.json` e só é reescrito quando a Receita de fato publica algo novo — se ficasse dentro do arquivo de dados, o robô geraria um commit e um deploy por dia mesmo sem nenhuma mudança.
 
@@ -220,7 +220,7 @@ Salvaguardas do robô:
 
 ## Limitações conhecidas
 
-- **NCMs com 4, 6 ou 8 dígitos.** O portal referencia posições (`02.01`) e capítulos inteiros, não só códigos completos. O JSON preserva isso; uma busca por `27101259` não casa com um registro `2710`.
+- **NCMs com 4, 6 ou 8 dígitos.** O portal referencia posições (`02.01`) e capítulos inteiros, não só códigos completos. O JSON preserva isso, e a consulta casa um pelo outro na hora da busca: `27101259` encontra a regra registrada como `2710`.
 - **Alíquota é só a de PIS, e só quando é percentual.** As tabelas 4.3.10 e 4.3.17 trazem PIS e COFINS separados; a interface guarda um campo. A 4.3.11 (CST 03) publica alíquotas em R$ por unidade de medida, que não cabem na coluna "%" — ficam de fora.
 - **Datas só com o separador normalizado.** `01/2011` e `08/03/2013` são mantidas como publicadas (`15/12/2011 *` e `01042026` viram `15/12/2011` e `01/04/2026`); o robô não reescreve dia e mês, para não arriscar invertê-los.
 - **Tabela 4.3.11 (CST 03) é a mais irregular do portal.** Muda de leiaute no meio do documento e usa subitens numéricos; os registros dela são os menos confiáveis do JSON.

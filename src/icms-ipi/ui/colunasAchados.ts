@@ -34,21 +34,34 @@ export const ROTULO_SEVERIDADE: Record<Severidade, string> = {
  */
 export const ESTILO_SEVERIDADE: Record<
   Severidade,
-  { classe: string; Icone: typeof AlertTriangle }
+  {
+    classe: string;
+    /**
+     * Só a cor do texto, para a severidade escrita em linha — na célula da
+     * tabela e nos botões de recorte. A pastilha de fundo cheio (`classe`) em
+     * cada linha da lista fazia de cinquenta apontamentos cinquenta alarmes;
+     * o ícone e a palavra coloridos dizem o mesmo sem gritar.
+     */
+    texto: string;
+    Icone: typeof AlertTriangle;
+  }
 > = {
   critico: {
     classe: "border-danger/30 bg-danger-soft text-danger",
+    texto: "text-danger",
     Icone: ShieldAlert,
   },
   erro: {
     classe: "border-danger/30 bg-danger-soft text-danger",
+    texto: "text-danger",
     Icone: AlertTriangle,
   },
   alerta: {
     classe: "border-warning/30 bg-warning-soft text-warning",
+    texto: "text-warning",
     Icone: AlertTriangle,
   },
-  info: { classe: "border-accent/30 bg-accent-soft text-accent", Icone: Info },
+  info: { classe: "border-accent/30 bg-accent-soft text-accent", texto: "text-accent", Icone: Info },
 };
 
 /**

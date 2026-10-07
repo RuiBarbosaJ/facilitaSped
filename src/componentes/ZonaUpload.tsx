@@ -40,7 +40,7 @@ export function ZonaUpload({
   accept = ACCEPT_PADRAO,
   titulo = "Arraste o relatório do Alterdata aqui",
   tituloProcessando = "Auditando a planilha…",
-  descricao = "ou clique para escolher um arquivo .xls ou .xlsx. Todo o processamento ocorre no seu próprio navegador para garantir a sua privacidade.",
+  descricao = "Planilha .xls ou .xlsx. Ela é lida no seu navegador — nada é enviado.",
   nomeDoTipo = "uma planilha",
 }: ZonaUploadProps) {
   const [arrastando, setArrastando] = useState(false);
@@ -104,41 +104,53 @@ export function ZonaUpload({
         }}
         onDragLeave={aoSairArrastando}
         onDrop={aoSoltar}
-        className={`group relative flex min-h-[320px] flex-col items-center justify-center gap-5 rounded-2xl border-2 border-dashed p-8 text-center transition-all duration-300 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 overflow-hidden ${
+        className={`group relative flex min-h-70 flex-col items-center justify-center gap-3 overflow-hidden rounded-lg border border-dashed p-8 text-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ${
           /*
              Sem halo colorido nem salto de escala. Uma sombra tingida com a cor
              de destaque é luz falsa — sombra é ausência de luz e não tem cor de
              marca. Quem responde ao arrasto é a borda e o fundo, que já mudam.
           */
           arrastando
-            ? "border-accent bg-accent-soft shadow-(--shadow-card)"
-            : "border-border-strong bg-surface-card hover:border-accent hover:bg-accent-soft/30"
+            ? "border-accent bg-accent-soft"
+            : "border-border-strong bg-surface-card hover:border-accent"
         } ${bloqueada ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
       >
-        <span
-          className={`relative z-10 grid place-items-center size-20 rounded-md transition-all duration-500 ease-out ${
-            arrastando
-              ? "bg-accent text-accent-contrast"
-              : "bg-accent-soft text-accent group-hover:bg-accent group-hover:text-accent-contrast"
-          }`}
-        >
-          {processando ? (
-            <Loader2 size={36} className="animate-spin" aria-hidden />
-          ) : arrastando ? (
-            <FileUp size={36} className="animate-bounce" aria-hidden />
-          ) : (
-            <UploadCloud size={36} className="transition-transform duration-300 group-hover:-translate-y-1" aria-hidden />
-          )}
-        </span>
+        {/*
+          O ícone sozinho, sem a caixa colorida de 80px que o emoldurava e sem
+          o pulinho ao arrastar. A zona inteira já reage ao arrasto pela borda
+          e pelo fundo; um segundo elemento se mexendo só disputava atenção.
+        */}
+        {processando ? (
+          <Loader2 size={28} className="animate-spin text-accent" aria-hidden />
+        ) : arrastando ? (
+          <FileUp size={28} className="text-accent" aria-hidden />
+        ) : (
+          <UploadCloud size={28} className="text-accent" aria-hidden />
+        )}
 
-        <div className="relative z-10">
-          <p className="text-lg font-bold tracking-tight">
+        <div>
+          <p className="text-base font-semibold text-text-primary">
             {processando ? tituloProcessando : arrastando ? "Solte o arquivo agora" : titulo}
           </p>
-          <p id={idDescricao} className="mt-2 text-sm text-text-secondary max-w-md mx-auto leading-relaxed">
+          <p id={idDescricao} className="mx-auto mt-1 max-w-md text-sm text-text-secondary">
             {desabilitada && mensagemDesabilitada ? mensagemDesabilitada : descricao}
           </p>
         </div>
+
+        {/*
+          O botão que se vê. Arrastar é o atalho de quem já conhece; quem chega
+          pela primeira vez procura onde clicar, e uma área tracejada não
+          parece clicável. É só aparência: o clique é da zona inteira, que
+          continua sendo o único ponto de tabulação.
+        */}
+        {!processando && !arrastando && (
+          <span
+            aria-hidden
+            className="mt-1 inline-flex items-center rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-contrast transition-colors group-hover:bg-accent-hover"
+          >
+            Escolher arquivo
+          </span>
+        )}
 
         {/* A zona (role=button) é o único ponto de tabulação; o input só recebe o clique programático. */}
         <input

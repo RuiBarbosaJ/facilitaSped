@@ -1,5 +1,6 @@
 import { ROTULO_STATUS_NATUREZA, statusNatureza, type LinhaAuditada } from "./auditoria";
 import type { ColunaFiltravel } from "@/comum/filtrosColuna";
+import { formatarNcm } from "@/comum/ncm";
 
 export type ColunaAuditoria = ColunaFiltravel<LinhaAuditada>;
 
@@ -16,7 +17,11 @@ export const COLUNAS_AUDITORIA: ColunaAuditoria[] = [
   {
     id: "classificacao",
     rotulo: "Classificação",
-    valores: (linha) => [linha.ncm || linha.classificacaoOriginal],
+    // Como a célula mostra: o NCM de oito dígitos com os pontos da TIPI, e o
+    // que não tem oito dígitos do jeito que veio na planilha.
+    valores: (linha) => [
+      linha.ncm ? (linha.ncm.length === 8 ? formatarNcm(linha.ncm) : linha.ncm) : linha.classificacaoOriginal,
+    ],
   },
   {
     id: "informado",

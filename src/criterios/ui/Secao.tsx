@@ -1,3 +1,4 @@
+import { AlertTriangle, Info } from "lucide-react";
 import type { ReactNode } from "react";
 
 interface SecaoProps {
@@ -61,15 +62,21 @@ interface AvisoProps {
 /**
  * O destaque de uma ressalva.
  *
- * Chapado, com uma barra na lateral em vez de fundo colorido inteiro: a cor
- * neste sistema marca dado fiscal — vermelho é erro na escrituração, amarelo é
- * divergência. Um bloco de texto pintado de amarelo competiria com isso.
+ * Chapado, sem fundo colorido: a cor neste sistema marca dado fiscal —
+ * vermelho é erro na escrituração, amarelo é divergência —, e um bloco de texto
+ * pintado de amarelo competiria com isso. Também sem a barra colorida na
+ * lateral e sem o título em caixa alta: eram o acabamento de "caixa de
+ * destaque" que toda página gerada no automático tem. O que separa a ressalva
+ * do texto corrido é a moldura fina e o ícone; a cor fica só no ícone.
  */
 export function Aviso({ titulo, tom = "neutro", children }: AvisoProps) {
-  const barra = tom === "atencao" ? "border-l-warning" : "border-l-accent";
+  const Icone = tom === "atencao" ? AlertTriangle : Info;
   return (
-    <div className={`max-w-3xl rounded-md border border-border-subtle border-l-2 ${barra} bg-surface-page/60 p-4`}>
-      <p className="text-xs font-semibold uppercase tracking-wider text-text-primary">{titulo}</p>
+    <div className="max-w-3xl rounded-md border border-border-subtle bg-surface-card p-4">
+      <p className="flex items-center gap-2 text-sm font-medium text-text-primary">
+        <Icone size={15} className={`shrink-0 ${tom === "atencao" ? "text-warning" : "text-accent"}`} aria-hidden />
+        {titulo}
+      </p>
       <div className="mt-2 flex flex-col gap-2 text-sm leading-relaxed text-text-secondary">{children}</div>
     </div>
   );

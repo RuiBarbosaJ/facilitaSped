@@ -1,4 +1,5 @@
 import type { ResumoAuditoria as Resumo } from "@/pis-cofins/auditoria";
+import { ListaDeRecortes, type Recorte } from "@/componentes/ListaDeRecortes";
 
 export type FiltroAuditoria = "todos" | "beneficio" | "possivel" | "tributado" | "invalido" | "divergencias" | "coerente";
 
@@ -15,60 +16,69 @@ interface ResumoAuditoriaProps {
   correcaoAtiva?: boolean;
 }
 
-const TILES: {
-  chave: FiltroAuditoria;
-  rotulo: string;
-  /** Rótulo exibido enquanto o critério de correção está ativo. */
-  rotuloCorrecao?: string;
-  cor: string;
-  valor: (r: Resumo) => number;
-}[] = [
-  { chave: "todos", rotulo: "Linhas auditadas", cor: "text-text-primary", valor: (r) => r.total },
-  { chave: "beneficio", rotulo: "Alíquota zero / monofásico", cor: "text-success", valor: (r) => r.beneficio },
-  { chave: "possivel", rotulo: "Possível benefício — conferir", cor: "text-accent", valor: (r) => r.possivel },
-  { chave: "tributado", rotulo: "Tributado", cor: "text-text-secondary", valor: (r) => r.tributado },
-  {
-    chave: "divergencias",
-    rotulo: "Divergências de CST/natureza",
-    rotuloCorrecao: "Divergências corrigidas pelo critério",
-    cor: "text-warning",
-    valor: (r) => r.divergencias,
-  },
-  { chave: "invalido", rotulo: "NCM inválido", cor: "text-danger", valor: (r) => r.invalido },
-  {
-    chave: "coerente",
-    rotulo: "Coerente com o SPED",
-    rotuloCorrecao: "Já coerentes na planilha",
-    cor: "text-success",
-    valor: (r) => r.coerente,
-  },
-];
-
-/** Contadores da auditoria; cada cartão também filtra a tabela. */
+/**
+ * Os contadores da auditoria — e o filtro da tabela.
+ *
+ * Eram sete cartões com o número em 24px, lado a lado no topo: o painel de
+ * indicadores que toda tela de sistema tem, e que empurrava a tabela para
+ * baixo da dobra. A informação é a mesma, mas em sequência ela conta uma
+ * história em ordem: primeiro o que pede conferência — divergência, NCM
+ * inválido, benefício possível —, depois como a planilha se distribui no SPED,
+ * e por fim o que já está certo. Só o que pede atenção leva cor.
+ */
 export function ResumoAuditoria({ resumo, filtro, onFiltrar, correcaoAtiva = false }: ResumoAuditoriaProps) {
+  const itens: Recorte[] = [
+    { valor: "todos", nome: "Todas as linhas", total: resumo.total },
+    {
+      valor: "divergencias",
+      nome: correcaoAtiva ? "Divergências corrigidas" : "Divergências",
+      dica: correcaoAtiva
+        ? "Linhas que divergiam do SPED na planilha original e que o critério corrigiu"
+        : "CST ou natureza da receita diferente do que o SPED indica para o NCM",
+      total: resumo.divergencias,
+      tom: correcaoAtiva ? undefined : "atencao",
+      grupo: "Para conferir",
+    },
+    {
+      valor: "invalido",
+      nome: "NCM inválido",
+      dica: "NCM sem oito dígitos ou fora da nomenclatura vigente",
+      total: resumo.invalido,
+      tom: "perigo",
+    },
+    {
+      valor: "possivel",
+      nome: "Possível benefício",
+      dica: "A regra do SPED sinaliza um benefício, mas não basta para cobrar código: confira a descrição",
+      total: resumo.possivel,
+      tom: "destaque",
+    },
+    {
+      valor: "beneficio",
+      nome: "Alíquota zero / monofásico",
+      dica: "NCM com regra de benefício vigente no SPED",
+      total: resumo.beneficio,
+      grupo: "Classificação no SPED",
+    },
+    { valor: "tributado", nome: "Tributado", total: resumo.tributado },
+    {
+      valor: "coerente",
+      nome: correcaoAtiva ? "Já coerentes na planilha" : "Coerente com o SPED",
+      total: resumo.coerente,
+      separado: true,
+    },
+  ];
+
   return (
-    <div role="group" aria-label="Resumo da auditoria" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
-      {TILES.map(({ chave, rotulo, rotuloCorrecao, cor, valor }) => {
-        const ativo = filtro === chave;
-        return (
-          <button
-            key={chave}
-            type="button"
-            aria-pressed={ativo}
-            // Clicar de novo no cartão ativo desfaz o filtro: sem isso, quem
-            // caía numa tabela vazia não via caminho de volta.
-            onClick={() => onFiltrar(ativo && chave !== "todos" ? "todos" : chave)}
-            className={`rounded-xl border p-4 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-              ativo ? "border-accent bg-accent-soft" : "border-border-subtle bg-surface-card hover:border-border-strong"
-            }`}
-          >
-            <p className={`text-2xl font-semibold tabular-nums ${cor}`}>{valor(resumo).toLocaleString("pt-BR")}</p>
-            <p className="mt-0.5 text-xs font-medium text-text-tertiary">
-              {correcaoAtiva && rotuloCorrecao ? rotuloCorrecao : rotulo}
-            </p>
-          </button>
-        );
-      })}
-    </div>
+    <ListaDeRecortes
+      rotulo="Situação"
+      // Em faixa, e não em coluna: a tabela da auditoria tem oito colunas e
+      // precisa da largura inteira — ao lado de uma coluna de recortes, as
+      // observações, que explicam cada divergência, ficavam fora da tela.
+      disposicao="faixa"
+      itens={itens}
+      valor={filtro}
+      onChange={(valor) => onFiltrar(valor as FiltroAuditoria)}
+    />
   );
 }

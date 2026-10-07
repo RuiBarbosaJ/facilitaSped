@@ -1,36 +1,37 @@
 import type { Severidade } from "@/regras/nucleo/tipos";
 import type { Conserto, RegraExplicada } from "../regras";
 
-/** O selo de severidade, no mesmo vocabulário de cor das telas de auditoria. */
+/**
+ * A severidade, no mesmo vocabulário de cor das telas de auditoria — escrita,
+ * e não numa pastilha: impressa em preto e branco, a palavra continua dizendo
+ * o que a cor dizia.
+ */
 function Severidade({ valor }: { valor: Severidade }) {
   const estilo =
     valor === "critico" || valor === "erro"
-      ? "border-danger/40 bg-danger-soft text-danger"
+      ? "text-danger"
       : valor === "alerta"
-        ? "border-warning/40 bg-warning-soft text-warning"
-        : "border-border-subtle bg-surface-head text-text-secondary";
+        ? "text-warning"
+        : "text-text-secondary";
+  const rotulo = { critico: "crítico", erro: "erro", alerta: "alerta", info: "informativo" }[valor] ?? valor;
 
-  return (
-    <span className={`inline-block rounded border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ${estilo}`}>
-      {valor}
-    </span>
-  );
+  return <span className={`text-xs font-medium ${estilo}`}>{rotulo}</span>;
 }
 
 const CONSERTO: Record<Conserto, { rotulo: string; estilo: string; explica: string }> = {
   automatica: {
     rotulo: "automática",
-    estilo: "border-success/40 bg-success-soft text-success",
+    estilo: "text-success",
     explica: "Recalculada do próprio arquivo e já aprovada.",
   },
   sugerida: {
     rotulo: "sugerida",
-    estilo: "border-accent/40 bg-accent-soft text-accent",
+    estilo: "text-accent",
     explica: "O valor é dedutível, mas há decisão embutida: nasce desmarcada e espera aprovação.",
   },
   manual: {
     rotulo: "na origem",
-    estilo: "border-border-subtle bg-surface-head text-text-secondary",
+    estilo: "text-text-secondary",
     explica: "Não há valor a propor — o conserto é no ERP, antes de gerar o arquivo.",
   },
 };
@@ -38,21 +39,19 @@ const CONSERTO: Record<Conserto, { rotulo: string; estilo: string; explica: stri
 export function SeloDeConserto({ valor }: { valor: Conserto }) {
   const { rotulo, estilo } = CONSERTO[valor];
   return (
-    <span className={`inline-block rounded border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ${estilo}`}>
-      {rotulo}
-    </span>
+    <span className={`text-xs font-medium ${estilo}`}>correção {rotulo}</span>
   );
 }
 
 export function LegendaDeConserto() {
   return (
-    <dl className="grid max-w-3xl gap-2 sm:grid-cols-3">
+    <dl className="grid max-w-3xl gap-x-6 gap-y-3 sm:grid-cols-3">
       {(Object.keys(CONSERTO) as Conserto[]).map((chave) => (
-        <div key={chave} className="rounded-md border border-border-subtle bg-surface-card p-3">
-          <dt className="mb-1.5">
+        <div key={chave}>
+          <dt>
             <SeloDeConserto valor={chave} />
           </dt>
-          <dd className="text-xs leading-relaxed text-text-secondary">{CONSERTO[chave].explica}</dd>
+          <dd className="mt-0.5 text-sm leading-relaxed text-text-secondary">{CONSERTO[chave].explica}</dd>
         </div>
       ))}
     </dl>
@@ -76,13 +75,12 @@ export function ListaDeRegras({ regras }: { regras: readonly RegraExplicada[] })
           id={r.id}
           className="scroll-mt-[calc(var(--altura-cabecalho)+1.5rem)] rounded-md border border-border-subtle bg-surface-card p-4"
         >
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="font-mono text-xs font-semibold text-text-primary">{r.id}</span>
             <Severidade valor={r.severidade} />
+            <span aria-hidden className="text-text-tertiary">·</span>
             <SeloDeConserto valor={r.conserto} />
-            <span className="ml-auto rounded border border-border-subtle bg-surface-head px-1.5 py-0.5 font-mono text-[10px] text-text-tertiary">
-              registro {r.registro}
-            </span>
+            <span className="ml-auto font-mono text-xs text-text-tertiary">registro {r.registro}</span>
           </div>
 
           <p className="mt-2 text-sm font-medium text-text-primary">{r.nome}</p>
@@ -109,10 +107,10 @@ export function ListaDeRegras({ regras }: { regras: readonly RegraExplicada[] })
 
           {r.motivoDoConserto && (
             <div className="mt-3 border-t border-border-subtle pt-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+              <p className="text-xs font-medium text-text-tertiary">
                 Sobre a correção
                 {r.campoCorrigido && (
-                  <span className="ml-1.5 font-mono font-normal normal-case tracking-normal">
+                  <span className="ml-1.5 font-mono font-normal">
                     ({r.campoCorrigido})
                   </span>
                 )}

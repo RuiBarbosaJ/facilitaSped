@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { SearchX, Wrench } from "lucide-react";
 
 import { BarraFiltros, type FiltroAtivo } from "@/componentes/BarraFiltros";
+import { ListaDeRecortes, type Recorte } from "@/componentes/ListaDeRecortes";
 import { CampoBusca } from "@/componentes/CampoBusca";
 import { DescricaoExpandivel } from "@/componentes/DescricaoExpandivel";
 import { NavegacaoLateral } from "@/componentes/NavegacaoLateral";
@@ -108,15 +109,41 @@ export function TabelaAchados({ achados }: { achados: Achado[] }) {
     return contagem;
   }, [achados]);
 
-  /** Os atalhos de severidade escrevem no MESMO filtro de coluna do menu. */
-  const alternarSeveridade = useCallback(
-    (severidade: Severidade) => {
-      const rotulo = ROTULO_SEVERIDADE[severidade];
-      const atual = colunas.filtros.severidade ?? [];
-      const jaSozinho = atual.length === 1 && atual[0] === rotulo;
-      colunas.definir("severidade", jaSozinho ? null : [rotulo]);
+  /**
+   * Os recortes de severidade escrevem no MESMO filtro de coluna do menu: "Erro"
+   * aqui é a opção "Erro" do menu da coluna Severidade, e as duas pontas nunca
+   * discordam. Quando o menu marcou mais de uma severidade, nenhum recorte
+   * aparece escolhido — é o que está acontecendo de fato.
+   */
+  const severidadeEscolhida = useMemo(() => {
+    const atual = colunas.filtros.severidade ?? [];
+    if (atual.length === 0) return "todos";
+    if (atual.length > 1) return "";
+    return SEVERIDADES.find((s) => ROTULO_SEVERIDADE[s] === atual[0]) ?? "";
+  }, [colunas.filtros.severidade]);
+
+  const escolherSeveridade = useCallback(
+    (valor: string) => {
+      if (valor === "todos") colunas.definir("severidade", null);
+      else colunas.definir("severidade", [ROTULO_SEVERIDADE[valor as Severidade]]);
     },
     [colunas],
+  );
+
+  const recortes = useMemo(
+    (): Recorte[] => [
+      { valor: "todos", nome: "Todos", total: achados.length },
+      ...SEVERIDADES.map(
+        (severidade, i): Recorte => ({
+          valor: severidade,
+          nome: ROTULO_SEVERIDADE[severidade],
+          total: contagemPorSeveridade.get(severidade) ?? 0,
+          tom: severidade === "alerta" ? "atencao" : severidade === "info" ? "destaque" : "perigo",
+          separado: i === 0,
+        }),
+      ),
+    ],
+    [achados.length, contagemPorSeveridade],
   );
 
   const filtrosAtivos = useMemo(
@@ -134,53 +161,29 @@ export function TabelaAchados({ achados }: { achados: Achado[] }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <ListaDeRecortes
+            rotulo="Severidade"
+            disposicao="faixa"
+            unidade={["apontamento", "apontamentos"]}
+            itens={recortes}
+            valor={severidadeEscolhida}
+            onChange={escolherSeveridade}
+          />
+        </div>
+
         <CampoBusca
           valor={busca}
           onChange={(valor) => {
             setBusca(valor);
             voltarAoInicio();
           }}
-          placeholder="Busque por código, registro, regra ou mensagem…"
+          placeholder="Buscar por código, registro, regra ou mensagem"
           rotulo="Buscar nos apontamentos da auditoria"
           atalhoGlobal
+          className="lg:w-96"
         />
-
-        <div className="flex flex-wrap gap-2">
-          {SEVERIDADES.map((severidade) => {
-            const quantidade = contagemPorSeveridade.get(severidade) ?? 0;
-            if (quantidade === 0) return null;
-
-            const { classe, Icone } = ESTILO_SEVERIDADE[severidade];
-            const marcada = colunas.filtros.severidade?.includes(
-              ROTULO_SEVERIDADE[severidade],
-            );
-
-            return (
-              <button
-                key={severidade}
-                type="button"
-                onClick={() => alternarSeveridade(severidade)}
-                aria-pressed={Boolean(marcada)}
-                className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${classe} ${
-                  marcada
-                    ? "ring-2 ring-accent ring-offset-1"
-                    : "opacity-90 hover:opacity-100"
-                }`}
-              >
-                <Icone
-                  size={TAMANHO_ICONE_FIXO}
-                  className="shrink-0"
-                  aria-hidden
-                />
-                {ROTULO_SEVERIDADE[severidade]}
-                <span className="tabular-nums">
-                  {quantidade.toLocaleString("pt-BR")}
-                </span>
-              </button>
-            );
-          })}
-        </div>
       </div>
 
       <BarraFiltros filtros={filtrosAtivos} onLimparTudo={colunas.limpar} />
@@ -191,7 +194,7 @@ export function TabelaAchados({ achados }: { achados: Achado[] }) {
         CONTEÚDO, e não de uma grade fixa — era a grade que cortava a mensagem
         no meio da frase e deixava sobrando espaço nas colunas de código.
       */}
-      <div className="relative overflow-hidden rounded-xl border border-border-subtle bg-surface-card shadow-(--shadow-card)">
+      <div className="relative overflow-hidden rounded-lg border border-border-subtle bg-surface-card">
         <div
           ref={areaRef}
           className="custom-scrollbar overflow-auto"
@@ -208,8 +211,7 @@ export function TabelaAchados({ achados }: { achados: Achado[] }) {
                   <th
                     key={coluna.id}
                     scope="col"
-                    className="sticky top-0 z-10 whitespace-nowrap bg-surface-head px-3 py-2 align-middle text-[11px] font-bold uppercase tracking-wider text-text-secondary shadow-(--shadow-header)"
-                    style={{ fontFamily: "var(--font-outfit), sans-serif" }}
+                    className="sticky top-0 z-10 whitespace-nowrap bg-surface-card px-3 py-2 align-middle text-xs font-medium text-text-secondary shadow-[inset_0_-1px_0_var(--border-subtle)]"
                   >
                     <div className="flex items-center gap-1">
                       <span>{coluna.rotulo}</span>
@@ -251,30 +253,31 @@ export function TabelaAchados({ achados }: { achados: Achado[] }) {
                       {busca ? ` para “${busca}”` : " para este filtro"}
                     </p>
                     <p className="mt-1 text-sm text-text-tertiary">
-                      Tente outro termo ou remova um filtro na barra acima.
+                      Tente outro termo, volte para &ldquo;Todos&rdquo; ou remova um
+                      filtro de coluna.
                     </p>
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
+
+          {restantes > 0 && (
+            <div className="flex justify-center border-t border-border-subtle px-3 py-2.5">
+              <button
+                type="button"
+                onClick={() => setVisiveisAteAqui((atual) => atual + PAGINA)}
+                className="rounded-md px-3 py-1.5 text-sm font-medium text-accent transition-colors hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                Mostrar mais {Math.min(PAGINA, restantes)} de{" "}
+                {restantes.toLocaleString("pt-BR")}
+              </button>
+            </div>
+          )}
         </div>
 
         <NavegacaoLateral area={areaRef} />
       </div>
-
-      {restantes > 0 && (
-        <div className="mt-2 flex justify-center">
-          <button
-            type="button"
-            onClick={() => setVisiveisAteAqui((atual) => atual + PAGINA)}
-            className="rounded-xl border border-border-subtle bg-surface-card px-5 py-2.5 text-sm font-medium text-accent shadow-(--shadow-card) transition-colors hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-          >
-            Mostrar mais {Math.min(PAGINA, restantes)} de{" "}
-            {restantes.toLocaleString("pt-BR")}
-          </button>
-        </div>
-      )}
 
       <p className="text-xs text-text-tertiary" aria-live="polite">
         {filtrados.length.toLocaleString("pt-BR")} de{" "}
@@ -300,14 +303,12 @@ export function TabelaAchados({ achados }: { achados: Achado[] }) {
  * qualifica. É o mesmo alinhamento da tabela de consulta, pela mesma razão.
  */
 function LinhaAchado({ achado }: { achado: Achado }) {
-  const { classe, Icone } = ESTILO_SEVERIDADE[achado.severidade];
+  const { texto, Icone } = ESTILO_SEVERIDADE[achado.severidade];
 
   return (
-    <tr className="border-t border-border-subtle align-top transition-colors odd:bg-surface-page/50 hover:bg-surface-hover">
+    <tr className="border-b border-border-subtle align-top transition-colors last:border-b-0 hover:bg-surface-hover/60">
       <td className={celula("severidade")}>
-        <span
-          className={`inline-flex w-fit items-center gap-1.5 rounded border px-2 py-0.5 text-[11px] font-bold ${classe}`}
-        >
+        <span className={`inline-flex items-center gap-1.5 text-sm font-medium ${texto}`}>
           <Icone size={TAMANHO_ICONE_FIXO} className="shrink-0" aria-hidden />
           {ROTULO_SEVERIDADE[achado.severidade]}
         </span>
@@ -351,14 +352,14 @@ function LinhaAchado({ achado }: { achado: Achado }) {
 
       <td className={`${celula("correcao")} text-xs`}>
         {achado.conserto === "automatica" ? (
-          <span className="inline-flex items-center gap-1 rounded bg-success-soft px-2 py-0.5 font-medium text-success">
+          <span className="inline-flex items-center gap-1 font-medium text-success">
             <Wrench size={TAMANHO_ICONE_FIXO} className="shrink-0" aria-hidden />
             Na regravação
           </span>
         ) : achado.conserto === "sugerida" ? (
           <span
-            className="inline-flex items-center gap-1 rounded bg-warning-soft px-2 py-0.5 font-medium text-warning"
-            title="A ferramenta calculou o valor, mas ele só entra no arquivo se você marcar a linha na grade acima."
+            className="inline-flex items-center gap-1 font-medium text-warning"
+            title="A ferramenta calculou o valor, mas ele só entra no arquivo se você o aprovar — na revisão de correções ou na grade de registros."
           >
             <Wrench size={TAMANHO_ICONE_FIXO} className="shrink-0" aria-hidden />
             Sugerida
@@ -386,7 +387,7 @@ function LinhaAchado({ achado }: { achado: Achado }) {
         ela era cortada numa altura fixa de linha, e o contador lia meia frase
         sobre o problema que veio conferir.
       */}
-      <td className="min-w-[24rem] px-3 py-1.5 align-top">
+      <td className="min-w-[24rem] px-3 py-2 align-top">
         <DescricaoExpandivel
           texto={achado.mensagem}
           limiteCaracteres={180}
@@ -416,7 +417,7 @@ function LinhaAchado({ achado }: { achado: Achado }) {
 
 /** Padding de célula igual ao da consulta; as estreitas não quebram linha. */
 function celula(id: string): string {
-  return `px-3 py-1.5 align-top${ESTREITAS.has(id) ? " whitespace-nowrap" : ""}`;
+  return `px-3 py-2 align-top${ESTREITAS.has(id) ? " whitespace-nowrap" : ""}`;
 }
 
 const DESCRICAO_DA_COLUNA: Record<string, string> = {

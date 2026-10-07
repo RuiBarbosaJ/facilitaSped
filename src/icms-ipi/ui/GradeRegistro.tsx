@@ -397,7 +397,7 @@ export function GradeRegistro({
             key={coluna.nome}
             scope="col"
             aria-colindex={indice + 2}
-            className={`shrink-0 border-r border-border-subtle bg-surface-head px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-text-secondary whitespace-nowrap relative ${
+            className={`shrink-0 border-r border-border-subtle bg-surface-head px-3 py-2.5 text-left text-xs font-medium text-text-secondary whitespace-nowrap relative ${
               fixa ? "sticky z-40 shadow-[2px_0_4px_-1px_rgb(0_0_0/0.08)]" : ""
             }`}
             style={{
@@ -514,7 +514,7 @@ export function GradeRegistro({
       )}
 
       <div
-        className="relative flex flex-col overflow-hidden rounded-xl border border-border-subtle bg-surface-card shadow-(--shadow-card)"
+        className="relative flex flex-col overflow-hidden rounded-lg border border-border-subtle bg-surface-card"
         style={{ height: "var(--altura-tabela)" }}
       >
         <div
@@ -559,7 +559,7 @@ export function GradeRegistro({
                 <th
                   scope="col"
                   aria-colindex={1}
-                  className="sticky left-0 z-50 flex shrink-0 items-center gap-2 border-r border-border-subtle bg-surface-head px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-text-secondary"
+                  className="sticky left-0 z-50 flex shrink-0 items-center gap-2 border-r border-border-subtle bg-surface-head px-3 py-2.5 text-left text-xs font-medium text-text-secondary"
                   style={{ width: larguraDaNumeracao }}
                 >
                   {podeSelecionar && (

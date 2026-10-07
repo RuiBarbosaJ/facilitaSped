@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Check, X } from "lucide-react";
 
 import { Cabecalho } from "@/componentes/Cabecalho";
 import { Rodape } from "@/componentes/Rodape";
@@ -60,7 +61,7 @@ export default function PaginaCriterios() {
               titulo="O que a ferramenta faz"
               resumo="Três coisas governam tudo o que vem depois. Se alguma delas não for aceitável para o seu escritório, o resto não interessa."
             >
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-6 sm:grid-cols-3">
                 {[
                   {
                     titulo: "Nada sai do seu computador",
@@ -78,9 +79,11 @@ export default function PaginaCriterios() {
                       "As regras vivem num dicionário separado do motor, em texto legível: cada uma declara a condição, a expressão, a severidade e a referência normativa. A seção 07 desta página é gerada desse dicionário — ela não pode divergir do que a ferramenta executa.",
                   },
                 ].map((c) => (
-                  <div key={c.titulo} className="rounded-md border border-border-subtle bg-surface-card p-4">
-                    <p className="text-sm font-semibold text-text-primary">{c.titulo}</p>
-                    <p className="mt-1.5 text-xs leading-relaxed text-text-secondary">{c.texto}</p>
+                  // Três princípios, lado a lado e sem moldura: são texto para
+                  // ler, e o fio de cima já os separa do resto da seção.
+                  <div key={c.titulo} className="border-t border-border-strong/40 pt-3">
+                    <p className="text-sm font-medium text-text-primary">{c.titulo}</p>
+                    <p className="mt-1.5 text-sm leading-relaxed text-text-secondary">{c.texto}</p>
                   </div>
                 ))}
               </div>
@@ -173,7 +176,7 @@ export default function PaginaCriterios() {
                   },
                 ].map((p, i) => (
                   <li key={p.t} className="flex gap-3">
-                    <span className="mt-0.5 shrink-0 rounded border border-border-subtle bg-surface-head px-1.5 py-0.5 font-mono text-[11px] text-text-tertiary tabular-nums">
+                    <span className="w-4 shrink-0 pt-px text-right font-mono text-xs text-text-tertiary tabular-nums">
                       {i + 1}
                     </span>
                     <div>
@@ -193,13 +196,13 @@ export default function PaginaCriterios() {
                 auditoria aplica:
               </Paragrafo>
 
-              <div className="overflow-hidden rounded-md border border-border-subtle">
+              <div className="overflow-hidden rounded-md border border-border-subtle bg-surface-card">
                 <table className="w-full border-collapse text-left text-sm">
                   <caption className="sr-only">
                     Tabela do SPED, regime que ela representa e os CSTs de saída e de entrada.
                   </caption>
                   <thead>
-                    <tr className="bg-surface-head text-[11px] font-bold uppercase tracking-wider text-text-secondary">
+                    <tr className="text-xs font-medium text-text-secondary">
                       <th scope="col" className="px-3 py-2">Tabela</th>
                       <th scope="col" className="px-3 py-2">Regime</th>
                       <th scope="col" className="px-3 py-2">CST na saída</th>
@@ -208,14 +211,14 @@ export default function PaginaCriterios() {
                   </thead>
                   <tbody>
                     {Object.entries(BENEFICIOS).map(([tabela, b]) => (
-                      <tr key={tabela} className="border-t border-border-subtle odd:bg-surface-page/50">
+                      <tr key={tabela} className="border-t border-border-subtle">
                         <td className="px-3 py-2 font-mono text-text-secondary">{tabela}</td>
                         <td className="px-3 py-2 text-text-primary">{b.rotulo}</td>
                         <td className="px-3 py-2 font-mono text-text-secondary">{b.csts.join(" ou ")}</td>
                         <td className="px-3 py-2 font-mono text-text-secondary">{b.cstsEntrada.join(" ou ")}</td>
                       </tr>
                     ))}
-                    <tr className="border-t border-border-subtle odd:bg-surface-page/50">
+                    <tr className="border-t border-border-subtle">
                       <td className="px-3 py-2 font-mono text-text-tertiary">—</td>
                       <td className="px-3 py-2 text-text-primary">Sem benefício</td>
                       <td className="px-3 py-2 font-mono text-text-secondary">01</td>
@@ -287,7 +290,7 @@ export default function PaginaCriterios() {
                 ferramenta <em>não</em> vai apontar.
               </Paragrafo>
 
-              <ul className="flex max-w-3xl flex-col gap-3">
+              <ul className="flex max-w-3xl flex-col gap-4">
                 {[
                   {
                     t: "Campo de valor vazio vale zero",
@@ -302,9 +305,9 @@ export default function PaginaCriterios() {
                     d: "Cancelado, denegado e inutilizado (COD_SIT 02 a 05) não entram em totalizador nenhum. Uma regra de totais que não os exclua acusa divergência em massa no varejo, que é justamente onde mais se cancela nota.",
                   },
                 ].map((a) => (
-                  <li key={a.t} className="rounded-md border border-border-subtle bg-surface-card p-4">
+                  <li key={a.t}>
                     <p className="text-sm font-medium text-text-primary">{a.t}</p>
-                    <p className="mt-1 text-sm leading-relaxed text-text-secondary">{a.d}</p>
+                    <p className="mt-0.5 text-sm leading-relaxed text-text-secondary">{a.d}</p>
                   </li>
                 ))}
               </ul>
@@ -343,8 +346,9 @@ export default function PaginaCriterios() {
               <LegendaDeConserto />
 
               <div className="grid max-w-3xl gap-3 sm:grid-cols-2">
-                <div className="rounded-md border border-border-subtle border-l-2 border-l-success bg-surface-card p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-text-primary">
+                <div className="rounded-md border border-border-subtle bg-surface-card p-4">
+                  <p className="flex items-center gap-2 text-sm font-medium text-text-primary">
+                    <Check size={15} className="shrink-0 text-success" aria-hidden />
                     Seguro corrigir sozinho
                   </p>
                   <p className="mt-1 text-xs text-text-tertiary">
@@ -357,8 +361,9 @@ export default function PaginaCriterios() {
                   </ul>
                 </div>
 
-                <div className="rounded-md border border-border-subtle border-l-2 border-l-danger bg-surface-card p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-text-primary">
+                <div className="rounded-md border border-border-subtle bg-surface-card p-4">
+                  <p className="flex items-center gap-2 text-sm font-medium text-text-primary">
+                    <X size={15} className="shrink-0 text-danger" aria-hidden />
                     Nunca corrigido sozinho
                   </p>
                   <p className="mt-1 text-xs text-text-tertiary">
